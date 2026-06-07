@@ -125,7 +125,7 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
             box-shadow:0 24px 60px rgba(15,23,42,0.10);text-align:center;max-width:420px;margin:0 auto">
   <div style="font-size:28px;font-weight:900;color:#111827;margin-bottom:6px;letter-spacing:-0.5px">Investments</div>
   <div style="font-size:13px;color:#64748b;font-weight:600;margin-bottom:40px;text-transform:uppercase;letter-spacing:0.12em">Portfolio Tracker</div>
-  <a href="{login_url}" style="text-decoration:none">
+  <a href="{login_url}" target="_self" style="text-decoration:none">
     <div style="display:flex;align-items:center;justify-content:center;gap:12px;
                 background:#ffffff;border:1px solid #d1d5db;border-radius:10px;
                 padding:13px 20px;cursor:pointer;
