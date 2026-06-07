@@ -404,7 +404,7 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 [class*="st-key-logout_nav_btn"] button:hover { background:transparent !important; color:#be123c !important; box-shadow:none !important; }
 
 /* ── Search button ── */
-[class*="st-key-_din_search_btn"] button {
+[class*="st-key-_din_search_btn_"] button {
     background:#2563eb !important;
     color:#ffffff !important;
     border:1px solid #2563eb !important;
@@ -416,7 +416,7 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
     letter-spacing:0.02em !important;
     transition:all 0.12s ease !important;
 }
-[class*="st-key-_din_search_btn"] button:hover {
+[class*="st-key-_din_search_btn_"] button:hover {
     background:#1d4ed8 !important;
     border-color:#1d4ed8 !important;
     box-shadow:0 6px 16px rgba(37,99,235,0.38) !important;
@@ -1045,6 +1045,7 @@ def add_investment_dialog():
         st.session_state.adding_platform = True
 
     ASSET_TYPES = ["Stock", "ETF", "Mutual Fund", "Bond", "Savings", "Other"]
+    v = st.session_state.get("_dv", 0)  # version — changes on every open → fresh fields
 
     # ── Asset name + search button ────────────────────────────────────────────
     st.markdown('<div class="form-section-title">Asset</div>', unsafe_allow_html=True)
@@ -1052,29 +1053,29 @@ def add_investment_dialog():
     with n_col:
         holding_name = st.text_input("Asset name",
             placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings",
-            key="_din_name")
+            key=f"_din_name_{v}")
     with s_col:
         st.markdown("<div style='height:29px'></div>", unsafe_allow_html=True)
-        do_search = st.button("Search", key="_din_search_btn", use_container_width=True)
+        do_search = st.button("Search", key=f"_din_search_btn_{v}", use_container_width=True)
 
     # ── Search: only fires when button clicked ────────────────────────────────
     if do_search:
         q = holding_name.strip()
         if len(q) >= 2:
             with st.spinner("Searching…"):
-                st.session_state["_din_results"] = search_securities(q)
-            st.session_state["_din_pick"] = 0  # reset pick
+                st.session_state[f"_din_results_{v}"] = search_securities(q)
+            st.session_state[f"_din_pick_{v}"] = 0
         else:
             st.warning("Type at least 2 characters first.")
 
     # ── Results dropdown (shown once results exist) ───────────────────────────
-    results = st.session_state.get("_din_results", [])
+    results = st.session_state.get(f"_din_results_{v}", [])
     af = {}
     if results:
         options = ["— select to autofill fields below —"] + [r["label"] for r in results]
         pick = st.selectbox("🔍 Matches", range(len(options)),
                             format_func=lambda i: options[i],
-                            key="_din_pick",
+                            key=f"_din_pick_{v}",
                             label_visibility="collapsed")
         if pick > 0:
             af = results[pick - 1]
@@ -1147,13 +1148,13 @@ def add_investment_dialog():
     st.markdown('<div class="form-section-title">Position</div>', unsafe_allow_html=True)
     row4 = st.columns([1, 1, 1, 1])
     with row4[0]:
-        quantity_raw = st.text_input("Quantity bought", placeholder="1.000000")
+        quantity_raw = st.text_input("Quantity bought", placeholder="1.000000", key=f"_din_qty_{v}")
     with row4[1]:
-        cost_price_raw = st.text_input("Cost price", placeholder="100.00")
+        cost_price_raw = st.text_input("Cost price", placeholder="100.00", key=f"_din_cost_{v}")
     with row4[2]:
-        purchase_date = st.date_input("Date bought", value=date_cls.today(), max_value=date_cls.today(), format="DD/MM/YYYY")
+        purchase_date = st.date_input("Date bought", value=date_cls.today(), max_value=date_cls.today(), format="DD/MM/YYYY", key=f"_din_date_{v}")
     with row4[3]:
-        current_price_raw = st.text_input("Current price", placeholder="150.00")
+        current_price_raw = st.text_input("Current price", placeholder="150.00", key=f"_din_cur_{v}")
 
     save_col, _ = st.columns([1, 5])
     submitted = save_col.button("Save Investment", use_container_width=True)
@@ -1222,9 +1223,8 @@ with n1:
 </div>""", unsafe_allow_html=True)
 with n_add:
     if st.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
-        st.session_state.pop("_din_results", None)
-        st.session_state.pop("_din_name", None)
-        st.session_state.pop("_din_pick", None)
+        # Bump version so all dialog widget keys change → all fields reset fresh
+        st.session_state["_dv"] = st.session_state.get("_dv", 0) + 1
         add_investment_dialog()
 with n_out:
     if st.button("Sign out", key="logout_nav_btn", use_container_width=True):
