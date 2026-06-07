@@ -403,6 +403,25 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 [class*="st-key-logout_nav_btn"] button { background:transparent !important; color:#94a3b8 !important; border:none !important; box-shadow:none !important; min-height:32px !important; font-size:12px !important; font-weight:600 !important; padding:0 !important; }
 [class*="st-key-logout_nav_btn"] button:hover { background:transparent !important; color:#be123c !important; box-shadow:none !important; }
 
+/* ── Search button ── */
+[class*="st-key-_din_search_btn"] button {
+    background:#f8fafc !important;
+    color:#374151 !important;
+    border:1px solid #e2e8f0 !important;
+    border-radius:8px !important;
+    box-shadow:none !important;
+    font-size:13px !important;
+    font-weight:600 !important;
+    min-height:48px !important;
+    letter-spacing:0.01em !important;
+}
+[class*="st-key-_din_search_btn"] button:hover {
+    background:#f1f5f9 !important;
+    border-color:#cbd5e1 !important;
+    color:#111827 !important;
+    box-shadow:none !important;
+}
+
 
 /* ── Currency dropdowns ── */
 [class*="st-key-ov_cur_select"] [data-baseweb="select"] > div,
@@ -1035,7 +1054,7 @@ def add_investment_dialog():
             key="_din_name")
     with s_col:
         st.markdown("<div style='height:29px'></div>", unsafe_allow_html=True)
-        do_search = st.button("🔍 Search", key="_din_search_btn", use_container_width=True)
+        do_search = st.button("Search", key="_din_search_btn", use_container_width=True)
 
     # ── Search: only fires when button clicked ────────────────────────────────
     if do_search:
