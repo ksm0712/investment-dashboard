@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import time
 import requests
 import yfinance as yf
-from database import conn, cursor
+from database import conn, _ex
 
 # Manual ticker overrides for ambiguous names
 TICKER_OVERRIDES = {
@@ -85,7 +85,7 @@ def _parse_date(value):
 def _status(sec_id, status, note, **updates):
     fields = {"refresh_status": status, "refresh_note": note, "refreshed_at": _now(), **updates}
     assignments = ", ".join(f"{k} = ?" for k in fields)
-    cursor.execute(f"UPDATE securities SET {assignments} WHERE id = ?", [*fields.values(), sec_id])
+    conn.execute(f"UPDATE securities SET {assignments} WHERE id = ?", [*fields.values(), sec_id])
 
 def _carry_forward(sec_id, value, value_inr, price_as_on):
     _status(sec_id, "carried_forward", "Carrying forward latest value (no live price source for this asset type).",
@@ -398,7 +398,7 @@ def _refresh_market(sec_id, name, currency, value, value_inr, quantity, price_sy
 # ── Main entry point ───────────────────────────────────────────────────────────
 
 def refresh_prices():
-    rows = cursor.execute("""
+    rows = conn.execute("""
         SELECT s.id, s.name, s.asset_type, s.currency, s.value, s.value_inr,
                s.quantity, s.price_symbol, p.date, COALESCE(s.pricing_mode, ''),
                s.isin
@@ -437,7 +437,7 @@ def refresh_prices():
 
         except Exception as exc:
             # On error, keep last known value if it's recent
-            latest = cursor.execute(
+            latest = conn.execute(
                 "SELECT latest_value, latest_value_inr, price_as_on, refresh_status FROM securities WHERE id = ?",
                 (sec_id,),
             ).fetchone()
