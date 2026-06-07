@@ -401,34 +401,26 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 [class*="st-key-logout_nav_btn"] button { background:#fff1f2 !important; color:#be123c !important; border:1px solid #fecdd3 !important; box-shadow:none !important; min-height:36px !important; font-size:13px !important; font-weight:700 !important; }
 [class*="st-key-logout_nav_btn"] button:hover { background:#ffe4e6 !important; border-color:#fca5a5 !important; }
 
-/* ── User chip popover ── */
-[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"] {
-    background:#f8fafc !important;
-    border:1px solid #e2e8f0 !important;
-    border-radius:99px !important;
-    box-shadow:none !important;
-    color:#111827 !important;
-    font-size:13px !important;
-    font-weight:600 !important;
-    min-height:38px !important;
-    height:38px !important;
-    padding:0 16px 0 6px !important;
-    gap:0 !important;
-    position:relative !important;
-}
-[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"]::before {
-    content:"" !important;
-    display:inline-block !important;
-    width:26px !important; height:26px !important;
+/* ── User avatar popover ── */
+[class*="st-key-n_avatar"] [data-testid="stPopover"] button,
+[class*="st-key-n_avatar"] button[data-testid="stBaseButton-secondary"] {
+    width:36px !important; min-width:36px !important; max-width:36px !important;
+    height:36px !important; min-height:36px !important;
     border-radius:50% !important;
-    background:#e2e8f0 !important;
-    margin-right:8px !important;
-    flex-shrink:0 !important;
-    vertical-align:middle !important;
+    padding:0 !important;
+    background:#111827 !important;
+    border:none !important;
+    box-shadow:none !important;
+    color:#ffffff !important;
+    font-size:13px !important;
+    font-weight:800 !important;
+    line-height:1 !important;
+    display:flex !important; align-items:center !important; justify-content:center !important;
 }
-[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"]:hover {
-    background:#f1f5f9 !important;
-    border-color:#cbd5e1 !important;
+[class*="st-key-n_avatar"] [data-testid="stPopover"] button:hover,
+[class*="st-key-n_avatar"] button[data-testid="stBaseButton-secondary"]:hover {
+    background:#374151 !important;
+    box-shadow:0 4px 12px rgba(15,23,42,0.18) !important;
 }
 
 /* ── Currency dropdowns ── */
@@ -1160,34 +1152,25 @@ def add_investment_dialog():
             st.rerun()
 
 # ── Top nav ────────────────────────────────────────────────────────────────────
-_pic  = _user.get("picture", "")
-_name = (_user.get("given_name") or (_user.get("name", "").split()[0] if _user.get("name") else _user.get("email", "User")))
+_pic      = _user.get("picture", "")
+_name     = (_user.get("given_name") or (_user.get("name", "").split()[0] if _user.get("name") else _user.get("email", "User")))
+_initial  = _name[0].upper() if _name else "U"
 
-n1, n4 = st.columns([3, 1])
+n1, n_add, n_avatar = st.columns([4, 1.2, 0.3])
 with n1:
-    st.markdown(f"""
-<div class="brand">
-  <div class="brand-copy">
-    <div class="brand-name">Investments</div>
-  </div>
-</div>""", unsafe_allow_html=True)
-    with st.popover(f"  {html.escape(_name)}", use_container_width=False):
-        st.markdown(f"""
-<div style="display:flex;align-items:center;gap:10px;padding:4px 0 12px">
-  <img src="{_pic}" style="width:36px;height:36px;border-radius:50%;border:1.5px solid #e5e7eb;object-fit:cover;flex-shrink:0" referrerpolicy="no-referrer"/>
-  <div style="font-size:14px;font-weight:700;color:#111827">{html.escape(_name)}</div>
-</div>""", unsafe_allow_html=True)
-        if st.button("Logout", key="logout_nav_btn", use_container_width=True):
-            logout()
-with n4:
+    st.markdown('<div class="brand"><div class="brand-copy"><div class="brand-name">Investments</div></div></div>', unsafe_allow_html=True)
+with n_add:
     if st.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
         add_investment_dialog()
-
-st.markdown(f"""<style>
-[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"]::before {{
-    background:url('{_pic}') center/cover no-repeat, #e2e8f0 !important;
-}}
-</style>""", unsafe_allow_html=True)
+with n_avatar:
+    with st.popover(_initial, use_container_width=False):
+        st.markdown(f"""
+<div style="display:flex;align-items:center;gap:10px;padding:2px 0 14px;border-bottom:1px solid #f1f5f9;margin-bottom:10px">
+  <img src="{_pic}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" referrerpolicy="no-referrer"/>
+  <span style="font-size:13px;font-weight:700;color:#111827">{html.escape(_name)}</span>
+</div>""", unsafe_allow_html=True)
+        if st.button("Sign out", key="logout_nav_btn", use_container_width=True):
+            logout()
 
 st.markdown("<hr style='margin:0 0 28px'>", unsafe_allow_html=True)
 
