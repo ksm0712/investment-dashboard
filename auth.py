@@ -52,20 +52,31 @@ def handle_auth_callback(cm, cookies):
     if st.session_state.get("user"):
         return
 
-    # Handle Google OAuth redirect
+    # Handle Google OAuth redirect — save code to session before clearing URL
     code = st.query_params.get("code")
+    if code and "oauth_code" not in st.session_state:
+        st.session_state["oauth_code"] = code
+        st.query_params.clear()
+        st.rerun()
+
+    code = st.session_state.pop("oauth_code", None)
     if not code:
         return
-    st.query_params.clear()
+
     try:
         tokens = _exchange_code(code)
         if "access_token" in tokens:
             user = _get_user_info(tokens["access_token"])
             st.session_state["user"] = user
-            cm.set(COOKIE_NAME, json.dumps(user),
-                   expires_at=datetime.now() + timedelta(days=30))
-    except Exception:
-        pass
+            try:
+                cm.set(COOKIE_NAME, json.dumps(user),
+                       expires_at=datetime.now() + timedelta(days=30))
+            except Exception:
+                pass
+        else:
+            st.session_state["auth_error"] = tokens.get("error_description") or tokens.get("error") or str(tokens)
+    except Exception as e:
+        st.session_state["auth_error"] = str(e)
     st.rerun()
 
 def is_logged_in():
@@ -94,8 +105,12 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
 </style>
 """, unsafe_allow_html=True)
 
+    err = st.session_state.pop("auth_error", None)
+
     _, mid, _ = st.columns([1, 1.2, 1])
     with mid:
+        if err:
+            st.error(f"Login failed: {err}")
         st.markdown(f"""
 <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:52px 44px 48px;
             box-shadow:0 24px 60px rgba(15,23,42,0.10);text-align:center;max-width:420px;margin:0 auto">
