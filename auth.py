@@ -125,21 +125,20 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
             box-shadow:0 24px 60px rgba(15,23,42,0.10);text-align:center;max-width:420px;margin:0 auto">
   <div style="font-size:28px;font-weight:900;color:#111827;margin-bottom:6px;letter-spacing:-0.5px">Investments</div>
   <div style="font-size:13px;color:#64748b;font-weight:600;margin-bottom:40px;text-transform:uppercase;letter-spacing:0.12em">Portfolio Tracker</div>
-  <a href="{login_url}" target="_self" style="text-decoration:none">
-    <div style="display:flex;align-items:center;justify-content:center;gap:12px;
-                background:#ffffff;border:1px solid #d1d5db;border-radius:10px;
-                padding:13px 20px;cursor:pointer;
-                box-shadow:0 2px 8px rgba(15,23,42,0.06);font-size:15px;font-weight:700;color:#111827">
-      <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-        <path fill="none" d="M0 0h48v48H0z"/>
-      </svg>
-      Continue with Google
-    </div>
-  </a>
+  <div onclick="window.top.location.href='{login_url}'"
+       style="display:flex;align-items:center;justify-content:center;gap:12px;
+              background:#ffffff;border:1px solid #d1d5db;border-radius:10px;
+              padding:13px 20px;cursor:pointer;
+              box-shadow:0 2px 8px rgba(15,23,42,0.06);font-size:15px;font-weight:700;color:#111827">
+    <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      <path fill="none" d="M0 0h48v48H0z"/>
+    </svg>
+    Continue with Google
+  </div>
   <div style="margin-top:28px;font-size:12px;color:#94a3b8;line-height:1.6">
     Your data is private to your account.<br>Sign in to access your portfolio.
   </div>
