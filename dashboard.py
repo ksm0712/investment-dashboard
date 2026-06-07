@@ -11,11 +11,20 @@ from database import (
     delete_security, update_security_fields,
 )
 from prices import refresh_prices
+from auth import handle_auth_callback, is_logged_in, get_current_user, logout, show_login_page
 
 load_dotenv()
 create_tables()
 
 st.set_page_config(layout="wide", page_title="Investments", page_icon="I")
+
+handle_auth_callback()
+if not is_logged_in():
+    show_login_page()
+    st.stop()
+
+_user    = get_current_user()
+_user_id = _user.get("sub")
 
 st.markdown("""
 <style>
@@ -387,6 +396,10 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 }
 [class*="st-key-back_btn"] button { background:#f1f5f9 !important; color:#374151 !important; border:1px solid #e5e7eb !important; box-shadow:none !important; min-height:36px !important; font-size:13px !important; font-weight:700 !important; }
 [class*="st-key-back_btn"] button:hover { background:#e2e8f0 !important; }
+
+/* ── Logout button ── */
+[class*="st-key-logout_nav_btn"] button { background:#f8fafc !important; color:#374151 !important; border:1px solid #e5e7eb !important; box-shadow:none !important; min-height:44px !important; font-size:13px !important; font-weight:700 !important; }
+[class*="st-key-logout_nav_btn"] button:hover { background:#fee2e2 !important; color:#be123c !important; border-color:#fecaca !important; }
 
 /* ── Currency dropdowns ── */
 [class*="st-key-ov_cur_select"] [data-baseweb="select"] > div,
@@ -994,8 +1007,8 @@ if "editing_security_id" not in st.session_state: st.session_state.editing_secur
 if "confirm_delete_id" not in st.session_state: st.session_state.confirm_delete_id = None
 if "selected_country_filter" not in st.session_state: st.session_state.selected_country_filter = None
 
-portfolios = get_all_portfolios()
-all_df = get_securities()
+portfolios = get_all_portfolios(user_id=_user_id)
+all_df = get_securities(user_id=_user_id)
 if "selected_country_filter" not in st.session_state:
     st.session_state.selected_country_filter = "All Countries"
 
@@ -1090,7 +1103,7 @@ def add_investment_dialog():
             currency = MARKET_CURRENCY.get(country_choice, "USD")
             pricing_mode = "auto" if auto_asset else "manual"
             current_value = current_price * quantity
-            portfolio_id = create_manual_portfolio("Investments", datetime.now().strftime("%d-%b-%Y"))
+            portfolio_id = create_manual_portfolio("Investments", datetime.now().strftime("%d-%b-%Y"), user_id=_user_id)
             add_manual_security(
                 portfolio_id=portfolio_id,
                 name=cleaned_holding,
@@ -1121,9 +1134,27 @@ n1, n4 = st.columns([1, 1])
 with n1:
     st.markdown('<div class="brand"><div class="brand-copy"><div class="brand-name">Investments</div></div></div>', unsafe_allow_html=True)
 with n4:
-    _, btn_col = st.columns([1, 1])
-    if btn_col.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
-        add_investment_dialog()
+    _pic   = _user.get("picture", "")
+    _name  = _user.get("given_name") or _user.get("name", "").split()[0] if _user.get("name") else _user.get("email", "User")
+    _email = _user.get("email", "")
+    user_col, btn_col = st.columns([1, 1])
+    with user_col:
+        st.markdown(f"""
+<div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;height:44px;padding-right:4px">
+  <img src="{_pic}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #e5e7eb;object-fit:cover" referrerpolicy="no-referrer"/>
+  <div style="line-height:1.2;min-width:0">
+    <div style="font-size:13px;font-weight:700;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">{html.escape(_name)}</div>
+    <div style="font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">{html.escape(_email)}</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+    with btn_col:
+        logout_col, add_col = st.columns([1, 2])
+        with logout_col:
+            if st.button("Logout", key="logout_nav_btn", use_container_width=True):
+                logout()
+        with add_col:
+            if st.button("＋  Add", key="add_inv_btn", use_container_width=True):
+                add_investment_dialog()
 
 st.markdown("<hr style='margin:0 0 28px'>", unsafe_allow_html=True)
 

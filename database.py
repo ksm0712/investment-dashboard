@@ -11,7 +11,8 @@ def create_tables():
             id INTEGER PRIMARY KEY,
             name TEXT,
             date TEXT,
-            UNIQUE(name, date)
+            user_id TEXT,
+            UNIQUE(name, date, user_id)
         )
     """)
     cursor.execute("""
@@ -28,7 +29,16 @@ def create_tables():
         )
     """)
     _ensure_security_columns()
+    _ensure_portfolio_columns()
     _backfill_price_as_on()
+    conn.commit()
+
+def _ensure_portfolio_columns():
+    existing = {
+        row[1] for row in cursor.execute("PRAGMA table_info(portfolios)").fetchall()
+    }
+    if "user_id" not in existing:
+        cursor.execute("ALTER TABLE portfolios ADD COLUMN user_id TEXT")
     conn.commit()
 
 def _ensure_security_columns():
@@ -94,14 +104,14 @@ def _backfill_price_as_on():
     """)
     conn.commit()
 
-def save_portfolio(portfolio):
+def save_portfolio(portfolio, user_id=None):
     cursor.execute(
-        "INSERT OR IGNORE INTO portfolios (name, date) VALUES (?, ?)",
-        (portfolio.name, portfolio.date)
+        "INSERT OR IGNORE INTO portfolios (name, date, user_id) VALUES (?, ?, ?)",
+        (portfolio.name, portfolio.date, user_id)
     )
     row = cursor.execute(
-        "SELECT id FROM portfolios WHERE name = ? AND date = ?",
-        (portfolio.name, portfolio.date)
+        "SELECT id FROM portfolios WHERE name = ? AND date = ? AND (user_id = ? OR user_id IS NULL)",
+        (portfolio.name, portfolio.date, user_id)
     ).fetchone()
     portfolio_id = row[0]
 
@@ -128,8 +138,11 @@ def _date_key(date_text):
     except (TypeError, ValueError):
         return datetime.min
 
-def get_all_portfolios():
-    rows = cursor.execute("SELECT id, name, date FROM portfolios").fetchall()
+def get_all_portfolios(user_id=None):
+    rows = cursor.execute(
+        "SELECT id, name, date FROM portfolios WHERE user_id = ? OR user_id IS NULL",
+        (user_id,)
+    ).fetchall()
     return sorted(rows, key=lambda row: (_date_key(row[2]), row[0]), reverse=True)
 
 def rename_portfolio(portfolio_id, name):
@@ -144,15 +157,15 @@ def delete_portfolio(portfolio_id):
     cursor.execute("DELETE FROM portfolios WHERE id = ?", (portfolio_id,))
     conn.commit()
 
-def create_manual_portfolio(name, date):
+def create_manual_portfolio(name, date, user_id=None):
     cleaned = name.strip()
     cursor.execute(
-        "INSERT OR IGNORE INTO portfolios (name, date) VALUES (?, ?)",
-        (cleaned, date),
+        "INSERT OR IGNORE INTO portfolios (name, date, user_id) VALUES (?, ?, ?)",
+        (cleaned, date, user_id),
     )
     row = cursor.execute(
-        "SELECT id FROM portfolios WHERE name = ? AND date = ?",
-        (cleaned, date),
+        "SELECT id FROM portfolios WHERE name = ? AND date = ? AND (user_id = ? OR user_id IS NULL)",
+        (cleaned, date, user_id),
     ).fetchone()
     conn.commit()
     return row[0]
@@ -197,7 +210,7 @@ def add_manual_security(
     ))
     conn.commit()
 
-def get_securities(portfolio_id=None):
+def get_securities(portfolio_id=None, user_id=None):
     if portfolio_id:
         rows = cursor.execute("""
             SELECT
@@ -235,7 +248,8 @@ def get_securities(portfolio_id=None):
             p.name, p.date, p.id
         FROM securities s
         JOIN portfolios p ON s.portfolio_id = p.id
-    """).fetchall()
+        WHERE (p.user_id = ? OR p.user_id IS NULL)
+    """, (user_id,)).fetchall()
     df = pd.DataFrame(rows, columns=[
         "ID", "Name", "Asset Type", "Currency", "Value", "Value INR", "Annual Income", "Return %",
         "Quantity", "Ticker", "ISIN", "Price Source", "Price Symbol",
@@ -263,13 +277,15 @@ def get_securities(portfolio_id=None):
         "Country", "Pricing Mode", "Exchange", "Cost Price", "Purchase Date", "Source"
     ]].reset_index(drop=True)
 
-def get_refresh_setup_items():
+def get_refresh_setup_items(user_id=None):
     rows = cursor.execute("""
-        SELECT id, name, asset_type, currency, value, refresh_status
-        FROM securities
-        WHERE refresh_status IN ('needs_mapping', 'needs_quantity', 'needs_review')
-        ORDER BY asset_type, name
-    """).fetchall()
+        SELECT s.id, s.name, s.asset_type, s.currency, s.value, s.refresh_status
+        FROM securities s
+        JOIN portfolios p ON s.portfolio_id = p.id
+        WHERE s.refresh_status IN ('needs_mapping', 'needs_quantity', 'needs_review')
+          AND (p.user_id = ? OR p.user_id IS NULL)
+        ORDER BY s.asset_type, s.name
+    """, (user_id,)).fetchall()
     return pd.DataFrame(rows, columns=[
         "ID", "Name", "Asset Type", "Currency", "Current Value", "Refresh Status"
     ])
