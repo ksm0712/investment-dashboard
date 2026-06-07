@@ -3,7 +3,6 @@ import json
 import urllib.parse
 import requests
 import streamlit as st
-import extra_streamlit_components as stx
 from datetime import datetime, timedelta
 
 GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -13,10 +12,6 @@ COOKIE_NAME      = "inv_session"
 
 def _redirect_uri():
     return os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8501")
-
-@st.cache_resource
-def _cookie_manager():
-    return stx.CookieManager()
 
 def get_login_url():
     params = {
@@ -44,22 +39,20 @@ def _get_user_info(access_token):
                         timeout=10)
     return resp.json()
 
-def handle_auth_callback():
-    cm = _cookie_manager()
-
-    # Restore session from cookie on reload
-    if not st.session_state.get("user"):
-        try:
-            raw = cm.get(COOKIE_NAME)
-            if raw:
+def handle_auth_callback(cm, cookies):
+    # Restore session from cookie (cookies is a dict on 2nd+ render, None on 1st)
+    if not st.session_state.get("user") and cookies:
+        raw = cookies.get(COOKIE_NAME)
+        if raw:
+            try:
                 st.session_state["user"] = json.loads(raw)
-        except Exception:
-            pass
+            except Exception:
+                pass
 
     if st.session_state.get("user"):
         return
 
-    # Handle OAuth redirect
+    # Handle Google OAuth redirect
     code = st.query_params.get("code")
     if not code:
         return
@@ -81,9 +74,9 @@ def is_logged_in():
 def get_current_user():
     return st.session_state.get("user")
 
-def logout():
+def logout(cm):
     try:
-        _cookie_manager().delete(COOKIE_NAME)
+        cm.delete(COOKIE_NAME)
     except Exception:
         pass
     st.session_state.clear()
