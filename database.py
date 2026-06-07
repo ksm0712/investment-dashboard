@@ -138,19 +138,24 @@ def get_securities(portfolio_id=None, user_id=None):
             "Quantity","Ticker","ISIN","Price Source","Price Symbol","Latest Price","Price As Of",
             "Refresh Status","Refresh Note","Refreshed At","Country","Pricing Mode","Exchange",
             "Cost Price","Purchase Date","Source"]
-    SELECT = """SELECT s.id,s.name,s.asset_type,s.currency,
+    BASE = """FROM securities s JOIN portfolios p ON s.portfolio_id=p.id"""
+    if portfolio_id:
+        rows = _ex(f"""SELECT s.id,s.name,s.asset_type,s.currency,
                 COALESCE(s.latest_value,s.value),COALESCE(s.latest_value_inr,s.value_inr),
                 s.annual_income,s.return_pct,s.quantity,s.ticker,s.isin,s.price_source,
                 s.price_symbol,s.latest_price,COALESCE(s.price_as_on,p.date),
                 s.refresh_status,s.refresh_note,s.refreshed_at,s.country,s.pricing_mode,
-                s.exchange,s.cost_price,s.purchase_date,p.name
-                FROM securities s JOIN portfolios p ON s.portfolio_id=p.id"""
-    if portfolio_id:
-        rows = _ex(SELECT + " WHERE s.portfolio_id=?", (portfolio_id,)).fetchall()
+                s.exchange,s.cost_price,s.purchase_date,p.name {BASE}
+                WHERE s.portfolio_id=?""", (portfolio_id,)).fetchall()
         return pd.DataFrame(rows, columns=COLS)
 
-    rows = _ex(SELECT + ",p.date,p.id WHERE (p.user_id=? OR p.user_id IS NULL)",
-               (user_id,)).fetchall()
+    rows = _ex(f"""SELECT s.id,s.name,s.asset_type,s.currency,
+                COALESCE(s.latest_value,s.value),COALESCE(s.latest_value_inr,s.value_inr),
+                s.annual_income,s.return_pct,s.quantity,s.ticker,s.isin,s.price_source,
+                s.price_symbol,s.latest_price,COALESCE(s.price_as_on,p.date),
+                s.refresh_status,s.refresh_note,s.refreshed_at,s.country,s.pricing_mode,
+                s.exchange,s.cost_price,s.purchase_date,p.name,p.date,p.id {BASE}
+                WHERE (p.user_id=? OR p.user_id IS NULL)""", (user_id,)).fetchall()
     df = pd.DataFrame(rows, columns=COLS + ["Portfolio Date","Portfolio ID"])
     if df.empty:
         return df.drop(columns=["Portfolio Date","Portfolio ID"])
