@@ -28,10 +28,10 @@ def create_tables():
             return_pct REAL
         )
     """)
+    conn.commit()
     _ensure_security_columns()
     _ensure_portfolio_columns()
     _backfill_price_as_on()
-    conn.commit()
 
 def _ensure_portfolio_columns():
     c = conn.cursor()
