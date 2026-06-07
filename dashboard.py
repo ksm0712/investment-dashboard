@@ -398,8 +398,22 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 [class*="st-key-back_btn"] button:hover { background:#e2e8f0 !important; }
 
 /* ── Logout button ── */
-[class*="st-key-logout_nav_btn"] button { background:#f8fafc !important; color:#374151 !important; border:1px solid #e5e7eb !important; box-shadow:none !important; min-height:44px !important; font-size:13px !important; font-weight:700 !important; }
-[class*="st-key-logout_nav_btn"] button:hover { background:#fee2e2 !important; color:#be123c !important; border-color:#fecaca !important; }
+[class*="st-key-logout_nav_btn"] button { background:#fff1f2 !important; color:#be123c !important; border:1px solid #fecdd3 !important; box-shadow:none !important; min-height:36px !important; font-size:13px !important; font-weight:700 !important; }
+[class*="st-key-logout_nav_btn"] button:hover { background:#ffe4e6 !important; border-color:#fca5a5 !important; }
+
+/* ── User popover trigger ── */
+[class*="st-key-add_inv_btn"] ~ div [data-testid="stPopover"] > button,
+[data-testid="stPopover"]:has(+ * [class*="st-key-logout_nav_btn"]) > button {
+    background:transparent !important; border:none !important; box-shadow:none !important;
+    color:#374151 !important; font-size:13px !important; font-weight:700 !important;
+    min-height:32px !important; padding:0 8px !important;
+}
+[data-testid="stPopover"]:has([class*="st-key-logout_nav_btn"]) > button {
+    background:transparent !important; border:1px solid #e5e7eb !important;
+    border-radius:99px !important; box-shadow:none !important;
+    color:#374151 !important; font-size:13px !important; font-weight:700 !important;
+    min-height:34px !important; padding:0 12px !important;
+}
 
 /* ── Currency dropdowns ── */
 [class*="st-key-ov_cur_select"] [data-baseweb="select"] > div,
@@ -1130,31 +1144,28 @@ def add_investment_dialog():
             st.rerun()
 
 # ── Top nav ────────────────────────────────────────────────────────────────────
-n1, n4 = st.columns([1, 1])
+_pic  = _user.get("picture", "")
+_name = (_user.get("given_name") or (_user.get("name", "").split()[0] if _user.get("name") else _user.get("email", "User")))
+
+n1, n4 = st.columns([3, 1])
 with n1:
-    st.markdown('<div class="brand"><div class="brand-copy"><div class="brand-name">Investments</div></div></div>', unsafe_allow_html=True)
-with n4:
-    _pic   = _user.get("picture", "")
-    _name  = _user.get("given_name") or _user.get("name", "").split()[0] if _user.get("name") else _user.get("email", "User")
-    _email = _user.get("email", "")
-    user_col, btn_col = st.columns([1, 1])
-    with user_col:
-        st.markdown(f"""
-<div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;height:44px;padding-right:4px">
-  <img src="{_pic}" style="width:30px;height:30px;border-radius:50%;border:1.5px solid #e5e7eb;object-fit:cover" referrerpolicy="no-referrer"/>
-  <div style="line-height:1.2;min-width:0">
-    <div style="font-size:13px;font-weight:700;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">{html.escape(_name)}</div>
-    <div style="font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">{html.escape(_email)}</div>
+    st.markdown(f"""
+<div class="brand">
+  <div class="brand-copy">
+    <div class="brand-name">Investments</div>
   </div>
 </div>""", unsafe_allow_html=True)
-    with btn_col:
-        logout_col, add_col = st.columns([1, 2])
-        with logout_col:
-            if st.button("Logout", key="logout_nav_btn", use_container_width=True):
-                logout()
-        with add_col:
-            if st.button("＋  Add", key="add_inv_btn", use_container_width=True):
-                add_investment_dialog()
+    with st.popover(f"{'  ' + html.escape(_name)}", use_container_width=False):
+        st.markdown(f"""
+<div style="display:flex;align-items:center;gap:10px;padding:4px 0 12px">
+  <img src="{_pic}" style="width:36px;height:36px;border-radius:50%;border:1.5px solid #e5e7eb;object-fit:cover;flex-shrink:0" referrerpolicy="no-referrer"/>
+  <div style="font-size:14px;font-weight:700;color:#111827">{html.escape(_name)}</div>
+</div>""", unsafe_allow_html=True)
+        if st.button("Logout", key="logout_nav_btn", use_container_width=True):
+            logout()
+with n4:
+    if st.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
+        add_investment_dialog()
 
 st.markdown("<hr style='margin:0 0 28px'>", unsafe_allow_html=True)
 
