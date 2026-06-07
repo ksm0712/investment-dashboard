@@ -4,6 +4,7 @@ import urllib.parse
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+import streamlit.components.v2 as components_v2
 from datetime import datetime, timedelta
 
 GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -128,10 +129,8 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
   <div style="font-size:13px;color:#64748b;font-weight:600;margin-bottom:40px;text-transform:uppercase;letter-spacing:0.12em">Portfolio Tracker</div>
 </div>
 """, unsafe_allow_html=True)
-        components.html(f"""
+        components_v2.html(f"""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap');
-  body {{ margin:0; background:transparent; }}
   .btn {{
     display:flex;align-items:center;justify-content:center;gap:12px;
     background:#ffffff;border:1px solid #d1d5db;border-radius:10px;
@@ -140,10 +139,11 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
     font-size:15px;font-weight:700;color:#111827;
     font-family:'Inter',sans-serif;
     width:100%;box-sizing:border-box;
+    text-decoration:none;
   }}
   .btn:hover {{ background:#f9fafb; }}
 </style>
-<div class="btn" onclick="window.top.location.href='{login_url}'">
+<a class="btn" href="{login_url}" onclick="window.location.href='{login_url}';return false;">
   <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
     <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
     <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -152,5 +152,5 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
     <path fill="none" d="M0 0h48v48H0z"/>
   </svg>
   Continue with Google
-</div>
-""", height=60)
+</a>
+""")
