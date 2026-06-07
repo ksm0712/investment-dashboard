@@ -1063,19 +1063,23 @@ def add_investment_dialog():
         q = holding_name.strip()
         if len(q) >= 2:
             with st.spinner("Searching…"):
-                st.session_state[f"_din_results_{v}"] = search_securities(q)
-            st.session_state[f"_din_pick_{v}"] = 0
+                results_fresh = search_securities(q)
+            # Bump search_id so the pick selectbox key changes → always fresh at index 0
+            sid = st.session_state.get(f"_din_sid_{v}", 0) + 1
+            st.session_state[f"_din_sid_{v}"] = sid
+            st.session_state[f"_din_results_{v}_{sid}"] = results_fresh
         else:
             st.warning("Type at least 2 characters first.")
 
     # ── Results dropdown (shown once results exist) ───────────────────────────
-    results = st.session_state.get(f"_din_results_{v}", [])
+    sid = st.session_state.get(f"_din_sid_{v}", 0)
+    results = st.session_state.get(f"_din_results_{v}_{sid}", [])
     af = {}
     if results:
         options = ["— select to autofill fields below —"] + [r["label"] for r in results]
         pick = st.selectbox("🔍 Matches", range(len(options)),
                             format_func=lambda i: options[i],
-                            key=f"_din_pick_{v}",
+                            key=f"_din_pick_{v}_{sid}",
                             label_visibility="collapsed")
         if pick > 0:
             af = results[pick - 1]
