@@ -401,27 +401,6 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 [class*="st-key-logout_nav_btn"] button { background:#fff1f2 !important; color:#be123c !important; border:1px solid #fecdd3 !important; box-shadow:none !important; min-height:36px !important; font-size:13px !important; font-weight:700 !important; }
 [class*="st-key-logout_nav_btn"] button:hover { background:#ffe4e6 !important; border-color:#fca5a5 !important; }
 
-/* ── User avatar popover ── */
-[class*="st-key-n_avatar"] [data-testid="stPopover"] button,
-[class*="st-key-n_avatar"] button[data-testid="stBaseButton-secondary"] {
-    width:36px !important; min-width:36px !important; max-width:36px !important;
-    height:36px !important; min-height:36px !important;
-    border-radius:50% !important;
-    padding:0 !important;
-    background:#111827 !important;
-    border:none !important;
-    box-shadow:none !important;
-    color:#ffffff !important;
-    font-size:13px !important;
-    font-weight:800 !important;
-    line-height:1 !important;
-    display:flex !important; align-items:center !important; justify-content:center !important;
-}
-[class*="st-key-n_avatar"] [data-testid="stPopover"] button:hover,
-[class*="st-key-n_avatar"] button[data-testid="stBaseButton-secondary"]:hover {
-    background:#374151 !important;
-    box-shadow:0 4px 12px rgba(15,23,42,0.18) !important;
-}
 
 /* ── Currency dropdowns ── */
 [class*="st-key-ov_cur_select"] [data-baseweb="select"] > div,
@@ -1152,20 +1131,41 @@ def add_investment_dialog():
             st.rerun()
 
 # ── Top nav ────────────────────────────────────────────────────────────────────
-_pic      = _user.get("picture", "")
-_name     = (_user.get("given_name") or (_user.get("name", "").split()[0] if _user.get("name") else _user.get("email", "User")))
-_initial  = _name[0].upper() if _name else "U"
+_pic  = _user.get("picture", "")
+_name = (_user.get("given_name") or (_user.get("name", "").split()[0] if _user.get("name") else _user.get("email", "User")))
 
-n1, n_add, n_avatar = st.columns([4, 1.2, 0.3])
+# Inject avatar pic into the popover button via CSS
+st.markdown(f"""<style>
+[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"] {{
+    width:36px !important; min-width:36px !important;
+    height:36px !important; min-height:36px !important;
+    border-radius:50% !important;
+    padding:0 !important;
+    border:2px solid #e5e7eb !important;
+    box-shadow:none !important;
+    background:url('{_pic}') center/cover no-repeat, #e2e8f0 !important;
+    color:transparent !important;
+    font-size:0 !important;
+}}
+[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"] * {{
+    display:none !important;
+}}
+[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"]:hover {{
+    border-color:#9ca3af !important;
+    box-shadow:0 2px 8px rgba(15,23,42,0.14) !important;
+}}
+</style>""", unsafe_allow_html=True)
+
+n1, n_add, n_avatar = st.columns([4, 1.2, 0.28])
 with n1:
     st.markdown('<div class="brand"><div class="brand-copy"><div class="brand-name">Investments</div></div></div>', unsafe_allow_html=True)
 with n_add:
     if st.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
         add_investment_dialog()
 with n_avatar:
-    with st.popover(_initial, use_container_width=False):
+    with st.popover(" ", use_container_width=False):
         st.markdown(f"""
-<div style="display:flex;align-items:center;gap:10px;padding:2px 0 14px;border-bottom:1px solid #f1f5f9;margin-bottom:10px">
+<div style="display:flex;align-items:center;gap:10px;padding:2px 0 12px;border-bottom:1px solid #f1f5f9;margin-bottom:10px">
   <img src="{_pic}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" referrerpolicy="no-referrer"/>
   <span style="font-size:13px;font-weight:700;color:#111827">{html.escape(_name)}</span>
 </div>""", unsafe_allow_html=True)
