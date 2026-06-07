@@ -12,6 +12,7 @@ from database import (
 )
 from prices import refresh_prices
 from auth import handle_auth_callback, is_logged_in, get_current_user, logout, show_login_page
+from search import search_securities
 
 load_dotenv()
 create_tables()
@@ -1023,14 +1024,53 @@ def add_investment_dialog():
     if not platform_lookup:
         st.session_state.adding_platform = True
 
+    # ── Autofill state ────────────────────────────────────────────────────────
+    af = st.session_state.get("_dialog_af", {})
+    ASSET_TYPES = ["Stock", "ETF", "Mutual Fund", "Bond", "Savings", "Other"]
+    af_type_idx    = ASSET_TYPES.index(af["asset_type"]) if af.get("asset_type") in ASSET_TYPES else 0
+    af_country_idx = MARKETS.index(af["country"])       if af.get("country")     in MARKETS    else 0
+
     st.markdown('<div class="form-section-title">Asset</div>', unsafe_allow_html=True)
     row1 = st.columns([1.6, 1, 1])
     with row1[0]:
-        holding_name = st.text_input("Asset name", placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings")
+        holding_name = st.text_input("Asset name",
+            placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings",
+            key="_din_name")
     with row1[1]:
-        asset_type = st.selectbox("Asset type", ["Stock", "ETF", "Mutual Fund", "Bond", "Savings", "Other"])
+        asset_type = st.selectbox("Asset type", ASSET_TYPES, index=af_type_idx)
     with row1[2]:
-        country_choice = st.selectbox("Market / country", MARKETS)
+        country_choice = st.selectbox("Market / country", MARKETS, index=af_country_idx)
+
+    # ── Live search & autofill ────────────────────────────────────────────────
+    query = holding_name.strip()
+    if len(query) >= 2:
+        with st.spinner("Searching…"):
+            results = search_securities(query)
+        if results:
+            options = ["— select a result to autofill below —"] + [r["label"] for r in results]
+            cur_label = af.get("label", "")
+            try:
+                cur_idx = next(i + 1 for i, r in enumerate(results) if r["label"] == cur_label)
+            except StopIteration:
+                cur_idx = 0
+            pick = st.selectbox("🔍 Matches", range(len(options)), index=cur_idx,
+                                format_func=lambda i: options[i], key="_din_pick",
+                                label_visibility="collapsed")
+            if pick > 0:
+                chosen = results[pick - 1]
+                if chosen.get("label") != af.get("label"):
+                    st.session_state["_dialog_af"] = chosen
+                    st.rerun()
+            if af:
+                st.markdown(
+                    f'<div class="form-hint" style="color:#047857">✓ Autofilled from search — edit any field below if needed</div>',
+                    unsafe_allow_html=True)
+        else:
+            if af:
+                st.markdown(
+                    f'<div class="form-hint" style="color:#047857">✓ Using: {af.get("name","")}</div>',
+                    unsafe_allow_html=True)
+
     if country_choice == CUSTOM_MARKET:
         country = st.text_input("Custom market / country", placeholder="Brazil, Indonesia, Luxembourg")
         exchange_market = CUSTOM_MARKET
@@ -1038,32 +1078,49 @@ def add_investment_dialog():
         country = country_choice
         exchange_market = country_choice
 
+    # ── Identifier ────────────────────────────────────────────────────────────
+    af_ticker   = af.get("ticker", "")
+    af_id_type  = af.get("identifier_type", "Ticker")
+    af_exchange = af.get("exchange", "")
+
     st.markdown('<div class="form-section-title">Identifier</div>', unsafe_allow_html=True)
     exchange = None
     raw_symbol = None
     identifier_type = None
     if asset_type in {"Stock", "ETF"}:
+        id_types = ["Ticker", "ISIN"]
+        id_idx = id_types.index(af_id_type) if af_id_type in id_types else 0
         row2 = st.columns([1, 1.2, 1])
         with row2[0]:
-            identifier_type = st.selectbox("Identifier type", ["Ticker", "ISIN"])
+            identifier_type = st.selectbox("Identifier type", id_types, index=id_idx)
         with row2[1]:
-            raw_symbol = st.text_input(identifier_type, placeholder="AAPL, VOO, D05" if identifier_type == "Ticker" else "US0378331005")
+            raw_symbol = st.text_input(identifier_type,
+                value=af_ticker,
+                placeholder="AAPL, VOO, D05" if identifier_type == "Ticker" else "US0378331005")
         with row2[2]:
             if identifier_type == "Ticker":
-                exchange = st.selectbox("Exchange", MARKET_EXCHANGES.get(exchange_market, ["Other"]))
+                avail_exch = MARKET_EXCHANGES.get(exchange_market, ["Other"])
+                exch_idx = avail_exch.index(af_exchange) if af_exchange in avail_exch else 0
+                exchange = st.selectbox("Exchange", avail_exch, index=exch_idx)
     elif asset_type == "Mutual Fund":
+        mf_id_types = ["Scheme code", "ISIN"]
+        mf_id_idx = mf_id_types.index(af_id_type) if af_id_type in mf_id_types else 0
         row2 = st.columns([1, 1.2, 1])
         with row2[0]:
-            identifier_type = st.selectbox("Identifier type", ["Scheme code", "ISIN"])
+            identifier_type = st.selectbox("Identifier type", mf_id_types, index=mf_id_idx)
         with row2[1]:
-            raw_symbol = st.text_input(identifier_type, placeholder="120716" if identifier_type == "Scheme code" else "INF789F1AUX7")
+            raw_symbol = st.text_input(identifier_type,
+                value=af_ticker,
+                placeholder="120716" if identifier_type == "Scheme code" else "INF789F1AUX7")
     elif asset_type == "Bond":
         row2 = st.columns([1, 1.2, 1])
         with row2[0]:
             identifier_type = st.selectbox("Identifier type", ["None", "ISIN"])
         with row2[1]:
             if identifier_type == "ISIN":
-                raw_symbol = st.text_input("ISIN", placeholder="US1234567890")
+                raw_symbol = st.text_input("ISIN",
+                    value=af_ticker,
+                    placeholder="US1234567890")
     else:
         st.markdown('<div class="form-hint">No ticker or scheme code needed for this asset type.</div>', unsafe_allow_html=True)
 
@@ -1145,6 +1202,9 @@ with n1:
 </div>""", unsafe_allow_html=True)
 with n_add:
     if st.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
+        st.session_state.pop("_dialog_af", None)
+        st.session_state.pop("_din_name", None)
+        st.session_state.pop("_din_pick", None)
         add_investment_dialog()
 with n_out:
     if st.button("Sign out", key="logout_nav_btn", use_container_width=True):
