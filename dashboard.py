@@ -401,18 +401,34 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 [class*="st-key-logout_nav_btn"] button { background:#fff1f2 !important; color:#be123c !important; border:1px solid #fecdd3 !important; box-shadow:none !important; min-height:36px !important; font-size:13px !important; font-weight:700 !important; }
 [class*="st-key-logout_nav_btn"] button:hover { background:#ffe4e6 !important; border-color:#fca5a5 !important; }
 
-/* ── User popover trigger ── */
-[class*="st-key-add_inv_btn"] ~ div [data-testid="stPopover"] > button,
-[data-testid="stPopover"]:has(+ * [class*="st-key-logout_nav_btn"]) > button {
-    background:transparent !important; border:none !important; box-shadow:none !important;
-    color:#374151 !important; font-size:13px !important; font-weight:700 !important;
-    min-height:32px !important; padding:0 8px !important;
+/* ── User chip popover ── */
+[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"] {
+    background:#f8fafc !important;
+    border:1px solid #e2e8f0 !important;
+    border-radius:99px !important;
+    box-shadow:none !important;
+    color:#111827 !important;
+    font-size:13px !important;
+    font-weight:600 !important;
+    min-height:38px !important;
+    height:38px !important;
+    padding:0 16px 0 6px !important;
+    gap:0 !important;
+    position:relative !important;
 }
-[data-testid="stPopover"]:has([class*="st-key-logout_nav_btn"]) > button {
-    background:transparent !important; border:1px solid #e5e7eb !important;
-    border-radius:99px !important; box-shadow:none !important;
-    color:#374151 !important; font-size:13px !important; font-weight:700 !important;
-    min-height:34px !important; padding:0 12px !important;
+[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"]::before {
+    content:"" !important;
+    display:inline-block !important;
+    width:26px !important; height:26px !important;
+    border-radius:50% !important;
+    background:#e2e8f0 !important;
+    margin-right:8px !important;
+    flex-shrink:0 !important;
+    vertical-align:middle !important;
+}
+[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"]:hover {
+    background:#f1f5f9 !important;
+    border-color:#cbd5e1 !important;
 }
 
 /* ── Currency dropdowns ── */
@@ -1155,7 +1171,7 @@ with n1:
     <div class="brand-name">Investments</div>
   </div>
 </div>""", unsafe_allow_html=True)
-    with st.popover(f"{'  ' + html.escape(_name)}", use_container_width=False):
+    with st.popover(f"  {html.escape(_name)}", use_container_width=False):
         st.markdown(f"""
 <div style="display:flex;align-items:center;gap:10px;padding:4px 0 12px">
   <img src="{_pic}" style="width:36px;height:36px;border-radius:50%;border:1.5px solid #e5e7eb;object-fit:cover;flex-shrink:0" referrerpolicy="no-referrer"/>
@@ -1166,6 +1182,12 @@ with n1:
 with n4:
     if st.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
         add_investment_dialog()
+
+st.markdown(f"""<style>
+[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"]::before {{
+    background:url('{_pic}') center/cover no-repeat, #e2e8f0 !important;
+}}
+</style>""", unsafe_allow_html=True)
 
 st.markdown("<hr style='margin:0 0 28px'>", unsafe_allow_html=True)
 
