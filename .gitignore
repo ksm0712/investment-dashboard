@@ -16,3 +16,5 @@ env/
 
 # OS
 .DS_Store
+.session.json
+.amfi_cache.json

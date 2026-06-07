@@ -11,11 +11,22 @@ from database import (
     delete_security, update_security_fields,
 )
 from prices import refresh_prices
+from auth import handle_auth_callback, is_logged_in, get_current_user, logout, show_login_page
+from search import search_securities
 
 load_dotenv()
 create_tables()
 
 st.set_page_config(layout="wide", page_title="Investments", page_icon="I")
+
+handle_auth_callback()
+
+if not is_logged_in():
+    show_login_page()
+    st.stop()
+
+_user    = get_current_user()
+_user_id = _user.get("sub")
 
 st.markdown("""
 <style>
@@ -387,6 +398,31 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 }
 [class*="st-key-back_btn"] button { background:#f1f5f9 !important; color:#374151 !important; border:1px solid #e5e7eb !important; box-shadow:none !important; min-height:36px !important; font-size:13px !important; font-weight:700 !important; }
 [class*="st-key-back_btn"] button:hover { background:#e2e8f0 !important; }
+
+/* ── Sign out button ── */
+[class*="st-key-logout_nav_btn"] button { background:transparent !important; color:#94a3b8 !important; border:none !important; box-shadow:none !important; min-height:32px !important; font-size:12px !important; font-weight:600 !important; padding:0 !important; }
+[class*="st-key-logout_nav_btn"] button:hover { background:transparent !important; color:#be123c !important; box-shadow:none !important; }
+
+/* ── Search button ── */
+[class*="st-key-_din_search_btn_"] button {
+    background:#2563eb !important;
+    color:#ffffff !important;
+    border:1px solid #2563eb !important;
+    border-radius:8px !important;
+    box-shadow:0 4px 12px rgba(37,99,235,0.28) !important;
+    font-size:13px !important;
+    font-weight:700 !important;
+    min-height:48px !important;
+    letter-spacing:0.02em !important;
+    transition:all 0.12s ease !important;
+}
+[class*="st-key-_din_search_btn_"] button:hover {
+    background:#1d4ed8 !important;
+    border-color:#1d4ed8 !important;
+    box-shadow:0 6px 16px rgba(37,99,235,0.38) !important;
+    color:#ffffff !important;
+}
+
 
 /* ── Currency dropdowns ── */
 [class*="st-key-ov_cur_select"] [data-baseweb="select"] > div,
@@ -994,8 +1030,8 @@ if "editing_security_id" not in st.session_state: st.session_state.editing_secur
 if "confirm_delete_id" not in st.session_state: st.session_state.confirm_delete_id = None
 if "selected_country_filter" not in st.session_state: st.session_state.selected_country_filter = None
 
-portfolios = get_all_portfolios()
-all_df = get_securities()
+portfolios = get_all_portfolios(user_id=_user_id)
+all_df = get_securities(user_id=_user_id)
 if "selected_country_filter" not in st.session_state:
     st.session_state.selected_country_filter = "All Countries"
 
@@ -1008,14 +1044,61 @@ def add_investment_dialog():
     if not platform_lookup:
         st.session_state.adding_platform = True
 
+    ASSET_TYPES = ["Stock", "ETF", "Mutual Fund", "Bond", "Savings", "Other"]
+    v = st.session_state.get("_dv", 0)  # version — changes on every open → fresh fields
+
+    # ── Asset name + search button ────────────────────────────────────────────
     st.markdown('<div class="form-section-title">Asset</div>', unsafe_allow_html=True)
-    row1 = st.columns([1.6, 1, 1])
+    n_col, s_col = st.columns([5, 1])
+    name_key = f"_din_name_{v}"
+    with n_col:
+        holding_name = st.text_input("Asset name",
+            placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings",
+            key=name_key)
+    with s_col:
+        st.markdown("<div style='height:29px'></div>", unsafe_allow_html=True)
+        do_search = st.button("Search", key=f"_din_search_btn_{v}", use_container_width=True)
+
+    # ── Search: fires when button clicked ─────────────────────────────────────
+    if do_search:
+        q = st.session_state.get(name_key, holding_name).strip()
+        if q:
+            with st.spinner("Searching…"):
+                results_fresh = search_securities(q)
+            # Bump search_id so the pick selectbox key changes → always fresh at index 0
+            sid = st.session_state.get(f"_din_sid_{v}", 0) + 1
+            st.session_state[f"_din_sid_{v}"] = sid
+            st.session_state[f"_din_results_{v}_{sid}"] = results_fresh
+        else:
+            st.session_state[f"_din_sid_{v}"] = 0
+
+    # ── Results dropdown (shown once results exist) ───────────────────────────
+    sid = st.session_state.get(f"_din_sid_{v}", 0)
+    results = st.session_state.get(f"_din_results_{v}_{sid}", [])
+    af = {}
+    if results:
+        options = ["Select an asset to fill details"] + [r["label"] for r in results]
+        pick = st.selectbox("🔍 Matches", range(len(options)),
+                            format_func=lambda i: options[i],
+                            key=f"_din_pick_{v}_{sid}",
+                            label_visibility="collapsed")
+        if pick > 0:
+            af = results[pick - 1]
+            st.markdown(
+                '<div class="form-hint" style="color:#047857;margin-top:-4px">'
+                '✓ Autofilled — edit any field below if needed</div>',
+                unsafe_allow_html=True)
+
+    # ── Asset type + country (use af values when available) ───────────────────
+    af_type_idx    = ASSET_TYPES.index(af["asset_type"]) if af.get("asset_type") in ASSET_TYPES else 0
+    af_country_idx = MARKETS.index(af["country"])        if af.get("country")    in MARKETS    else 0
+
+    row1 = st.columns([1, 1])
     with row1[0]:
-        holding_name = st.text_input("Asset name", placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings")
+        asset_type = st.selectbox("Asset type", ASSET_TYPES, index=af_type_idx)
     with row1[1]:
-        asset_type = st.selectbox("Asset type", ["Stock", "ETF", "Mutual Fund", "Bond", "Savings", "Other"])
-    with row1[2]:
-        country_choice = st.selectbox("Market / country", MARKETS)
+        country_choice = st.selectbox("Market / country", MARKETS, index=af_country_idx)
+
     if country_choice == CUSTOM_MARKET:
         country = st.text_input("Custom market / country", placeholder="Brazil, Indonesia, Luxembourg")
         exchange_market = CUSTOM_MARKET
@@ -1023,45 +1106,60 @@ def add_investment_dialog():
         country = country_choice
         exchange_market = country_choice
 
+    # ── Identifier (use af values when available) ─────────────────────────────
+    af_ticker   = af.get("ticker", "")
+    af_id_type  = af.get("identifier_type", "Ticker")
+    af_exchange = af.get("exchange", "")
+
     st.markdown('<div class="form-section-title">Identifier</div>', unsafe_allow_html=True)
     exchange = None
     raw_symbol = None
     identifier_type = None
     if asset_type in {"Stock", "ETF"}:
+        id_types = ["Ticker", "ISIN"]
+        id_idx = id_types.index(af_id_type) if af_id_type in id_types else 0
         row2 = st.columns([1, 1.2, 1])
         with row2[0]:
-            identifier_type = st.selectbox("Identifier type", ["Ticker", "ISIN"])
+            identifier_type = st.selectbox("Identifier type", id_types, index=id_idx)
         with row2[1]:
-            raw_symbol = st.text_input(identifier_type, placeholder="AAPL, VOO, D05" if identifier_type == "Ticker" else "US0378331005")
+            raw_symbol = st.text_input(identifier_type,
+                value=af_ticker,
+                placeholder="AAPL, VOO, D05" if identifier_type == "Ticker" else "US0378331005")
         with row2[2]:
             if identifier_type == "Ticker":
-                exchange = st.selectbox("Exchange", MARKET_EXCHANGES.get(exchange_market, ["Other"]))
+                avail_exch = MARKET_EXCHANGES.get(exchange_market, ["Other"])
+                exch_idx = avail_exch.index(af_exchange) if af_exchange in avail_exch else 0
+                exchange = st.selectbox("Exchange", avail_exch, index=exch_idx)
     elif asset_type == "Mutual Fund":
+        mf_id_types = ["Scheme code", "ISIN"]
+        mf_id_idx = mf_id_types.index(af_id_type) if af_id_type in mf_id_types else 0
         row2 = st.columns([1, 1.2, 1])
         with row2[0]:
-            identifier_type = st.selectbox("Identifier type", ["Scheme code", "ISIN"])
+            identifier_type = st.selectbox("Identifier type", mf_id_types, index=mf_id_idx)
         with row2[1]:
-            raw_symbol = st.text_input(identifier_type, placeholder="120716" if identifier_type == "Scheme code" else "INF789F1AUX7")
+            raw_symbol = st.text_input(identifier_type,
+                value=af_ticker,
+                placeholder="120716" if identifier_type == "Scheme code" else "INF789F1AUX7")
     elif asset_type == "Bond":
         row2 = st.columns([1, 1.2, 1])
         with row2[0]:
             identifier_type = st.selectbox("Identifier type", ["None", "ISIN"])
         with row2[1]:
             if identifier_type == "ISIN":
-                raw_symbol = st.text_input("ISIN", placeholder="US1234567890")
+                raw_symbol = st.text_input("ISIN", value=af_ticker, placeholder="US1234567890")
     else:
         st.markdown('<div class="form-hint">No ticker or scheme code needed for this asset type.</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="form-section-title">Position</div>', unsafe_allow_html=True)
     row4 = st.columns([1, 1, 1, 1])
     with row4[0]:
-        quantity_raw = st.text_input("Quantity bought", placeholder="1.000000")
+        quantity_raw = st.text_input("Quantity bought", placeholder="1.000000", key=f"_din_qty_{v}")
     with row4[1]:
-        cost_price_raw = st.text_input("Cost price", placeholder="100.00")
+        cost_price_raw = st.text_input("Cost price", placeholder="100.00", key=f"_din_cost_{v}")
     with row4[2]:
-        purchase_date = st.date_input("Date bought", value=date_cls.today(), max_value=date_cls.today(), format="DD/MM/YYYY")
+        purchase_date = st.date_input("Date bought", value=date_cls.today(), max_value=date_cls.today(), format="DD/MM/YYYY", key=f"_din_date_{v}")
     with row4[3]:
-        current_price_raw = st.text_input("Current price", placeholder="150.00")
+        current_price_raw = st.text_input("Current price", placeholder="150.00", key=f"_din_cur_{v}")
 
     save_col, _ = st.columns([1, 5])
     submitted = save_col.button("Save Investment", use_container_width=True)
@@ -1090,7 +1188,7 @@ def add_investment_dialog():
             currency = MARKET_CURRENCY.get(country_choice, "USD")
             pricing_mode = "auto" if auto_asset else "manual"
             current_value = current_price * quantity
-            portfolio_id = create_manual_portfolio("Investments", datetime.now().strftime("%d-%b-%Y"))
+            portfolio_id = create_manual_portfolio("Investments", datetime.now().strftime("%d-%b-%Y"), user_id=_user_id)
             add_manual_security(
                 portfolio_id=portfolio_id,
                 name=cleaned_holding,
@@ -1117,13 +1215,25 @@ def add_investment_dialog():
             st.rerun()
 
 # ── Top nav ────────────────────────────────────────────────────────────────────
-n1, n4 = st.columns([1, 1])
+_pic  = _user.get("picture", "")
+_name = (_user.get("given_name") or (_user.get("name", "").split()[0] if _user.get("name") else _user.get("email", "User")))
+
+n1, n_add, n_out = st.columns([4, 1.2, 0.6])
 with n1:
-    st.markdown('<div class="brand"><div class="brand-copy"><div class="brand-name">Investments</div></div></div>', unsafe_allow_html=True)
-with n4:
-    _, btn_col = st.columns([1, 1])
-    if btn_col.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
+    st.markdown(f"""
+<div style="display:flex;align-items:center;gap:12px">
+  <img src="{_pic}" referrerpolicy="no-referrer"
+       style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1.5px solid #e5e7eb;flex-shrink:0"/>
+  <span class="brand-name">Investments</span>
+</div>""", unsafe_allow_html=True)
+with n_add:
+    if st.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
+        # Bump version so all dialog widget keys change → all fields reset fresh
+        st.session_state["_dv"] = st.session_state.get("_dv", 0) + 1
         add_investment_dialog()
+with n_out:
+    if st.button("Sign out", key="logout_nav_btn", use_container_width=True):
+        logout()
 
 st.markdown("<hr style='margin:0 0 28px'>", unsafe_allow_html=True)
 
