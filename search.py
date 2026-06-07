@@ -140,7 +140,7 @@ def _score_fund(query_words, fund_name):
     score = 0
     matched = 0
     for qw in query_words:
-        if len(qw) < 2:
+        if len(qw) < 1:
             continue
         if qw in name_words:
             score += 4; matched += 1
@@ -160,7 +160,7 @@ def search_amfi(query: str):
     if not funds:
         return []
 
-    query_words = [w for w in _expand_query(query).split() if len(w) >= 2]
+    query_words = [w for w in _expand_query(query).split() if len(w) >= 1]
     if not query_words:
         return []
 
@@ -245,7 +245,7 @@ def search_securities(query: str):
     AMFI results come first since they use direct AMFI data for price refresh.
     """
     q = query.strip()
-    if len(q) < 2:
+    if not q:
         return []
 
     amfi_results  = search_amfi(q)

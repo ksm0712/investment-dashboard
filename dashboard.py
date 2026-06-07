@@ -1050,18 +1050,19 @@ def add_investment_dialog():
     # ── Asset name + search button ────────────────────────────────────────────
     st.markdown('<div class="form-section-title">Asset</div>', unsafe_allow_html=True)
     n_col, s_col = st.columns([5, 1])
+    name_key = f"_din_name_{v}"
     with n_col:
         holding_name = st.text_input("Asset name",
             placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings",
-            key=f"_din_name_{v}")
+            key=name_key)
     with s_col:
         st.markdown("<div style='height:29px'></div>", unsafe_allow_html=True)
         do_search = st.button("Search", key=f"_din_search_btn_{v}", use_container_width=True)
 
-    # ── Search: only fires when button clicked ────────────────────────────────
+    # ── Search: fires when button clicked ─────────────────────────────────────
     if do_search:
-        q = holding_name.strip()
-        if len(q) >= 2:
+        q = st.session_state.get(name_key, holding_name).strip()
+        if q:
             with st.spinner("Searching…"):
                 results_fresh = search_securities(q)
             # Bump search_id so the pick selectbox key changes → always fresh at index 0
@@ -1069,14 +1070,14 @@ def add_investment_dialog():
             st.session_state[f"_din_sid_{v}"] = sid
             st.session_state[f"_din_results_{v}_{sid}"] = results_fresh
         else:
-            pass  # do nothing if empty
+            st.session_state[f"_din_sid_{v}"] = 0
 
     # ── Results dropdown (shown once results exist) ───────────────────────────
     sid = st.session_state.get(f"_din_sid_{v}", 0)
     results = st.session_state.get(f"_din_results_{v}_{sid}", [])
     af = {}
     if results:
-        options = ["— select to autofill fields below —"] + [r["label"] for r in results]
+        options = ["Select an asset to fill details"] + [r["label"] for r in results]
         pick = st.selectbox("🔍 Matches", range(len(options)),
                             format_func=lambda i: options[i],
                             key=f"_din_pick_{v}_{sid}",
