@@ -34,16 +34,16 @@ def create_tables():
     conn.commit()
 
 def _ensure_portfolio_columns():
-    existing = {
-        row[1] for row in cursor.execute("PRAGMA table_info(portfolios)").fetchall()
-    }
+    c = conn.cursor()
+    existing = {row[1] for row in c.execute("PRAGMA table_info(portfolios)").fetchall()}
     if "user_id" not in existing:
-        cursor.execute("ALTER TABLE portfolios ADD COLUMN user_id TEXT")
+        c.execute("ALTER TABLE portfolios ADD COLUMN user_id TEXT")
     conn.commit()
 
 def _ensure_security_columns():
+    c = conn.cursor()
     existing = {
-        row[1] for row in cursor.execute("PRAGMA table_info(securities)").fetchall()
+        row[1] for row in c.execute("PRAGMA table_info(securities)").fetchall()
     }
     columns = {
         "quantity": "REAL",
@@ -66,9 +66,9 @@ def _ensure_security_columns():
     }
     for name, definition in columns.items():
         if name not in existing:
-            cursor.execute(f"ALTER TABLE securities ADD COLUMN {name} {definition}")
+            c.execute(f"ALTER TABLE securities ADD COLUMN {name} {definition}")
     conn.commit()
-    cursor.execute("""
+    c.execute("""
         UPDATE securities
         SET pricing_mode = CASE
             WHEN asset_type IN ('Stock', 'ETF') THEN 'auto'
@@ -77,7 +77,7 @@ def _ensure_security_columns():
         END
         WHERE pricing_mode IS NULL OR TRIM(pricing_mode) = ''
     """)
-    cursor.execute("""
+    c.execute("""
         UPDATE securities
         SET country = CASE
             WHEN currency = 'INR' THEN 'India'
