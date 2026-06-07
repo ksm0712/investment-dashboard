@@ -1,14 +1,22 @@
 import os
+import json
 import urllib.parse
 import requests
 import streamlit as st
+import extra_streamlit_components as stx
+from datetime import datetime, timedelta
 
 GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_INFO_URL  = "https://www.googleapis.com/oauth2/v3/userinfo"
+COOKIE_NAME      = "inv_session"
 
 def _redirect_uri():
     return os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8501")
+
+@st.cache_resource
+def _cookie_manager():
+    return stx.CookieManager()
 
 def get_login_url():
     params = {
@@ -37,9 +45,21 @@ def _get_user_info(access_token):
     return resp.json()
 
 def handle_auth_callback():
-    """Call once at the very top of the app to process the OAuth redirect."""
+    cm = _cookie_manager()
+
+    # Restore session from cookie on reload
+    if not st.session_state.get("user"):
+        try:
+            raw = cm.get(COOKIE_NAME)
+            if raw:
+                st.session_state["user"] = json.loads(raw)
+        except Exception:
+            pass
+
     if st.session_state.get("user"):
         return
+
+    # Handle OAuth redirect
     code = st.query_params.get("code")
     if not code:
         return
@@ -49,6 +69,8 @@ def handle_auth_callback():
         if "access_token" in tokens:
             user = _get_user_info(tokens["access_token"])
             st.session_state["user"] = user
+            cm.set(COOKIE_NAME, json.dumps(user),
+                   expires_at=datetime.now() + timedelta(days=30))
     except Exception:
         pass
     st.rerun()
@@ -60,6 +82,10 @@ def get_current_user():
     return st.session_state.get("user")
 
 def logout():
+    try:
+        _cookie_manager().delete(COOKIE_NAME)
+    except Exception:
+        pass
     st.session_state.clear()
     st.rerun()
 
@@ -85,7 +111,7 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
   <a href="{login_url}" style="text-decoration:none">
     <div style="display:flex;align-items:center;justify-content:center;gap:12px;
                 background:#ffffff;border:1px solid #d1d5db;border-radius:10px;
-                padding:13px 20px;cursor:pointer;transition:all 0.15s;
+                padding:13px 20px;cursor:pointer;
                 box-shadow:0 2px 8px rgba(15,23,42,0.06);font-size:15px;font-weight:700;color:#111827">
       <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
