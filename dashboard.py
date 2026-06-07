@@ -397,9 +397,9 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 [class*="st-key-back_btn"] button { background:#f1f5f9 !important; color:#374151 !important; border:1px solid #e5e7eb !important; box-shadow:none !important; min-height:36px !important; font-size:13px !important; font-weight:700 !important; }
 [class*="st-key-back_btn"] button:hover { background:#e2e8f0 !important; }
 
-/* ── Logout button ── */
-[class*="st-key-logout_nav_btn"] button { background:#fff1f2 !important; color:#be123c !important; border:1px solid #fecdd3 !important; box-shadow:none !important; min-height:36px !important; font-size:13px !important; font-weight:700 !important; }
-[class*="st-key-logout_nav_btn"] button:hover { background:#ffe4e6 !important; border-color:#fca5a5 !important; }
+/* ── Sign out button ── */
+[class*="st-key-logout_nav_btn"] button { background:transparent !important; color:#94a3b8 !important; border:none !important; box-shadow:none !important; min-height:32px !important; font-size:12px !important; font-weight:600 !important; padding:0 !important; }
+[class*="st-key-logout_nav_btn"] button:hover { background:transparent !important; color:#be123c !important; box-shadow:none !important; }
 
 
 /* ── Currency dropdowns ── */
@@ -1134,43 +1134,20 @@ def add_investment_dialog():
 _pic  = _user.get("picture", "")
 _name = (_user.get("given_name") or (_user.get("name", "").split()[0] if _user.get("name") else _user.get("email", "User")))
 
-# Inject avatar pic into the popover button via CSS
-st.markdown(f"""<style>
-[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"] {{
-    width:36px !important; min-width:36px !important;
-    height:36px !important; min-height:36px !important;
-    border-radius:50% !important;
-    padding:0 !important;
-    border:2px solid #e5e7eb !important;
-    box-shadow:none !important;
-    background:url('{_pic}') center/cover no-repeat, #e2e8f0 !important;
-    color:transparent !important;
-    font-size:0 !important;
-}}
-[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"] * {{
-    display:none !important;
-}}
-[data-testid="stPopover"] button[data-testid="stBaseButton-secondary"]:hover {{
-    border-color:#9ca3af !important;
-    box-shadow:0 2px 8px rgba(15,23,42,0.14) !important;
-}}
-</style>""", unsafe_allow_html=True)
-
-n1, n_add, n_avatar = st.columns([4, 1.2, 0.28])
+n1, n_add, n_out = st.columns([4, 1.2, 0.6])
 with n1:
-    st.markdown('<div class="brand"><div class="brand-copy"><div class="brand-name">Investments</div></div></div>', unsafe_allow_html=True)
+    st.markdown(f"""
+<div style="display:flex;align-items:center;gap:12px">
+  <img src="{_pic}" referrerpolicy="no-referrer"
+       style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1.5px solid #e5e7eb;flex-shrink:0"/>
+  <span class="brand-name">Investments</span>
+</div>""", unsafe_allow_html=True)
 with n_add:
     if st.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
         add_investment_dialog()
-with n_avatar:
-    with st.popover(" ", use_container_width=False):
-        st.markdown(f"""
-<div style="display:flex;align-items:center;gap:10px;padding:2px 0 12px;border-bottom:1px solid #f1f5f9;margin-bottom:10px">
-  <img src="{_pic}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" referrerpolicy="no-referrer"/>
-  <span style="font-size:13px;font-weight:700;color:#111827">{html.escape(_name)}</span>
-</div>""", unsafe_allow_html=True)
-        if st.button("Sign out", key="logout_nav_btn", use_container_width=True):
-            logout()
+with n_out:
+    if st.button("Sign out", key="logout_nav_btn", use_container_width=True):
+        logout()
 
 st.markdown("<hr style='margin:0 0 28px'>", unsafe_allow_html=True)
 
