@@ -1069,7 +1069,7 @@ def add_investment_dialog():
             st.session_state[f"_din_sid_{v}"] = sid
             st.session_state[f"_din_results_{v}_{sid}"] = results_fresh
         else:
-            st.warning("Type at least 2 characters first.")
+            pass  # do nothing if empty
 
     # ── Results dropdown (shown once results exist) ───────────────────────────
     sid = st.session_state.get(f"_din_sid_{v}", 0)
