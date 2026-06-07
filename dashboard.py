@@ -1024,52 +1024,54 @@ def add_investment_dialog():
     if not platform_lookup:
         st.session_state.adding_platform = True
 
-    # ── Autofill state ────────────────────────────────────────────────────────
-    af = st.session_state.get("_dialog_af", {})
     ASSET_TYPES = ["Stock", "ETF", "Mutual Fund", "Bond", "Savings", "Other"]
-    af_type_idx    = ASSET_TYPES.index(af["asset_type"]) if af.get("asset_type") in ASSET_TYPES else 0
-    af_country_idx = MARKETS.index(af["country"])       if af.get("country")     in MARKETS    else 0
 
+    # ── Asset name + search button ────────────────────────────────────────────
     st.markdown('<div class="form-section-title">Asset</div>', unsafe_allow_html=True)
-    row1 = st.columns([1.6, 1, 1])
-    with row1[0]:
+    n_col, s_col = st.columns([5, 1])
+    with n_col:
         holding_name = st.text_input("Asset name",
             placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings",
             key="_din_name")
-    with row1[1]:
-        asset_type = st.selectbox("Asset type", ASSET_TYPES, index=af_type_idx)
-    with row1[2]:
-        country_choice = st.selectbox("Market / country", MARKETS, index=af_country_idx)
+    with s_col:
+        st.markdown("<div style='height:29px'></div>", unsafe_allow_html=True)
+        do_search = st.button("🔍 Search", key="_din_search_btn", use_container_width=True)
 
-    # ── Live search & autofill ────────────────────────────────────────────────
-    query = holding_name.strip()
-    if len(query) >= 2:
-        with st.spinner("Searching…"):
-            results = search_securities(query)
-        if results:
-            options = ["— select a result to autofill below —"] + [r["label"] for r in results]
-            cur_label = af.get("label", "")
-            try:
-                cur_idx = next(i + 1 for i, r in enumerate(results) if r["label"] == cur_label)
-            except StopIteration:
-                cur_idx = 0
-            pick = st.selectbox("🔍 Matches", range(len(options)), index=cur_idx,
-                                format_func=lambda i: options[i], key="_din_pick",
-                                label_visibility="collapsed")
-            if pick > 0:
-                chosen = results[pick - 1]
-                if chosen.get("label") != af.get("label"):
-                    st.session_state["_dialog_af"] = chosen
-                    st.rerun()
-            if af:
-                st.markdown(
-                    f'<div class="form-hint" style="color:#047857">✓ Autofilled from search — edit any field below if needed</div>',
-                    unsafe_allow_html=True)
+    # ── Search: only fires when button clicked ────────────────────────────────
+    if do_search:
+        q = holding_name.strip()
+        if len(q) >= 2:
+            with st.spinner("Searching…"):
+                st.session_state["_din_results"] = search_securities(q)
+            st.session_state["_din_pick"] = 0  # reset pick
         else:
-            if af:
-                st.markdown(
-                    f'<div class="form-hint" style="color:#047857">✓ Using: {af.get("name","")}</div>',
-                    unsafe_allow_html=True)
+            st.warning("Type at least 2 characters first.")
+
+    # ── Results dropdown (shown once results exist) ───────────────────────────
+    results = st.session_state.get("_din_results", [])
+    af = {}
+    if results:
+        options = ["— select to autofill fields below —"] + [r["label"] for r in results]
+        pick = st.selectbox("🔍 Matches", range(len(options)),
+                            format_func=lambda i: options[i],
+                            key="_din_pick",
+                            label_visibility="collapsed")
+        if pick > 0:
+            af = results[pick - 1]
+            st.markdown(
+                '<div class="form-hint" style="color:#047857;margin-top:-4px">'
+                '✓ Autofilled — edit any field below if needed</div>',
+                unsafe_allow_html=True)
+
+    # ── Asset type + country (use af values when available) ───────────────────
+    af_type_idx    = ASSET_TYPES.index(af["asset_type"]) if af.get("asset_type") in ASSET_TYPES else 0
+    af_country_idx = MARKETS.index(af["country"])        if af.get("country")    in MARKETS    else 0
+
+    row1 = st.columns([1, 1])
+    with row1[0]:
+        asset_type = st.selectbox("Asset type", ASSET_TYPES, index=af_type_idx)
+    with row1[1]:
+        country_choice = st.selectbox("Market / country", MARKETS, index=af_country_idx)
 
     if country_choice == CUSTOM_MARKET:
         country = st.text_input("Custom market / country", placeholder="Brazil, Indonesia, Luxembourg")
@@ -1078,7 +1080,7 @@ def add_investment_dialog():
         country = country_choice
         exchange_market = country_choice
 
-    # ── Identifier ────────────────────────────────────────────────────────────
+    # ── Identifier (use af values when available) ─────────────────────────────
     af_ticker   = af.get("ticker", "")
     af_id_type  = af.get("identifier_type", "Ticker")
     af_exchange = af.get("exchange", "")
@@ -1118,9 +1120,7 @@ def add_investment_dialog():
             identifier_type = st.selectbox("Identifier type", ["None", "ISIN"])
         with row2[1]:
             if identifier_type == "ISIN":
-                raw_symbol = st.text_input("ISIN",
-                    value=af_ticker,
-                    placeholder="US1234567890")
+                raw_symbol = st.text_input("ISIN", value=af_ticker, placeholder="US1234567890")
     else:
         st.markdown('<div class="form-hint">No ticker or scheme code needed for this asset type.</div>', unsafe_allow_html=True)
 
@@ -1202,7 +1202,7 @@ with n1:
 </div>""", unsafe_allow_html=True)
 with n_add:
     if st.button("＋  Add Investment", key="add_inv_btn", use_container_width=True):
-        st.session_state.pop("_dialog_af", None)
+        st.session_state.pop("_din_results", None)
         st.session_state.pop("_din_name", None)
         st.session_state.pop("_din_pick", None)
         add_investment_dialog()
