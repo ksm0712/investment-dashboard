@@ -4,7 +4,6 @@ from datetime import datetime, date as date_cls
 import plotly.graph_objects as go
 import pandas as pd
 import requests
-import extra_streamlit_components as stx
 from dotenv import load_dotenv
 from database import (
     create_tables, get_securities, get_all_portfolios,
@@ -19,16 +18,9 @@ create_tables()
 
 st.set_page_config(layout="wide", page_title="Investments", page_icon="I")
 
-# CookieManager MUST render before any st.stop() so it loads its JS
-_cm = stx.CookieManager(key="inv_auth")
-_all_cookies = _cm.get_all()
-
-handle_auth_callback(_cm, _all_cookies)
+handle_auth_callback()
 
 if not is_logged_in():
-    if _all_cookies is None:
-        # Cookies haven't loaded yet — blank frame, auto-rerenders
-        st.stop()
     show_login_page()
     st.stop()
 
@@ -1156,7 +1148,7 @@ with n_add:
         add_investment_dialog()
 with n_out:
     if st.button("Sign out", key="logout_nav_btn", use_container_width=True):
-        logout(_cm)
+        logout()
 
 st.markdown("<hr style='margin:0 0 28px'>", unsafe_allow_html=True)
 

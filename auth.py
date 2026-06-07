@@ -8,10 +8,31 @@ from datetime import datetime, timedelta
 GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_INFO_URL  = "https://www.googleapis.com/oauth2/v3/userinfo"
-COOKIE_NAME      = "inv_session"
+SESSION_FILE     = ".session.json"
 
 def _redirect_uri():
     return os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8501")
+
+def _load_session():
+    try:
+        if os.path.exists(SESSION_FILE):
+            with open(SESSION_FILE) as f:
+                data = json.load(f)
+            if datetime.fromisoformat(data["expires"]) > datetime.now():
+                return data["user"]
+    except Exception:
+        pass
+    return None
+
+def _save_session(user):
+    with open(SESSION_FILE, "w") as f:
+        json.dump({"user": user, "expires": (datetime.now() + timedelta(days=30)).isoformat()}, f)
+
+def _delete_session():
+    try:
+        os.remove(SESSION_FILE)
+    except Exception:
+        pass
 
 def get_login_url():
     params = {
@@ -39,20 +60,17 @@ def _get_user_info(access_token):
                         timeout=10)
     return resp.json()
 
-def handle_auth_callback(cm, cookies):
-    # Restore session from cookie (cookies is a dict on 2nd+ render, None on 1st)
-    if not st.session_state.get("user") and cookies:
-        raw = cookies.get(COOKIE_NAME)
-        if raw:
-            try:
-                st.session_state["user"] = json.loads(raw)
-            except Exception:
-                pass
+def handle_auth_callback():
+    # Restore from local session file on every page load
+    if not st.session_state.get("user"):
+        user = _load_session()
+        if user:
+            st.session_state["user"] = user
 
     if st.session_state.get("user"):
         return
 
-    # Handle Google OAuth redirect — save code to session before clearing URL
+    # Save OAuth code to session before clearing URL
     code = st.query_params.get("code")
     if code and "oauth_code" not in st.session_state:
         st.session_state["oauth_code"] = code
@@ -68,11 +86,7 @@ def handle_auth_callback(cm, cookies):
         if "access_token" in tokens:
             user = _get_user_info(tokens["access_token"])
             st.session_state["user"] = user
-            try:
-                cm.set(COOKIE_NAME, json.dumps(user),
-                       expires_at=datetime.now() + timedelta(days=30))
-            except Exception:
-                pass
+            _save_session(user)
         else:
             st.session_state["auth_error"] = tokens.get("error_description") or tokens.get("error") or str(tokens)
     except Exception as e:
@@ -85,16 +99,14 @@ def is_logged_in():
 def get_current_user():
     return st.session_state.get("user")
 
-def logout(cm):
-    try:
-        cm.delete(COOKIE_NAME)
-    except Exception:
-        pass
+def logout():
+    _delete_session()
     st.session_state.clear()
     st.rerun()
 
 def show_login_page():
     login_url = get_login_url()
+    err = st.session_state.pop("auth_error", None)
     st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -104,9 +116,6 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
 .block-container{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:0!important}
 </style>
 """, unsafe_allow_html=True)
-
-    err = st.session_state.pop("auth_error", None)
-
     _, mid, _ = st.columns([1, 1.2, 1])
     with mid:
         if err:
