@@ -405,21 +405,22 @@ html, body, [class*="css"], * { font-family: 'Inter', sans-serif !important; }
 
 /* ── Search button ── */
 [class*="st-key-_din_search_btn"] button {
-    background:#f8fafc !important;
-    color:#374151 !important;
-    border:1px solid #e2e8f0 !important;
+    background:#2563eb !important;
+    color:#ffffff !important;
+    border:1px solid #2563eb !important;
     border-radius:8px !important;
-    box-shadow:none !important;
+    box-shadow:0 4px 12px rgba(37,99,235,0.28) !important;
     font-size:13px !important;
-    font-weight:600 !important;
+    font-weight:700 !important;
     min-height:48px !important;
-    letter-spacing:0.01em !important;
+    letter-spacing:0.02em !important;
+    transition:all 0.12s ease !important;
 }
 [class*="st-key-_din_search_btn"] button:hover {
-    background:#f1f5f9 !important;
-    border-color:#cbd5e1 !important;
-    color:#111827 !important;
-    box-shadow:none !important;
+    background:#1d4ed8 !important;
+    border-color:#1d4ed8 !important;
+    box-shadow:0 6px 16px rgba(37,99,235,0.38) !important;
+    color:#ffffff !important;
 }
 
 
