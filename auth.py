@@ -1,15 +1,20 @@
 import os
 import json
 import html
+import hmac
+import hashlib
+import base64
 import urllib.parse
 import requests
 import streamlit as st
+import extra_streamlit_components as stx
 from datetime import datetime, timedelta
 
 GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_INFO_URL  = "https://www.googleapis.com/oauth2/v3/userinfo"
 SESSION_FILE     = ".session.json"
+SESSION_COOKIE   = "investment_dashboard_user"
 
 def _secret(name, default=""):
     if os.getenv(name):
@@ -42,12 +47,67 @@ def _oauth_value(auth_name, env_name=None, default=""):
 def _use_local_session_file():
     return not _native_auth_configured()
 
+def _cookie_manager():
+    return stx.CookieManager(key="investment_dashboard_auth_cookie")
+
+def _cookie_secret():
+    return _auth_secret("cookie_secret") or _secret("COOKIE_SECRET", "local-dev-cookie-secret")
+
+def _sign(value):
+    return hmac.new(_cookie_secret().encode("utf-8"), value.encode("utf-8"), hashlib.sha256).hexdigest()
+
+def _encode_cookie(user):
+    payload = {
+        "user": {
+            "sub": user.get("sub"),
+            "email": user.get("email"),
+            "name": user.get("name"),
+            "picture": user.get("picture"),
+        },
+        "expires": (datetime.now() + timedelta(days=30)).isoformat(),
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    value = base64.urlsafe_b64encode(raw).decode("ascii")
+    return f"{value}.{_sign(value)}"
+
+def _decode_cookie(value):
+    try:
+        payload, sig = str(value).rsplit(".", 1)
+        if not hmac.compare_digest(_sign(payload), sig):
+            return None
+        data = json.loads(base64.urlsafe_b64decode(payload.encode("ascii")))
+        if datetime.fromisoformat(data["expires"]) <= datetime.now():
+            return None
+        return data.get("user")
+    except Exception:
+        return None
+
+def _load_cookie_session():
+    value = _cookie_manager().get(SESSION_COOKIE)
+    return _decode_cookie(value) if value else None
+
+def _save_cookie_session(user):
+    expires_at = datetime.now() + timedelta(days=30)
+    _cookie_manager().set(
+        SESSION_COOKIE,
+        _encode_cookie(user),
+        expires_at=expires_at,
+        secure=_native_auth_configured(),
+        same_site="lax",
+    )
+
+def _delete_cookie_session():
+    try:
+        _cookie_manager().delete(SESSION_COOKIE)
+    except Exception:
+        pass
+
 def _redirect_uri():
     return _oauth_value("redirect_uri", "GOOGLE_REDIRECT_URI", "http://localhost:8501")
 
 def _load_session():
     if not _use_local_session_file():
-        return None
+        return _load_cookie_session()
     try:
         if os.path.exists(SESSION_FILE):
             with open(SESSION_FILE) as f:
@@ -60,11 +120,13 @@ def _load_session():
 
 def _save_session(user):
     if not _use_local_session_file():
+        _save_cookie_session(user)
         return
     with open(SESSION_FILE, "w") as f:
         json.dump({"user": user, "expires": (datetime.now() + timedelta(days=30)).isoformat()}, f)
 
 def _delete_session():
+    _delete_cookie_session()
     try:
         os.remove(SESSION_FILE)
     except Exception:
@@ -117,6 +179,7 @@ def handle_auth_callback():
             st.session_state["user"] = user
             _save_session(user)
             st.query_params.clear()
+            return
         else:
             detail = tokens.get("error_description") or tokens.get("error") or str(tokens)
             st.session_state["auth_error"] = f"Google did not return an access token. {detail}"

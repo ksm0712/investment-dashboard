@@ -43,8 +43,8 @@ The app creates its own tables on first launch.
 5. Add authorized redirect URIs:
 
 ```text
-http://localhost:8501/oauth2callback
-https://YOUR_STREAMLIT_APP_NAME.streamlit.app/oauth2callback
+http://localhost:8501
+https://YOUR_STREAMLIT_APP_NAME.streamlit.app/
 ```
 
 6. Save:
@@ -79,7 +79,7 @@ TURSO_DATABASE_URL = "https://your-database-your-org.turso.io"
 TURSO_AUTH_TOKEN = "your_turso_database_auth_token"
 
 [auth]
-redirect_uri = "https://YOUR_STREAMLIT_APP_NAME.streamlit.app/oauth2callback"
+redirect_uri = "https://YOUR_STREAMLIT_APP_NAME.streamlit.app/"
 cookie_secret = "replace_with_a_long_random_string"
 client_id = "your_google_oauth_client_id"
 client_secret = "your_google_oauth_client_secret"
