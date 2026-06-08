@@ -1,5 +1,6 @@
 import os
 import json
+import html
 import urllib.parse
 import requests
 import streamlit as st
@@ -140,6 +141,7 @@ def logout():
 
 def show_login_page():
     login_url = get_login_url()
+    safe_login_url = html.escape(login_url, quote=True)
     err = st.session_state.pop("auth_error", None)
     st.markdown("""
 <style>
@@ -152,6 +154,10 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
             box-shadow:0 24px 60px rgba(15,23,42,0.10);text-align:center;max-width:420px;margin:0 auto}
 .login-title{font-size:28px;font-weight:900;color:#111827;margin-bottom:6px;letter-spacing:0}
 .login-subtitle{font-size:13px;color:#64748b;font-weight:600;margin-bottom:40px;text-transform:uppercase;letter-spacing:0.12em}
+.google-login-btn{display:flex;align-items:center;justify-content:center;gap:12px;background:#ffffff;
+    border:1px solid #d1d5db;border-radius:10px;padding:13px 20px;box-shadow:0 2px 8px rgba(15,23,42,0.06);
+    font-size:15px;font-weight:700;color:#111827!important;font-family:Inter,sans-serif;text-decoration:none!important}
+.google-login-btn:hover{border-color:#9ca3af;box-shadow:0 5px 14px rgba(15,23,42,0.10)}
 .login-note{margin-top:28px;font-size:12px;color:#94a3b8;line-height:1.6;text-align:center}
 </style>
 """, unsafe_allow_html=True)
@@ -159,16 +165,11 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
     with mid:
         if err:
             st.error(f"Login failed: {err}")
-        st.markdown("""
+        st.markdown(f"""
 <div class="login-card">
   <div class="login-title">Investments</div>
   <div class="login-subtitle">Portfolio Tracker</div>
-""", unsafe_allow_html=True)
-        st.markdown(f"""
-  <div id="google-btn" style="display:flex;align-items:center;justify-content:center;gap:12px;
-    background:#ffffff;border:1px solid #d1d5db;border-radius:10px;padding:13px 20px;
-    cursor:pointer;box-shadow:0 2px 8px rgba(15,23,42,0.06);font-size:15px;
-    font-weight:700;color:#111827;font-family:Inter,sans-serif;margin-top:0px;">
+  <a class="google-login-btn" href="{safe_login_url}">
     <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
       <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
       <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -177,16 +178,7 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
       <path fill="none" d="M0 0h48v48H0z"/>
     </svg>
     Continue with Google
-  </div>
-""", unsafe_allow_html=True)
-        st.html(f"""
-<script>
-document.getElementById('google-btn').addEventListener('click', function() {{
-    window.location.href = '{login_url}';
-}});
-</script>
-""", unsafe_allow_javascript=True)
-        st.markdown("""
+  </a>
   <div class="login-note">
     Your data is private to your account.<br>Sign in to access your portfolio.
   </div>
