@@ -107,12 +107,6 @@ def handle_auth_callback():
         return
 
     code = st.query_params.get("code")
-    if code and "oauth_code" not in st.session_state:
-        st.session_state["oauth_code"] = code
-        st.query_params.clear()
-        st.rerun()
-
-    code = st.session_state.pop("oauth_code", None)
     if not code:
         return
 
@@ -122,10 +116,14 @@ def handle_auth_callback():
             user = _get_user_info(tokens["access_token"])
             st.session_state["user"] = user
             _save_session(user)
+            st.query_params.clear()
         else:
-            st.session_state["auth_error"] = tokens.get("error_description") or tokens.get("error") or str(tokens)
+            detail = tokens.get("error_description") or tokens.get("error") or str(tokens)
+            st.session_state["auth_error"] = f"Google did not return an access token. {detail}"
+            st.query_params.clear()
     except Exception as e:
         st.session_state["auth_error"] = str(e)
+        st.query_params.clear()
     st.rerun()
 
 def is_logged_in():
