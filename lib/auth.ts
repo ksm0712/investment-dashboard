@@ -68,7 +68,9 @@ export async function clearSession() {
 }
 
 export function appUrl() {
-  return (process.env.APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
+  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  const url = process.env.APP_URL || process.env.NEXTAUTH_URL || (vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000");
+  return url.replace(/\/$/, "");
 }
 
 export function googleRedirectUri() {
