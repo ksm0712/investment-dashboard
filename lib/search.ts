@@ -11,6 +11,16 @@ const yahooExchanges: Record<string, string> = {
   JPX: "TSE",
 };
 
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 6000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function inferCountry(symbol = "", exchange = "") {
   if (symbol.endsWith(".NS") || symbol.endsWith(".BO") || exchange === "NSI" || exchange === "BSE") return "India";
   if (symbol.endsWith(".SI") || exchange === "SES") return "Singapore";
@@ -26,7 +36,7 @@ function inferCountry(symbol = "", exchange = "") {
 export async function searchYahoo(query: string): Promise<SearchResult[]> {
   const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0`;
   try {
-    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, next: { revalidate: 300 } });
+    const res = await fetchWithTimeout(url, { headers: { "User-Agent": "Mozilla/5.0" }, next: { revalidate: 300 } });
     const data = await res.json();
     return (data.quotes || [])
       .filter((q: any) => q.symbol && q.shortname)
@@ -53,7 +63,7 @@ export async function searchYahoo(query: string): Promise<SearchResult[]> {
 export async function searchAmfi(query: string): Promise<SearchResult[]> {
   if (!query.trim()) return [];
   try {
-    const res = await fetch("https://api.mfapi.in/mf", { next: { revalidate: 24 * 3600 } });
+    const res = await fetchWithTimeout("https://api.mfapi.in/mf", { next: { revalidate: 24 * 3600 } });
     const funds = await res.json();
     const q = query.toLowerCase();
     return (funds || [])

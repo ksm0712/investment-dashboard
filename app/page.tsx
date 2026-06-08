@@ -138,11 +138,18 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
       setMatches([]);
       return;
     }
-    setBusy(true);
-    const res = await fetch(`/api/search?q=${encodeURIComponent(name.trim())}`);
-    const data = await res.json();
-    setMatches(data.results || []);
-    setBusy(false);
+    setError("");
+    try {
+      setBusy(true);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(name.trim())}`);
+      const data = await res.json();
+      setMatches(data.results || []);
+    } catch {
+      setMatches([]);
+      setError("Search could not load results. Try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function applyMatch(indexValue: string) {
@@ -181,17 +188,20 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
       exchange,
       purchaseDate,
     };
-    setBusy(true);
-    const res = await fetch("/api/investments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-    setBusy(false);
-    if (!res.ok) return setError("Could not save investment.");
-    onSaved();
-    onClose();
+    try {
+      setBusy(true);
+      const res = await fetch("/api/investments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+      if (!res.ok) return setError("Could not save investment.");
+      onSaved();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <div className="modal-backdrop">
-      <div className={`modal ${busy ? "loading" : ""}`}>
+      <div className="modal">
         <div className="modal-head">
           <div className="modal-title">Add Investment</div>
           <button className="x-btn" onClick={onClose} aria-label="Close"><X size={26} /></button>
@@ -203,8 +213,9 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
             <label>Asset name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings" />
           </div>
-          <button className="search-btn" onClick={search}>Search</button>
+          <button type="button" className="search-btn" onClick={search}>Search</button>
         </div>
+        {busy && <div className="busy-note">Searching...</div>}
         {matches.length > 0 && (
           <select className="matches" value={matchIndex} onChange={(e) => applyMatch(e.target.value)}>
             <option value="">Select an asset to fill details</option>
@@ -253,7 +264,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
           <div className="field"><label>Current price</label><input value={currentPrice} onChange={(e) => setCurrentPrice(e.target.value)} placeholder="150.00" /></div>
         </div>
         {error && <div className="bad" style={{ marginTop: 14, fontWeight: 700 }}>{error}</div>}
-        <button className="save-btn" style={{ marginTop: 20, width: 190 }} onClick={save}>Save Investment</button>
+        <button type="button" className="save-btn" style={{ marginTop: 20, width: 190 }} onClick={save}>Save Investment</button>
       </div>
     </div>
   );
@@ -395,7 +406,7 @@ export default function Page() {
   ].filter(Boolean).join(" · ") : "";
 
   return (
-    <main className={`page ${loading ? "loading" : ""}`}>
+    <main className={`page ${loading ? "page-loading" : ""}`}>
       <nav className="topnav">
         <div className="brand"><div className="brand-icon">I</div><div className="brand-copy"><div className="brand-name">Investments</div><div className="brand-sub">Portfolio Tracker</div></div></div>
         <div className="actions"><button className="primary-btn" onClick={() => setModalOpen(true)}>＋ Add Investment</button><button className="ghost-btn" onClick={logout}>Sign out</button></div>
