@@ -408,8 +408,14 @@ export default function Page() {
   return (
     <main className={`page ${loading ? "page-loading" : ""}`}>
       <nav className="topnav">
-        <div className="brand"><div className="brand-icon">I</div><div className="brand-copy"><div className="brand-name">Investments</div><div className="brand-sub">Portfolio Tracker</div></div></div>
-        <div className="actions"><button className="primary-btn" onClick={() => setModalOpen(true)}>＋ Add Investment</button><button className="ghost-btn" onClick={logout}>Sign out</button></div>
+        <div className="brand"><div className="brand-name">Investments</div></div>
+        <div className="actions">
+          <button className="primary-btn" onClick={() => setModalOpen(true)}>＋ Add Investment</button>
+          {data.user.picture && (
+            <img className="profile-pic" src={data.user.picture} alt={data.user.name || data.user.email || "Signed in user"} referrerPolicy="no-referrer" />
+          )}
+          <button className="ghost-btn" onClick={logout}>Sign out</button>
+        </div>
       </nav>
 
       {securities.length === 0 ? (
