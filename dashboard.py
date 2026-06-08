@@ -15,7 +15,12 @@ from auth import handle_auth_callback, is_logged_in, get_current_user, logout, s
 from search import search_securities
 
 load_dotenv()
-create_tables()
+
+@st.cache_resource
+def init_database_once():
+    create_tables()
+
+init_database_once()
 
 st.set_page_config(layout="wide", page_title="Investments", page_icon="I")
 
