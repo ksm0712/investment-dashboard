@@ -120,7 +120,7 @@ export async function getSecurities(userId: string) {
   const { rows } = await execute(
     `SELECT s.*, p.name as source, p.date as portfolio_date
      FROM securities s JOIN portfolios p ON s.portfolio_id=p.id
-     WHERE p.user_id=? OR p.user_id IS NULL
+     WHERE p.user_id=?
      ORDER BY p.date DESC, s.id DESC`,
     [userId],
   );
@@ -140,7 +140,7 @@ export async function getSecurities(userId: string) {
 export async function getPortfolios(userId: string) {
   await initDb();
   if (!hasTurso()) return demo.portfolios.filter((p) => p.userId === userId);
-  const { rows } = await execute("SELECT id,name,date,user_id FROM portfolios WHERE user_id=? OR user_id IS NULL ORDER BY id DESC", [userId]);
+  const { rows } = await execute("SELECT id,name,date,user_id FROM portfolios WHERE user_id=? ORDER BY id DESC", [userId]);
   return rows.map((row) => ({
     id: Number(row.id),
     name: String(row.name),
