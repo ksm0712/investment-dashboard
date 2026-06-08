@@ -45,7 +45,7 @@ export async function getCurrentUser() {
   const store = await cookies();
   const user = decodeSession(store.get(COOKIE_NAME)?.value);
   if (user) return user;
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && process.env.DEV_AUTH === "1") {
     return { sub: "dev-user", email: "local@example.com", name: "Local User" };
   }
   return null;

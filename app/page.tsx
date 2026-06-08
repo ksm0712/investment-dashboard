@@ -411,9 +411,13 @@ export default function Page() {
         <div className="brand"><div className="brand-name">Investments</div></div>
         <div className="actions">
           <button className="primary-btn" onClick={() => setModalOpen(true)}>＋ Add Investment</button>
-          {data.user.picture && (
-            <img className="profile-pic" src={data.user.picture} alt={data.user.name || data.user.email || "Signed in user"} referrerPolicy="no-referrer" />
-          )}
+          <div className="profile-chip" title={data.user.email || data.user.name || "Signed in user"}>
+            {data.user.picture ? (
+              <img className="profile-pic" src={data.user.picture} alt={data.user.name || data.user.email || "Signed in user"} referrerPolicy="no-referrer" />
+            ) : (
+              <div className="profile-fallback">{(data.user.name || data.user.email || "U").charAt(0).toUpperCase()}</div>
+            )}
+          </div>
           <button className="ghost-btn" onClick={logout}>Sign out</button>
         </div>
       </nav>

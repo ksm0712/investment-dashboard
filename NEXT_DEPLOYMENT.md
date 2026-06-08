@@ -31,4 +31,16 @@ In Google Cloud, add this redirect URI to the same OAuth web client:
 https://your-vercel-url.vercel.app/api/auth/callback
 ```
 
+For local Google login testing, also add:
+
+```text
+http://localhost:3000/api/auth/callback
+```
+
+Local development uses real Google login by default. If you ever want to bypass Google locally, run the dev server with:
+
+```text
+DEV_AUTH=1 npm run dev
+```
+
 If you add a custom Vercel domain later, add the same callback path for that domain too.

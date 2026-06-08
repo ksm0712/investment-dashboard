@@ -9,7 +9,9 @@ button { cursor: pointer; }
 .brand { display:flex; align-items:center; gap:10px; color:#111827; }
 .brand-name { font-size:18px; font-weight:900; }
 .actions { display:flex; align-items:center; gap:14px; }
+.profile-chip { width:32px; height:32px; flex:0 0 auto; }
 .profile-pic { width:32px; height:32px; border-radius:999px; display:block; border:1px solid #e5e7eb; box-shadow:0 2px 8px rgba(15,23,42,.08); }
+.profile-fallback { width:32px; height:32px; border-radius:999px; display:grid; place-items:center; background:#111827; color:#fff; font-size:13px; font-weight:850; border:1px solid #e5e7eb; box-shadow:0 2px 8px rgba(15,23,42,.08); }
 .primary-btn { min-height:38px; border:none; border-radius:10px; background:#111827; color:#fff; font-size:12px; font-weight:850; text-transform:uppercase; letter-spacing:.08em; padding:0 18px; box-shadow:0 10px 20px rgba(15,23,42,.12); }
 .ghost-btn { min-height:32px; background:transparent; color:#94a3b8; border:none; box-shadow:none; font-size:12px; font-weight:600; padding:0; }
 .ghost-btn:hover { color:#be123c; }
