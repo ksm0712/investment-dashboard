@@ -10,8 +10,32 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_INFO_URL  = "https://www.googleapis.com/oauth2/v3/userinfo"
 SESSION_FILE     = ".session.json"
 
+def _secret(name, default=""):
+    if os.getenv(name):
+        return os.getenv(name)
+    try:
+        return st.secrets.get(name, default)
+    except Exception:
+        return default
+
+def _auth_secret(name, default=""):
+    try:
+        auth = st.secrets.get("auth", {})
+        return auth.get(name, default)
+    except Exception:
+        return default
+
+def _native_auth_configured():
+    return bool(
+        _auth_secret("redirect_uri")
+        and _auth_secret("cookie_secret")
+        and _auth_secret("client_id")
+        and _auth_secret("client_secret")
+        and _auth_secret("server_metadata_url")
+    )
+
 def _redirect_uri():
-    return os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8501")
+    return _secret("GOOGLE_REDIRECT_URI", "http://localhost:8501")
 
 def _load_session():
     try:
@@ -36,7 +60,7 @@ def _delete_session():
 
 def get_login_url():
     params = {
-        "client_id":     os.getenv("GOOGLE_CLIENT_ID", ""),
+        "client_id":     _secret("GOOGLE_CLIENT_ID", ""),
         "redirect_uri":  _redirect_uri(),
         "response_type": "code",
         "scope":         "openid email profile",
@@ -47,8 +71,8 @@ def get_login_url():
 def _exchange_code(code):
     resp = requests.post(GOOGLE_TOKEN_URL, data={
         "code":          code,
-        "client_id":     os.getenv("GOOGLE_CLIENT_ID", ""),
-        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET", ""),
+        "client_id":     _secret("GOOGLE_CLIENT_ID", ""),
+        "client_secret": _secret("GOOGLE_CLIENT_SECRET", ""),
         "redirect_uri":  _redirect_uri(),
         "grant_type":    "authorization_code",
     }, timeout=10)
@@ -61,7 +85,10 @@ def _get_user_info(access_token):
     return resp.json()
 
 def handle_auth_callback():
-    # Restore from local session file on every page load
+    if _native_auth_configured():
+        return
+
+    # Local fallback only. Deployed multi-user auth uses Streamlit's browser cookie.
     if not st.session_state.get("user"):
         user = _load_session()
         if user:
@@ -70,7 +97,6 @@ def handle_auth_callback():
     if st.session_state.get("user"):
         return
 
-    # Save OAuth code to session before clearing URL
     code = st.query_params.get("code")
     if code and "oauth_code" not in st.session_state:
         st.session_state["oauth_code"] = code
@@ -94,17 +120,24 @@ def handle_auth_callback():
     st.rerun()
 
 def is_logged_in():
+    if _native_auth_configured():
+        return bool(getattr(st.user, "is_logged_in", False))
     return bool(st.session_state.get("user"))
 
 def get_current_user():
+    if _native_auth_configured():
+        return st.user.to_dict()
     return st.session_state.get("user")
 
 def logout():
+    if _native_auth_configured():
+        st.logout()
     _delete_session()
     st.session_state.clear()
     st.rerun()
 
 def show_login_page():
+    native_auth = _native_auth_configured()
     login_url = get_login_url()
     err = st.session_state.pop("auth_error", None)
     st.markdown("""
@@ -114,17 +147,37 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
 .stApp{background:#f8fafc;color:#111827}
 #MainMenu,footer,header{display:none!important}
 .block-container{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:0!important}
+.login-card{background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:52px 44px 48px;
+            box-shadow:0 24px 60px rgba(15,23,42,0.10);text-align:center;max-width:420px;margin:0 auto}
+.login-title{font-size:28px;font-weight:900;color:#111827;margin-bottom:6px;letter-spacing:0}
+.login-subtitle{font-size:13px;color:#64748b;font-weight:600;margin-bottom:40px;text-transform:uppercase;letter-spacing:0.12em}
+.login-note{margin-top:28px;font-size:12px;color:#94a3b8;line-height:1.6;text-align:center}
+[class*="st-key-google_login_btn"] button{
+    display:flex!important;align-items:center!important;justify-content:center!important;gap:12px!important;
+    background:#ffffff!important;border:1px solid #d1d5db!important;border-radius:10px!important;
+    padding:13px 20px!important;box-shadow:0 2px 8px rgba(15,23,42,0.06)!important;
+    color:#111827!important;font-size:15px!important;font-weight:700!important;min-height:50px!important;
+}
+[class*="st-key-google_login_btn"] button:before{
+    content:"";width:20px;height:20px;display:inline-block;background-size:20px 20px;background-repeat:no-repeat;
+    background-image:url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23EA4335' d='M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z'/%3E%3Cpath fill='%234285F4' d='M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z'/%3E%3Cpath fill='%23FBBC05' d='M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z'/%3E%3Cpath fill='%2334A853' d='M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z'/%3E%3Cpath fill='none' d='M0 0h48v48H0z'/%3E%3C/svg%3E");
+}
+[class*="st-key-google_login_btn"] button:hover{border-color:#9ca3af!important;box-shadow:0 5px 14px rgba(15,23,42,0.10)!important}
 </style>
 """, unsafe_allow_html=True)
     _, mid, _ = st.columns([1, 1.2, 1])
     with mid:
         if err:
             st.error(f"Login failed: {err}")
-        st.markdown(f"""
-<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:52px 44px 48px;
-            box-shadow:0 24px 60px rgba(15,23,42,0.10);text-align:center;max-width:420px;margin:0 auto">
-  <div style="font-size:28px;font-weight:900;color:#111827;margin-bottom:6px;letter-spacing:-0.5px">Investments</div>
-  <div style="font-size:13px;color:#64748b;font-weight:600;margin-bottom:40px;text-transform:uppercase;letter-spacing:0.12em">Portfolio Tracker</div>
+        st.markdown("""
+<div class="login-card">
+  <div class="login-title">Investments</div>
+  <div class="login-subtitle">Portfolio Tracker</div>
+""", unsafe_allow_html=True)
+        if native_auth:
+            st.button("Continue with Google", key="google_login_btn", use_container_width=True, on_click=st.login)
+        else:
+            st.markdown(f"""
   <div id="google-btn" style="display:flex;align-items:center;justify-content:center;gap:12px;
     background:#ffffff;border:1px solid #d1d5db;border-radius:10px;padding:13px 20px;
     cursor:pointer;box-shadow:0 2px 8px rgba(15,23,42,0.06);font-size:15px;
@@ -138,15 +191,17 @@ html,body,[class*="css"],*{font-family:'Inter',sans-serif!important}
     </svg>
     Continue with Google
   </div>
-  <div style="margin-top:28px;font-size:12px;color:#94a3b8;line-height:1.6">
-    Your data is private to your account.<br>Sign in to access your portfolio.
-  </div>
-</div>
 """, unsafe_allow_html=True)
-        st.html(f"""
+            st.html(f"""
 <script>
 document.getElementById('google-btn').addEventListener('click', function() {{
     window.location.href = '{login_url}';
 }});
 </script>
 """, unsafe_allow_javascript=True)
+        st.markdown("""
+  <div class="login-note">
+    Your data is private to your account.<br>Sign in to access your portfolio.
+  </div>
+</div>
+""", unsafe_allow_html=True)

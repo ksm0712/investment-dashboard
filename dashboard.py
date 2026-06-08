@@ -1010,14 +1010,14 @@ def asset_allocation_html(frame, display_cur, fx_rates, total_inr):
     return "".join(parts)
 
 def delete_portfolio_and_reset(portfolio_id):
-    delete_portfolio(portfolio_id)
+    delete_portfolio(portfolio_id, user_id=_user_id)
     if st.session_state.get("selected_portfolio_id") == portfolio_id:
         st.session_state.selected_portfolio_id = None
 
 def save_portfolio_name(portfolio_id, key):
     cleaned = st.session_state.get(key, "").strip()
     if cleaned:
-        rename_portfolio(portfolio_id, cleaned)
+        rename_portfolio(portfolio_id, cleaned, user_id=_user_id)
         st.session_state.edit_portfolio_id = None
 
 # ── Init ───────────────────────────────────────────────────────────────────────
@@ -1283,7 +1283,7 @@ if not all_df.empty:
     with ref_col:
         if st.button("Refresh Prices", use_container_width=True, key="main_refresh"):
             with st.spinner("Updating prices..."):
-                st.session_state["_refresh_summary"] = refresh_prices()
+                st.session_state["_refresh_summary"] = refresh_prices(user_id=_user_id)
             st.rerun()
         if st.session_state.get("_refresh_summary"):
             rs = st.session_state["_refresh_summary"]
@@ -1382,7 +1382,7 @@ if not all_df.empty:
                     st.markdown(f"<span style='font-size:13px;font-weight:700'>Delete <b>{html.escape(str(item['Name']))}</b>? This cannot be undone.</span>", unsafe_allow_html=True)
                     d1,d2,_ = st.columns([1,1,5])
                     if d1.button("Delete", key=f"dok_{tab_prefix}_{sid}", use_container_width=True):
-                        delete_security(int(sid)); st.session_state.confirm_delete_id = None; st.rerun()
+                        delete_security(int(sid), user_id=_user_id); st.session_state.confirm_delete_id = None; st.rerun()
                     if d2.button("Cancel", key=f"dcan_{tab_prefix}_{sid}", use_container_width=True):
                         st.session_state.confirm_delete_id = None; st.rerun()
 
@@ -1402,7 +1402,8 @@ if not all_df.empty:
                             cost_price=parse_decimal(nc) if nc.strip() else None,
                             latest_price=parse_decimal(np_) if np_.strip() else None,
                             value=parse_decimal(nv) if nv.strip() else None,
-                            purchase_date=nd.strip() if nd.strip() else None)
+                            purchase_date=nd.strip() if nd.strip() else None,
+                            user_id=_user_id)
                         st.session_state.editing_security_id = None; st.rerun()
 
     # ── ALL tab ───────────────────────────────────────────────────────────────

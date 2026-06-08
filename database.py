@@ -1,8 +1,112 @@
+import os
 import sqlite3
+import base64
+import requests
 import pandas as pd
 from datetime import datetime
 
-conn = sqlite3.connect("investments.db", check_same_thread=False)
+try:
+    import streamlit as st
+except Exception:
+    st = None
+
+def _secret(name, default=""):
+    if os.getenv(name):
+        return os.getenv(name)
+    if st is not None:
+        try:
+            return st.secrets.get(name, default)
+        except Exception:
+            pass
+    return default
+
+def _connect():
+    turso_url = _secret("TURSO_DATABASE_URL")
+    turso_token = _secret("TURSO_AUTH_TOKEN")
+    if turso_url:
+        return TursoHttpConnection(turso_url, turso_token)
+    return sqlite3.connect("investments.db", check_same_thread=False)
+
+def _turso_url(url):
+    if url.startswith("libsql://"):
+        url = "https://" + url.removeprefix("libsql://")
+    return url.rstrip("/") + "/v2/pipeline"
+
+def _turso_arg(value):
+    if value is None:
+        return {"type": "null"}
+    if isinstance(value, bool):
+        return {"type": "integer", "value": str(int(value))}
+    if isinstance(value, int):
+        return {"type": "integer", "value": str(value)}
+    if isinstance(value, float):
+        return {"type": "float", "value": str(value)}
+    if isinstance(value, bytes):
+        return {"type": "blob", "base64": base64.b64encode(value).decode("ascii")}
+    return {"type": "text", "value": str(value)}
+
+def _turso_value(cell):
+    if not isinstance(cell, dict):
+        return cell
+    kind = cell.get("type")
+    if kind == "null":
+        return None
+    if kind == "integer":
+        raw = cell.get("value")
+        return int(raw) if raw not in (None, "") else None
+    if kind == "float":
+        raw = cell.get("value")
+        return float(raw) if raw not in (None, "") else None
+    if kind == "blob":
+        return base64.b64decode(cell.get("base64", ""))
+    return cell.get("value")
+
+class TursoCursor:
+    def __init__(self, rows=None, description=None):
+        self._rows = rows or []
+        self.description = description or []
+
+    def fetchall(self):
+        return list(self._rows)
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+class TursoHttpConnection:
+    def __init__(self, url, token):
+        self.url = _turso_url(url)
+        self.token = token
+
+    def execute(self, sql, params=()):
+        stmt = {"sql": sql}
+        if params:
+            stmt["args"] = [_turso_arg(v) for v in params]
+        resp = requests.post(
+            self.url,
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json",
+            },
+            json={"requests": [{"type": "execute", "stmt": stmt}, {"type": "close"}]},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        first = payload["results"][0]
+        if first.get("type") != "ok":
+            raise RuntimeError(first)
+        response = first.get("response", {})
+        if response.get("type") != "execute":
+            return TursoCursor()
+        result = response.get("result", {})
+        cols = result.get("cols", [])
+        rows = [tuple(_turso_value(cell) for cell in row) for row in result.get("rows", [])]
+        return TursoCursor(rows, cols)
+
+    def commit(self):
+        return None
+
+conn = _connect()
 
 def _ex(sql, params=()):
     return conn.execute(sql, params)
@@ -86,13 +190,17 @@ def get_all_portfolios(user_id=None):
                (user_id,)).fetchall()
     return sorted(rows, key=lambda r: (_date_key(r[2]), r[0]), reverse=True)
 
-def rename_portfolio(portfolio_id, name):
-    _ex("UPDATE portfolios SET name=? WHERE id=?", (name.strip(), portfolio_id))
+def rename_portfolio(portfolio_id, name, user_id=None):
+    _ex("UPDATE portfolios SET name=? WHERE id=? AND (user_id=? OR user_id IS NULL)",
+        (name.strip(), portfolio_id, user_id))
     conn.commit()
 
-def delete_portfolio(portfolio_id):
-    _ex("DELETE FROM securities WHERE portfolio_id=?", (portfolio_id,))
-    _ex("DELETE FROM portfolios WHERE id=?", (portfolio_id,))
+def delete_portfolio(portfolio_id, user_id=None):
+    _ex("""DELETE FROM securities WHERE portfolio_id IN (
+            SELECT id FROM portfolios WHERE id=? AND (user_id=? OR user_id IS NULL)
+           )""", (portfolio_id, user_id))
+    _ex("DELETE FROM portfolios WHERE id=? AND (user_id=? OR user_id IS NULL)",
+        (portfolio_id, user_id))
     conn.commit()
 
 def create_manual_portfolio(name, date, user_id=None):
@@ -146,7 +254,8 @@ def get_securities(portfolio_id=None, user_id=None):
                 s.price_symbol,s.latest_price,COALESCE(s.price_as_on,p.date),
                 s.refresh_status,s.refresh_note,s.refreshed_at,s.country,s.pricing_mode,
                 s.exchange,s.cost_price,s.purchase_date,p.name {BASE}
-                WHERE s.portfolio_id=?""", (portfolio_id,)).fetchall()
+                WHERE s.portfolio_id=? AND (p.user_id=? OR p.user_id IS NULL)""",
+                (portfolio_id, user_id)).fetchall()
         return pd.DataFrame(rows, columns=COLS)
 
     rows = _ex(f"""SELECT s.id,s.name,s.asset_type,s.currency,
@@ -176,8 +285,11 @@ def get_refresh_setup_items(user_id=None):
                (user_id,)).fetchall()
     return pd.DataFrame(rows, columns=["ID","Name","Asset Type","Currency","Current Value","Refresh Status"])
 
-def update_security_manual_value(security_id, value):
-    row = _ex("SELECT currency,value,value_inr FROM securities WHERE id=?", (security_id,)).fetchone()
+def update_security_manual_value(security_id, value, user_id=None):
+    row = _ex("""SELECT s.currency,s.value,s.value_inr FROM securities s
+                 JOIN portfolios p ON s.portfolio_id=p.id
+                 WHERE s.id=? AND (p.user_id=? OR p.user_id IS NULL)""",
+              (security_id, user_id)).fetchone()
     if not row: return
     currency, old_value, old_value_inr = row
     fx = old_value_inr / old_value if old_value and currency != "INR" else 1
@@ -188,8 +300,11 @@ def update_security_manual_value(security_id, value):
          datetime.now().strftime("%Y-%m-%d %H:%M:%S"), security_id))
     conn.commit()
 
-def update_security_manual_price(security_id, latest_price, price_as_on, quantity=None):
-    row = _ex("SELECT currency,value,value_inr,quantity FROM securities WHERE id=?", (security_id,)).fetchone()
+def update_security_manual_price(security_id, latest_price, price_as_on, quantity=None, user_id=None):
+    row = _ex("""SELECT s.currency,s.value,s.value_inr,s.quantity FROM securities s
+                 JOIN portfolios p ON s.portfolio_id=p.id
+                 WHERE s.id=? AND (p.user_id=? OR p.user_id IS NULL)""",
+              (security_id, user_id)).fetchone()
     if not row: return
     currency, old_value, old_value_inr, old_quantity = row
     quantity = old_quantity if quantity is None else quantity
@@ -203,13 +318,18 @@ def update_security_manual_price(security_id, latest_price, price_as_on, quantit
          datetime.now().strftime("%Y-%m-%d %H:%M:%S"), security_id))
     conn.commit()
 
-def delete_security(security_id):
-    _ex("DELETE FROM securities WHERE id=?", (security_id,))
+def delete_security(security_id, user_id=None):
+    _ex("""DELETE FROM securities WHERE id=? AND portfolio_id IN (
+            SELECT id FROM portfolios WHERE user_id=? OR user_id IS NULL
+           )""", (security_id, user_id))
     conn.commit()
 
 def update_security_fields(security_id, quantity=None, cost_price=None,
-                           latest_price=None, value=None, purchase_date=None):
-    row = _ex("SELECT currency,value,value_inr FROM securities WHERE id=?", (security_id,)).fetchone()
+                           latest_price=None, value=None, purchase_date=None, user_id=None):
+    row = _ex("""SELECT s.currency,s.value,s.value_inr FROM securities s
+                 JOIN portfolios p ON s.portfolio_id=p.id
+                 WHERE s.id=? AND (p.user_id=? OR p.user_id IS NULL)""",
+              (security_id, user_id)).fetchone()
     if not row: return
     currency, old_value, old_value_inr = row
     fx_rate = old_value_inr / old_value if old_value and currency != "INR" else 1

@@ -397,14 +397,15 @@ def _refresh_market(sec_id, name, currency, value, value_inr, quantity, price_sy
 
 # ── Main entry point ───────────────────────────────────────────────────────────
 
-def refresh_prices():
+def refresh_prices(user_id=None):
     rows = conn.execute("""
         SELECT s.id, s.name, s.asset_type, s.currency, s.value, s.value_inr,
                s.quantity, s.price_symbol, p.date, COALESCE(s.pricing_mode, ''),
                s.isin
         FROM securities s
         JOIN portfolios p ON s.portfolio_id = p.id
-    """).fetchall()
+        WHERE p.user_id = ? OR p.user_id IS NULL
+    """, (user_id,)).fetchall()
 
     summary = {
         "updated": 0,
