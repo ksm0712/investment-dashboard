@@ -317,13 +317,13 @@ function Holdings({ securities, fx, currency, totalInr, reload }: { securities: 
             <div className="holding-row">
               <div><div className="h-name">{item.name}</div><div className="h-sub">{item.assetType} · {pct.toFixed(1)}%</div></div>
               <div className="h-cell h-cur">{item.currency}</div>
-              <div className="h-cell">{fmtPlain(item.quantity, 2)}</div>
-              <div className="h-cell">{fmt(latestPriceDisplay, currency)}</div>
-              <div className="h-cell" style={{ fontWeight: 700, color: "#111827" }}>{fmt(valueDisplay, currency)}</div>
-              <div className="h-cell hide-mobile">{costInr ? fmt(fromInr(costInr, currency, fx), currency) : "—"}</div>
-              <div className={`h-cell hide-mobile ${(gainPct || 0) >= 0 ? "good" : "bad"}`}>{costInr ? fmt(fromInr(gainInr, currency, fx), currency) : "—"}</div>
-              <div className={`h-cell hide-mobile ${(gainPct || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(gainPct, true)}</div>
-              <div className="h-cell hide-mobile">{fmtDate(item.priceAsOn)}</div>
+              <div className="h-cell h-num">{fmtPlain(item.quantity, 2)}</div>
+              <div className="h-cell h-num">{fmt(latestPriceDisplay, currency)}</div>
+              <div className="h-cell h-num h-value">{fmt(valueDisplay, currency)}</div>
+              <div className="h-cell h-num hide-mobile">{costInr ? fmt(fromInr(costInr, currency, fx), currency) : "—"}</div>
+              <div className={`h-cell h-num hide-mobile ${(gainPct || 0) >= 0 ? "good" : "bad"}`}>{costInr ? fmt(fromInr(gainInr, currency, fx), currency) : "—"}</div>
+              <div className={`h-cell h-num hide-mobile ${(gainPct || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(gainPct, true)}</div>
+              <div className="h-cell h-updated hide-mobile">{fmtDate(item.priceAsOn)}</div>
               <button className="table-btn" onClick={() => { setEditing(editing === item.id ? null : item.id); setDeleting(null); setDraft({ quantity: String(item.quantity || ""), costPrice: String(item.costPrice || ""), latestPrice: String(item.latestPrice || ""), value: String(item.latestValue || item.value || ""), purchaseDate: item.purchaseDate || "" }); }}>Edit</button>
               <button className="table-btn danger" onClick={() => { setDeleting(deleting === item.id ? null : item.id); setEditing(null); }}>Delete</button>
             </div>
@@ -389,7 +389,6 @@ export default function Page() {
   const countries = useMemo(() => [...new Set(securities.map((s) => s.country))].sort(), [securities]);
   const visible = tab === "All" ? securities : securities.filter((s) => s.country === tab);
   const stats = metricStats(visible, fx);
-  const allStats = metricStats(securities, fx);
   const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || visible[0]?.currency || "USD");
 
   useEffect(() => {
@@ -399,7 +398,6 @@ export default function Page() {
   if (!loginChecked) return <main className="login-page"><div className="login-card"><div className="login-title">Investments</div></div></main>;
   if (!data) return <Login />;
 
-  const byCurrency = groupBy(securities, (s) => s.currency).map(([cur, items]) => ({ cur, items, valueInr: items.reduce((sum, s) => sum + (s.latestValueInr ?? s.valueInr), 0) }));
   const refreshText = summary ? [
     `${summary.updated || 0} updated`,
     summary.unchanged ? `${summary.unchanged} unchanged` : "",
@@ -429,18 +427,6 @@ export default function Page() {
         <div className="empty"><div className="empty-icon">📂</div><div className="empty-title">No investments yet</div><div className="empty-sub">Click <b style={{ color: "#2563eb" }}>＋ Add Investment</b> above to get started</div></div>
       ) : (
         <>
-          <section className="hero">
-            <div className="hero-eyebrow">Total Portfolio</div>
-            <div className="hero-amount">{fmt(fromInr(allStats.totalInr, "INR", fx), "INR")}</div>
-            <div className="hero-sub">{securities.length} holdings across {countries.length} markets</div>
-          </section>
-          <section className="summary-grid">
-            <div className="stat-card"><div className="stat-label">Total Cost</div><div className="stat-value">{fmt(fromInr(allStats.costInr, "INR", fx), "INR")}</div><div className="stat-note">Cost basis across tracked holdings</div></div>
-            <div className="stat-card"><div className="stat-label">Gain / Loss</div><div className={`stat-value ${(allStats.gainPct || 0) >= 0 ? "good" : "bad"}`}>{fmt(fromInr(allStats.gainInr, "INR", fx), "INR")}</div><div className="stat-note">{fmtPct(allStats.gainPct, true)}</div></div>
-          </section>
-          <section className="currency-grid">
-            {byCurrency.map(({ cur, items, valueInr }) => <div className="cc" key={cur}><div><div className="cc-head"><span className="cc-flag">{cur === "INR" ? "🇮🇳" : cur === "USD" ? "🇺🇸" : cur === "SGD" ? "🇸🇬" : "◆"}</span><span className="cc-cur">{cur}</span></div><div className="cc-val">{fmt(fromInr(valueInr, cur, fx), cur)}</div><div className="cc-inr">{fmt(valueInr, "INR")}</div></div><div className="cc-n">{items.length} holdings</div></div>)}
-          </section>
           <div className="control-row"><button className="refresh-btn" onClick={refresh}>Refresh Prices</button>{refreshText && <span className="refresh-results">{refreshText}</span>}</div>
           <div className="tabs">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item}</button>)}</div>
           <div className="select-row"><div className="select-wrap"><label>View in currency</label><select value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div></div>
