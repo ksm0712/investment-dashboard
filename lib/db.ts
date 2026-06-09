@@ -55,7 +55,7 @@ export async function execute(sql: string, params: unknown[] = []) {
   const first = payload.results?.[0];
   if (first?.type !== "ok") throw new Error(JSON.stringify(first));
   const result = first.response?.result;
-  const columns = (result?.cols || []).map((col: any) => col.name);
+  const columns = (result?.cols || []).map((col: any) => typeof col === "string" ? col : col.name);
   const rows = (result?.rows || []).map((row: any[]) =>
     Object.fromEntries(row.map((cell, index) => [columns[index], val(cell)])),
   );
@@ -73,7 +73,14 @@ async function addMissingColumns(table: string, columns: Record<string, string>)
   const existing = await tableColumns(table);
   for (const [name, definition] of Object.entries(columns)) {
     if (!existing.has(name)) {
-      await execute(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+      try {
+        await execute(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        if (!message.includes("duplicate column") && !message.includes("already exists")) {
+          throw error;
+        }
+      }
     }
   }
 }

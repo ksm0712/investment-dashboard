@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Could not save investment", error);
-    return NextResponse.json({ error: "Could not save investment. Please try again." }, { status: 500 });
+    const detail = error instanceof Error ? error.message : "Unknown server error";
+    return NextResponse.json({ error: `Could not save investment: ${detail}` }, { status: 500 });
   }
 }
