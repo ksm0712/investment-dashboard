@@ -93,7 +93,6 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .form-hint { color:#047857; font-size:13px; font-weight:700; margin-top:8px; }
 .edit-panel, .delete-panel { padding:14px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; margin:8px; }
 .edit-grid { display:grid; grid-template-columns:repeat(5,1fr) 120px; gap:10px; align-items:end; }
-.page-loading { opacity:.55; pointer-events:none; }
 .busy-note { color:#667085; font-size:13px; font-weight:700; margin-top:8px; }
 @media (max-width: 900px) {
   .page { padding:22px 16px 34px; }

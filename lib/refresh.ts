@@ -366,14 +366,14 @@ async function marketPrice(symbol: string, assetType: string): Promise<PriceResu
     errors.push(error instanceof Error ? error.message : "Yahoo failed");
   }
   try {
-    return await yahooFallbackPrice(symbol);
-  } catch (error) {
-    errors.push(error instanceof Error ? error.message : "Yahoo fallback failed");
-  }
-  try {
     return await nasdaqPrice(symbol, assetType);
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "Nasdaq failed");
+  }
+  try {
+    return await yahooFallbackPrice(symbol);
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : "Yahoo fallback failed");
   }
   throw new Error(errors.join("; "));
 }
@@ -466,17 +466,32 @@ async function searchedPriceSymbols(sec: Security) {
 
 async function marketPriceForSecurity(sec: Security) {
   const errors: string[] = [];
-  const candidates = [...directPriceSymbols(sec), ...(await searchedPriceSymbols(sec))];
   const seen = new Set<string>();
-  for (const symbol of candidates) {
-    if (seen.has(symbol)) continue;
-    seen.add(symbol);
-    try {
-      return await marketPrice(symbol, sec.assetType);
-    } catch (error) {
-      errors.push(`${symbol}: ${error instanceof Error ? error.message : "refresh failed"}`);
+
+  async function trySymbols(symbols: string[]) {
+    for (const symbol of symbols) {
+      if (seen.has(symbol)) continue;
+      seen.add(symbol);
+      try {
+        return await marketPrice(symbol, sec.assetType);
+      } catch (error) {
+        errors.push(`${symbol}: ${error instanceof Error ? error.message : "refresh failed"}`);
+      }
     }
+    return null;
   }
+
+  const direct = await trySymbols(directPriceSymbols(sec));
+  if (direct) return direct;
+
+  const searched = await trySymbols(await searchedPriceSymbols(sec));
+  if (searched) return searched;
+
+  const firstWord = sec.name.trim().split(/\s+/)[0]?.toUpperCase();
+  const fallbackSymbols = firstWord ? (currencySuffixes[sec.currency.toUpperCase()] || []).map((suffix) => `${firstWord}${suffix}`) : [];
+  const suffixed = await trySymbols(fallbackSymbols);
+  if (suffixed) return suffixed;
+
   throw new Error(errors.join("; ") || "Missing identifier.");
 }
 
@@ -612,22 +627,14 @@ export async function refreshPrices(userId: string) {
       await mark(sec, "updated");
     } catch (error) {
       const note = error instanceof Error ? error.message : "Refresh failed.";
-      if (sec.latestValue !== null || sec.value) {
-        await updateRefreshFields(userId, sec.id, {
-          refreshStatus: sec.refreshStatus || "unchanged",
-          refreshNote: `Refresh error: ${note}. Keeping last known value.`,
-          latestValue: sec.latestValue ?? sec.value,
-          latestValueInr: sec.latestValueInr ?? sec.valueInr,
-        });
-        await mark(sec, "unchanged");
-      } else {
-        await updateRefreshFields(userId, sec.id, {
-          refreshStatus: "failed",
-          refreshNote: note,
-        });
-        summary.details.push({ name: sec.name, status: "failed", note });
-        await mark(sec, "failed");
-      }
+      await updateRefreshFields(userId, sec.id, {
+        refreshStatus: "failed",
+        refreshNote: note,
+        latestValue: sec.latestValue ?? sec.value,
+        latestValueInr: sec.latestValueInr ?? sec.valueInr,
+      });
+      summary.details.push({ name: sec.name, status: "failed", note });
+      await mark(sec, "failed");
     }
   }
   return summary;
