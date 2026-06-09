@@ -50,14 +50,16 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .holding-head, .holding-row { display:grid; grid-template-columns:minmax(240px,2.4fr) 60px 84px 110px 110px 110px 110px 82px 102px 64px 76px; gap:0; align-items:center; }
 .holding-head { background:#f8fafc; padding:10px; border-bottom:1px solid #e5e7eb; }
 .holding-head span { font-size:10px; font-weight:850; color:#475467; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.holding-row { padding:0 10px; border-bottom:1px solid #edf1f6; }
+.holding-row { min-height:56px; padding:0 10px; border-bottom:1px solid #edf1f6; }
 .holding-row:hover { background:#f8fafc; }
-.h-name { font-size:13px; font-weight:650; color:#111827; padding:10px 4px 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.h-sub { font-size:11px; color:#667085; padding:0 4px 8px; }
-.h-cell { font-size:13px; color:#172033; padding:12px 2px; font-variant-numeric:tabular-nums; }
+.holding-row > div:first-child { align-self:center; padding:0 4px; }
+.h-name { font-size:13px; font-weight:650; color:#111827; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.h-sub { font-size:11px; color:#667085; line-height:1.25; margin-top:3px; }
+.h-cell { height:100%; display:flex; align-items:center; font-size:13px; color:#172033; padding:0 2px; font-variant-numeric:tabular-nums; }
 .h-num { text-align:right; }
+.h-num, .h-updated { justify-content:flex-end; }
 .h-value { font-weight:700; color:#111827; }
-.h-cur { color:#667085; font-size:12px; }
+.h-cur { color:#667085; font-size:12px; justify-content:flex-start; }
 .h-updated { color:#667085; font-size:12px; text-align:right; }
 .table-btn { min-height:32px; height:32px; min-width:56px; width:auto; padding:0 10px; border:1px solid #d1d5db; background:#f8fafc; color:#374151; border-radius:6px; font-size:11px; font-weight:800; letter-spacing:.03em; box-shadow:none; justify-self:center; }
 .table-btn:hover { background:#f1f5f9; border-color:#9ca3af; color:#111827; }
