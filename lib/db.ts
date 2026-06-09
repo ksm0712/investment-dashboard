@@ -23,8 +23,9 @@ function tursoUrl() {
 
 function arg(value: unknown) {
   if (value === null || value === undefined) return { type: "null" };
+  if (typeof value === "number" && !Number.isFinite(value)) return { type: "null" };
   if (typeof value === "number" && Number.isInteger(value)) return { type: "integer", value: String(value) };
-  if (typeof value === "number") return { type: "float", value: String(value) };
+  if (typeof value === "number") return { type: "float", value };
   if (typeof value === "boolean") return { type: "integer", value: value ? "1" : "0" };
   return { type: "text", value: String(value) };
 }
@@ -50,8 +51,9 @@ export async function execute(sql: string, params: unknown[] = []) {
     body: JSON.stringify({ requests: [{ type: "execute", stmt }, { type: "close" }] }),
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`Turso request failed: ${res.status}`);
-  const payload = await res.json();
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Turso request failed: ${res.status}${text ? ` ${text.slice(0, 240)}` : ""}`);
+  const payload = JSON.parse(text);
   const first = payload.results?.[0];
   if (first?.type !== "ok") throw new Error(JSON.stringify(first));
   const result = first.response?.result;
