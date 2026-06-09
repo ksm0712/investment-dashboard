@@ -2,6 +2,22 @@ import { getSecurities, updateRefreshFields } from "./db";
 import { getFx } from "./fx";
 import type { Security } from "./types";
 
+type PriceResult = {
+  price: number;
+  date: string;
+  source: string;
+};
+
+function parsePrice(value?: string | null) {
+  const parsed = Number(String(value || "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseDate(value?: string | null) {
+  const date = new Date(String(value || ""));
+  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+}
+
 async function yahooPrice(symbol: string) {
   const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d`, {
     headers: {
@@ -22,6 +38,7 @@ async function yahooPrice(symbol: string) {
       return {
         price: Number(closes[i]),
         date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
+        source: "yahoo",
       };
     }
   }
@@ -31,9 +48,64 @@ async function yahooPrice(symbol: string) {
     return {
       price: marketPrice,
       date: marketTime ? new Date(marketTime * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      source: "yahoo",
     };
   }
   throw new Error(`No Yahoo price for ${symbol}`);
+}
+
+async function nasdaqPrice(symbol: string, assetType: string) {
+  const clean = symbol.trim().replace(/\.(US|U)$/i, "");
+  if (!clean || clean.includes(".")) throw new Error(`Nasdaq unsupported symbol ${symbol}`);
+  const classes = assetType === "ETF" ? ["etf", "stocks"] : ["stocks", "etf"];
+  const errors: string[] = [];
+  for (const assetClass of classes) {
+    try {
+      const res = await fetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(clean)}/info?assetclass=${assetClass}`, {
+        headers: {
+          "Accept": "application/json,text/plain,*/*",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Origin": "https://www.nasdaq.com",
+          "Referer": `https://www.nasdaq.com/market-activity/${assetClass}/${encodeURIComponent(clean.toLowerCase())}`,
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36",
+        },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        errors.push(`Nasdaq ${assetClass} returned ${res.status}`);
+        continue;
+      }
+      const data = await res.json();
+      const primary = data.data?.primaryData;
+      const price = parsePrice(primary?.lastSalePrice);
+      if (price) {
+        return {
+          price,
+          date: parseDate(primary?.lastTradeTimestamp),
+          source: "nasdaq",
+        };
+      }
+      errors.push(data.status?.bCodeMessage?.[0]?.errorMessage || `No Nasdaq ${assetClass} price`);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : `Nasdaq ${assetClass} failed`);
+    }
+  }
+  throw new Error(errors.filter(Boolean).join("; ") || `No Nasdaq price for ${symbol}`);
+}
+
+async function marketPrice(symbol: string, assetType: string): Promise<PriceResult> {
+  const errors: string[] = [];
+  try {
+    return await yahooPrice(symbol);
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : "Yahoo failed");
+  }
+  try {
+    return await nasdaqPrice(symbol, assetType);
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : "Nasdaq failed");
+  }
+  throw new Error(errors.join("; "));
 }
 
 async function mfPrice(code: string) {
@@ -44,6 +116,7 @@ async function mfPrice(code: string) {
   return {
     price: Number(nav.nav),
     date: String(nav.date),
+    source: "mfapi",
   };
 }
 
@@ -85,7 +158,7 @@ export async function refreshPrices(userId: string) {
         await mark(sec, "not_refreshed");
         continue;
       }
-      const latest = sec.assetType === "Mutual Fund" && sec.currency === "INR" ? await mfPrice(symbol) : await yahooPrice(symbol);
+      const latest = sec.assetType === "Mutual Fund" && sec.currency === "INR" ? await mfPrice(symbol) : await marketPrice(symbol, sec.assetType);
       if (!sec.quantity) {
         await updateRefreshFields(userId, sec.id, {
           latestPrice: latest.price,
@@ -104,7 +177,8 @@ export async function refreshPrices(userId: string) {
         latestValue,
         latestValueInr,
         refreshStatus: "updated",
-        refreshNote: `Updated price ${latest.price} on ${latest.date}.`,
+        refreshNote: `Updated via ${latest.source} price ${latest.price} on ${latest.date}.`,
+        priceSource: latest.source,
       });
       await mark(sec, "updated");
     } catch (error) {
