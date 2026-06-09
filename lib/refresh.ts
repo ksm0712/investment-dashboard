@@ -6,6 +6,34 @@ type PriceResult = {
   price: number;
   date: string;
   source: string;
+  symbol?: string;
+};
+
+const exchangeSuffixes: Record<string, string> = {
+  NSE: ".NS",
+  BSE: ".BO",
+  SGX: ".SI",
+  SES: ".SI",
+  LSE: ".L",
+  TSE: ".T",
+  JPX: ".T",
+  HKEX: ".HK",
+  ASX: ".AX",
+  TSX: ".TO",
+  XETRA: ".DE",
+  FRA: ".DE",
+  FWB: ".DE",
+};
+
+const countrySuffixes: Record<string, string> = {
+  India: ".NS",
+  Singapore: ".SI",
+  "United Kingdom": ".L",
+  Japan: ".T",
+  "Hong Kong": ".HK",
+  Australia: ".AX",
+  Canada: ".TO",
+  Germany: ".DE",
 };
 
 function parsePrice(value?: string | null) {
@@ -18,8 +46,76 @@ function parseDate(value?: string | null) {
   return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
 }
 
+function yahooChartUrl(symbol: string) {
+  return `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d`;
+}
+
+function parseYahooChart(data: any, symbol: string, source: string): PriceResult {
+  if (data.chart?.error) throw new Error(data.chart.error.description || "Yahoo chart error");
+  const result = data.chart?.result?.[0];
+  const closes = result?.indicators?.quote?.[0]?.close || [];
+  const timestamps = result?.timestamp || [];
+
+  for (let i = closes.length - 1; i >= 0; i--) {
+    if (Number.isFinite(Number(closes[i])) && Number(closes[i]) > 0) {
+      return {
+        price: Number(closes[i]),
+        date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
+        source,
+        symbol,
+      };
+    }
+  }
+
+  const marketPrice = Number(result?.meta?.regularMarketPrice);
+  const marketTime = Number(result?.meta?.regularMarketTime);
+  if (Number.isFinite(marketPrice) && marketPrice > 0) {
+    return {
+      price: marketPrice,
+      date: marketTime ? new Date(marketTime * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      source,
+      symbol,
+    };
+  }
+
+  throw new Error(`No Yahoo price for ${symbol}`);
+}
+
+function parseJsonFromReader(text: string) {
+  const start = text.indexOf('{"chart"');
+  if (start < 0) throw new Error("Yahoo fallback returned no chart data");
+
+  const json = text.slice(start).trim();
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < json.length; i++) {
+    const char = json[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') inString = true;
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return JSON.parse(json.slice(0, i + 1));
+    }
+  }
+
+  throw new Error("Yahoo fallback returned incomplete chart data");
+}
+
 async function yahooPrice(symbol: string) {
-  const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d`, {
+  const res = await fetch(yahooChartUrl(symbol), {
     headers: {
       "Accept": "application/json,text/plain,*/*",
       "Accept-Language": "en-US,en;q=0.9",
@@ -28,30 +124,20 @@ async function yahooPrice(symbol: string) {
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`Yahoo ${symbol} returned ${res.status}`);
-  const data = await res.json();
-  const result = data.chart?.result?.[0];
-  if (data.chart?.error) throw new Error(data.chart.error.description || "Yahoo chart error");
-  const closes = result?.indicators?.quote?.[0]?.close || [];
-  const timestamps = result?.timestamp || [];
-  for (let i = closes.length - 1; i >= 0; i--) {
-    if (Number.isFinite(Number(closes[i])) && Number(closes[i]) > 0) {
-      return {
-        price: Number(closes[i]),
-        date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
-        source: "yahoo",
-      };
-    }
-  }
-  const marketPrice = Number(result?.meta?.regularMarketPrice);
-  const marketTime = Number(result?.meta?.regularMarketTime);
-  if (Number.isFinite(marketPrice) && marketPrice > 0) {
-    return {
-      price: marketPrice,
-      date: marketTime ? new Date(marketTime * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-      source: "yahoo",
-    };
-  }
-  throw new Error(`No Yahoo price for ${symbol}`);
+  return parseYahooChart(await res.json(), symbol, "yahoo");
+}
+
+async function yahooFallbackPrice(symbol: string) {
+  const res = await fetch(`https://r.jina.ai/http://${yahooChartUrl(symbol)}`, {
+    headers: {
+      "Accept": "text/plain,*/*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Yahoo fallback ${symbol} returned ${res.status}`);
+  return parseYahooChart(parseJsonFromReader(await res.text()), symbol, "yahoo-fallback");
 }
 
 async function nasdaqPrice(symbol: string, assetType: string) {
@@ -83,6 +169,7 @@ async function nasdaqPrice(symbol: string, assetType: string) {
           price,
           date: parseDate(primary?.lastTradeTimestamp),
           source: "nasdaq",
+          symbol: clean,
         };
       }
       errors.push(data.status?.bCodeMessage?.[0]?.errorMessage || `No Nasdaq ${assetClass} price`);
@@ -101,6 +188,11 @@ async function marketPrice(symbol: string, assetType: string): Promise<PriceResu
     errors.push(error instanceof Error ? error.message : "Yahoo failed");
   }
   try {
+    return await yahooFallbackPrice(symbol);
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : "Yahoo fallback failed");
+  }
+  try {
     return await nasdaqPrice(symbol, assetType);
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "Nasdaq failed");
@@ -108,7 +200,38 @@ async function marketPrice(symbol: string, assetType: string): Promise<PriceResu
   throw new Error(errors.join("; "));
 }
 
-async function mfPrice(code: string) {
+function priceSymbols(sec: Security) {
+  const candidates = new Set<string>();
+  const rawSymbols = [sec.priceSymbol, sec.ticker]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  for (const raw of rawSymbols) {
+    candidates.add(raw);
+    if (!raw.includes(".")) {
+      const exchangeSuffix = sec.exchange ? exchangeSuffixes[sec.exchange.toUpperCase()] : "";
+      const countrySuffix = countrySuffixes[sec.country];
+      const suffix = exchangeSuffix || countrySuffix;
+      if (suffix) candidates.add(`${raw}${suffix}`);
+    }
+  }
+
+  return [...candidates];
+}
+
+async function marketPriceForSecurity(sec: Security) {
+  const errors: string[] = [];
+  for (const symbol of priceSymbols(sec)) {
+    try {
+      return await marketPrice(symbol, sec.assetType);
+    } catch (error) {
+      errors.push(`${symbol}: ${error instanceof Error ? error.message : "refresh failed"}`);
+    }
+  }
+  throw new Error(errors.join("; ") || "Missing identifier.");
+}
+
+async function mfPrice(code: string): Promise<PriceResult> {
   const res = await fetch(`https://api.mfapi.in/mf/${encodeURIComponent(code)}`, { cache: "no-store" });
   const data = await res.json();
   const nav = data.data?.[0];
@@ -117,6 +240,7 @@ async function mfPrice(code: string) {
     price: Number(nav.nav),
     date: String(nav.date),
     source: "mfapi",
+    symbol: code,
   };
 }
 
@@ -152,23 +276,27 @@ export async function refreshPrices(userId: string) {
         await mark(sec, "manual");
         continue;
       }
-      const symbol = sec.priceSymbol || sec.ticker || "";
-      if (!symbol) {
+
+      const symbols = priceSymbols(sec);
+      if (!symbols.length) {
         await updateRefreshFields(userId, sec.id, { refreshStatus: "needs_mapping", refreshNote: "Missing identifier." });
         await mark(sec, "not_refreshed");
         continue;
       }
-      const latest = sec.assetType === "Mutual Fund" && sec.currency === "INR" ? await mfPrice(symbol) : await marketPrice(symbol, sec.assetType);
+
+      const latest = sec.assetType === "Mutual Fund" && sec.currency === "INR" ? await mfPrice(symbols[0]) : await marketPriceForSecurity(sec);
       if (!sec.quantity) {
         await updateRefreshFields(userId, sec.id, {
           latestPrice: latest.price,
           priceAsOn: latest.date,
           refreshStatus: "needs_quantity",
           refreshNote: "Price found but quantity missing.",
+          priceSymbol: latest.symbol,
         });
         await mark(sec, "not_refreshed");
         continue;
       }
+
       const latestValue = latest.price * sec.quantity;
       const latestValueInr = sec.currency === "INR" ? latestValue : latestValue * (fx[sec.currency] || 1);
       await updateRefreshFields(userId, sec.id, {
@@ -179,6 +307,7 @@ export async function refreshPrices(userId: string) {
         refreshStatus: "updated",
         refreshNote: `Updated via ${latest.source} price ${latest.price} on ${latest.date}.`,
         priceSource: latest.source,
+        priceSymbol: latest.symbol,
       });
       await mark(sec, "updated");
     } catch (error) {
