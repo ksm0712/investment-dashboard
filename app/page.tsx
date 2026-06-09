@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import type { AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets, palette } from "@/lib/constants";
 import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr, toInr } from "@/lib/format";
@@ -80,34 +80,42 @@ function AllocationPanel({ title, securities, by, totalInr, fx, currency }: {
   fx: Record<string, number>;
   currency: string;
 }) {
+  const [open, setOpen] = useState(true);
   const rows = groupBy(securities, (s) => (by === "assetType" ? s.assetType : s.country))
     .map(([name, items]) => ({ name, valueInr: items.reduce((sum, item) => sum + (item.latestValueInr ?? item.valueInr), 0), count: items.length }))
     .sort((a, b) => b.valueInr - a.valueInr);
   return (
     <div className="panel">
-      <div className="panel-title">{title}</div>
-      {rows.length === 0 ? <div className="alloc-meta">No data yet</div> : rows.map((row, index) => {
-        const pct = totalInr ? (row.valueInr / totalInr) * 100 : 0;
-        const color = palette[index % palette.length];
-        return (
-          <div className="alloc-row" key={row.name}>
-            <div>
-              <div className="alloc-name-line">
-                <span className="alloc-dot" style={{ background: color }} />
-                <span className="alloc-name">{row.name}</span>
+      <button type="button" className="panel-title panel-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span>{title}</span>
+        <ChevronDown size={16} strokeWidth={2.4} className={`panel-chevron ${open ? "open" : ""}`} />
+      </button>
+      {open && (
+        <div className="panel-body">
+          {rows.length === 0 ? <div className="alloc-meta">No data yet</div> : rows.map((row, index) => {
+            const pct = totalInr ? (row.valueInr / totalInr) * 100 : 0;
+            const color = palette[index % palette.length];
+            return (
+              <div className="alloc-row" key={row.name}>
+                <div>
+                  <div className="alloc-name-line">
+                    <span className="alloc-dot" style={{ background: color }} />
+                    <span className="alloc-name">{row.name}</span>
+                  </div>
+                  <div className="alloc-meta">{row.count} holdings</div>
+                </div>
+                <div>
+                  <div className="alloc-value-line">
+                    <span className="alloc-value">{fmt(fromInr(row.valueInr, currency, fx), currency)}</span>
+                    <span className="alloc-pct">{pct.toFixed(1)}%</span>
+                  </div>
+                  <div className="alloc-track"><div className="alloc-fill" style={{ width: `${Math.min(pct, 100)}%`, background: color }} /></div>
+                </div>
               </div>
-              <div className="alloc-meta">{row.count} holdings</div>
-            </div>
-            <div>
-              <div className="alloc-value-line">
-                <span className="alloc-value">{fmt(fromInr(row.valueInr, currency, fx), currency)}</span>
-                <span className="alloc-pct">{pct.toFixed(1)}%</span>
-              </div>
-              <div className="alloc-track"><div className="alloc-fill" style={{ width: `${Math.min(pct, 100)}%`, background: color }} /></div>
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
