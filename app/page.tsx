@@ -18,6 +18,7 @@ type RefreshSummary = {
   manual: number;
   not_refreshed: number;
   failed: number;
+  details?: Array<{ name: string; status: string; note: string }>;
   byType?: Record<string, Record<string, number>>;
 };
 
@@ -405,6 +406,7 @@ export default function Page() {
     summary.not_refreshed ? `${summary.not_refreshed} need setup` : "",
     summary.failed ? `${summary.failed} failed` : "",
   ].filter(Boolean).join(" · ") : "";
+  const refreshDetails = summary?.details?.length ? summary.details.map((item) => `${item.name}: ${item.note}`).join(" · ") : "";
 
   return (
     <main className={`page ${loading ? "page-loading" : ""}`}>
@@ -427,7 +429,7 @@ export default function Page() {
         <div className="empty"><div className="empty-icon">📂</div><div className="empty-title">No investments yet</div><div className="empty-sub">Click <b style={{ color: "#2563eb" }}>＋ Add Investment</b> above to get started</div></div>
       ) : (
         <>
-          <div className="control-row"><button className="refresh-btn" onClick={refresh}>Refresh Prices</button>{refreshText && <span className="refresh-results">{refreshText}</span>}</div>
+          <div className="control-row"><button className="refresh-btn" onClick={refresh}>Refresh Prices</button>{refreshText && <span className="refresh-results">{refreshText}{refreshDetails ? ` (${refreshDetails})` : ""}</span>}</div>
           <div className="tabs">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item}</button>)}</div>
           <div className="select-row"><div className="select-wrap"><label>View in currency</label><select value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div></div>
           <section className="register-strip">

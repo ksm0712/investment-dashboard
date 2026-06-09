@@ -4,22 +4,36 @@ import type { Security } from "./types";
 
 async function yahooPrice(symbol: string) {
   const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d`, {
-    headers: { "User-Agent": "Mozilla/5.0" },
+    headers: {
+      "Accept": "application/json,text/plain,*/*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36",
+    },
     cache: "no-store",
   });
+  if (!res.ok) throw new Error(`Yahoo ${symbol} returned ${res.status}`);
   const data = await res.json();
   const result = data.chart?.result?.[0];
+  if (data.chart?.error) throw new Error(data.chart.error.description || "Yahoo chart error");
   const closes = result?.indicators?.quote?.[0]?.close || [];
   const timestamps = result?.timestamp || [];
   for (let i = closes.length - 1; i >= 0; i--) {
-    if (closes[i]) {
+    if (Number.isFinite(Number(closes[i])) && Number(closes[i]) > 0) {
       return {
         price: Number(closes[i]),
         date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
       };
     }
   }
-  throw new Error("No Yahoo price");
+  const marketPrice = Number(result?.meta?.regularMarketPrice);
+  const marketTime = Number(result?.meta?.regularMarketTime);
+  if (Number.isFinite(marketPrice) && marketPrice > 0) {
+    return {
+      price: marketPrice,
+      date: marketTime ? new Date(marketTime * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    };
+  }
+  throw new Error(`No Yahoo price for ${symbol}`);
 }
 
 async function mfPrice(code: string) {
@@ -44,7 +58,7 @@ function bucketName(result: string) {
 export async function refreshPrices(userId: string) {
   const securities = await getSecurities(userId);
   const fx = await getFx();
-  const summary: any = { updated: 0, unchanged: 0, manual: 0, not_refreshed: 0, failed: 0, total: securities.length, byType: {} };
+  const summary: any = { updated: 0, unchanged: 0, manual: 0, not_refreshed: 0, failed: 0, total: securities.length, byType: {}, details: [] };
 
   async function mark(sec: Security, result: string) {
     const bucket = bucketName(result);
@@ -94,10 +108,12 @@ export async function refreshPrices(userId: string) {
       });
       await mark(sec, "updated");
     } catch (error) {
+      const note = error instanceof Error ? error.message : "Refresh failed.";
       await updateRefreshFields(userId, sec.id, {
         refreshStatus: "failed",
-        refreshNote: error instanceof Error ? error.message : "Refresh failed.",
+        refreshNote: note,
       });
+      summary.details.push({ name: sec.name, status: "failed", note });
       await mark(sec, "failed");
     }
   }
