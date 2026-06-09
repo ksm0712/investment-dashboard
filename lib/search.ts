@@ -5,10 +5,45 @@ const yahooExchanges: Record<string, string> = {
   BSE: "BSE",
   NMS: "NASDAQ",
   NYQ: "NYSE",
+  NGM: "NASDAQ",
+  PCX: "NYSE",
+  NIM: "AMEX",
   ASE: "AMEX",
+  SGX: "SGX",
   SES: "SGX",
   LSE: "LSE",
+  IOB: "LSE",
   JPX: "TSE",
+  TYO: "TSE",
+  HKG: "HKEX",
+  ASX: "ASX",
+  TOR: "TSX",
+  VAN: "TSXV",
+  FRA: "Frankfurt",
+  ETR: "XETRA",
+  GER: "XETRA",
+  EPA: "Euronext",
+  AMS: "Euronext",
+  MCE: "Madrid",
+  MIL: "Borsa Italiana",
+  SWX: "SIX",
+  EBS: "SIX",
+  KSC: "KRX",
+  KOE: "KRX",
+  TWO: "TWSE",
+  TAI: "TWSE",
+  JKT: "IDX",
+  KLS: "Bursa Malaysia",
+  BKK: "SET",
+  SAO: "B3",
+  JSE: "JSE",
+  DFM: "DFM",
+  ADX: "ADX",
+  NZE: "NZX",
+  STU: "Frankfurt",
+  OSL: "Oslo",
+  STO: "Nasdaq Stockholm",
+  CPH: "Nasdaq Copenhagen",
 };
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 6000) {
@@ -23,13 +58,17 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs =
 
 function inferCountry(symbol = "", exchange = "") {
   if (symbol.endsWith(".NS") || symbol.endsWith(".BO") || exchange === "NSI" || exchange === "BSE") return "India";
-  if (symbol.endsWith(".SI") || exchange === "SES") return "Singapore";
-  if (symbol.endsWith(".L") || exchange === "LSE") return "United Kingdom";
-  if (symbol.endsWith(".T") || exchange === "JPX") return "Japan";
-  if (symbol.endsWith(".HK")) return "Hong Kong";
-  if (symbol.endsWith(".AX")) return "Australia";
-  if (symbol.endsWith(".TO")) return "Canada";
-  if (["NMS", "NYQ", "ASE"].includes(exchange)) return "United States";
+  if (symbol.endsWith(".SI") || ["SGX", "SES"].includes(exchange)) return "Singapore";
+  if (symbol.endsWith(".L") || ["LSE", "IOB"].includes(exchange)) return "United Kingdom";
+  if (symbol.endsWith(".T") || ["JPX", "TYO"].includes(exchange)) return "Japan";
+  if (symbol.endsWith(".HK") || exchange === "HKG") return "Hong Kong";
+  if (symbol.endsWith(".AX") || exchange === "ASX") return "Australia";
+  if (symbol.endsWith(".TO") || ["TOR", "VAN"].includes(exchange)) return "Canada";
+  if (symbol.endsWith(".DE") || ["FRA", "ETR", "GER", "STU"].includes(exchange)) return "Germany";
+  if (symbol.endsWith(".PA") || exchange === "EPA") return "France";
+  if (symbol.endsWith(".AS") || exchange === "AMS") return "Netherlands";
+  if (symbol.endsWith(".SW") || ["SWX", "EBS"].includes(exchange)) return "Switzerland";
+  if (["NMS", "NYQ", "NGM", "PCX", "NIM", "ASE"].includes(exchange)) return "United States";
   return "United States";
 }
 
@@ -45,6 +84,7 @@ export async function searchYahoo(query: string): Promise<SearchResult[]> {
         const type = String(q.quoteType || "").toUpperCase();
         const assetType = type.includes("ETF") ? "ETF" : type.includes("MUTUAL") ? "Mutual Fund" : "Stock";
         const country = inferCountry(q.symbol, q.exchange);
+        if (assetType === "Mutual Fund" && country === "India") return null;
         return {
           label: `${q.shortname} · ${q.symbol}`,
           name: q.shortname,
@@ -54,7 +94,8 @@ export async function searchYahoo(query: string): Promise<SearchResult[]> {
           exchange: yahooExchanges[q.exchange] || q.exchange || "Other",
           identifierType: "Ticker",
         } as SearchResult;
-      });
+      })
+      .filter(Boolean) as SearchResult[];
   } catch {
     return [];
   }
