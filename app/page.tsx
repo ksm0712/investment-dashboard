@@ -299,6 +299,18 @@ function Holdings({ securities, fx, currency, totalInr, reload }: { securities: 
     reload();
   }
 
+  function beginEdit(item: Security) {
+    setEditing(item.id);
+    setDeleting(null);
+    setDraft({
+      quantity: String(item.quantity || ""),
+      costPrice: String(item.costPrice || ""),
+      latestPrice: String(item.latestPrice || ""),
+      value: String(item.latestValue || item.value || ""),
+      purchaseDate: item.purchaseDate || "",
+    });
+  }
+
   if (!rows.length) return <div className="alloc-meta">No holdings.</div>;
   return (
     <div className="holdings">
@@ -306,6 +318,13 @@ function Holdings({ securities, fx, currency, totalInr, reload }: { securities: 
         <span>Security</span><span>Cur</span><span>Qty</span><span>Mkt Price</span><span>Value</span><span className="hide-mobile">Cost</span><span className="hide-mobile">Gain/Loss</span><span className="hide-mobile">Gain %</span><span className="hide-mobile">Updated</span><span /><span />
       </div>
       {rows.map((item) => {
+        const isEditing = editing === item.id;
+        const draftQuantity = Number(draft.quantity || 0);
+        const draftLatestPrice = Number(draft.latestPrice || 0);
+        const draftValue = Number(draft.value || (draftQuantity && draftLatestPrice ? draftQuantity * draftLatestPrice : 0));
+        const draftCost = draftQuantity * Number(draft.costPrice || 0);
+        const draftGain = draftValue - draftCost;
+        const draftGainPct = draftCost ? (draftGain / draftCost) * 100 : null;
         const valueInr = item.latestValueInr ?? item.valueInr;
         const nativeValue = item.latestValue ?? item.value ?? (item.quantity || 0) * (item.latestPrice || 0);
         const nativeCost = (item.quantity || 0) * (item.costPrice || 0);
@@ -314,33 +333,29 @@ function Holdings({ securities, fx, currency, totalInr, reload }: { securities: 
         const pct = totalInr ? (valueInr / totalInr) * 100 : 0;
         return (
           <div key={item.id}>
-            <div className="holding-row">
-              <div><div className="h-name">{item.name}</div><div className="h-sub">{item.assetType} · {pct.toFixed(1)}%</div></div>
+            <div className={`holding-row ${isEditing ? "editing" : ""}`}>
+              <div><div className="h-name">{item.name}</div><div className="h-sub">{isEditing ? "Editing position" : `${item.assetType} · ${pct.toFixed(1)}%`}</div></div>
               <div className="h-cell h-cur">{item.currency}</div>
-              <div className="h-cell h-num">{fmtPlain(item.quantity, 2)}</div>
-              <div className="h-cell h-num">{fmtUnit(item.latestPrice, item.currency)}</div>
-              <div className="h-cell h-num h-value">{fmt(nativeValue, item.currency)}</div>
-              <div className="h-cell h-num hide-mobile">{nativeCost ? fmt(nativeCost, item.currency) : "—"}</div>
-              <div className={`h-cell h-num hide-mobile ${(gainPct || 0) >= 0 ? "good" : "bad"}`}>{nativeCost ? fmt(nativeGain, item.currency) : "—"}</div>
-              <div className={`h-cell h-num hide-mobile ${(gainPct || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(gainPct, true)}</div>
-              <div className="h-cell h-updated hide-mobile">{fmtDate(item.priceAsOn)}</div>
-              <button className="table-btn" onClick={() => { setEditing(editing === item.id ? null : item.id); setDeleting(null); setDraft({ quantity: String(item.quantity || ""), costPrice: String(item.costPrice || ""), latestPrice: String(item.latestPrice || ""), value: String(item.latestValue || item.value || ""), purchaseDate: item.purchaseDate || "" }); }}>Edit</button>
-              <button className="table-btn danger" onClick={() => { setDeleting(deleting === item.id ? null : item.id); setEditing(null); }}>Delete</button>
+              <div className="h-cell h-num">{isEditing ? <input className="inline-input" aria-label="Quantity" value={draft.quantity || ""} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} /> : fmtPlain(item.quantity, 2)}</div>
+              <div className="h-cell h-num">{isEditing ? <input className="inline-input" aria-label="Market price" value={draft.latestPrice || ""} onChange={(e) => setDraft({ ...draft, latestPrice: e.target.value })} /> : fmtUnit(item.latestPrice, item.currency)}</div>
+              <div className="h-cell h-num h-value">{isEditing ? <input className="inline-input" aria-label="Current value" value={draft.value || ""} onChange={(e) => setDraft({ ...draft, value: e.target.value })} /> : fmt(nativeValue, item.currency)}</div>
+              <div className="h-cell h-num hide-mobile">{isEditing ? <input className="inline-input" aria-label="Unit cost" value={draft.costPrice || ""} onChange={(e) => setDraft({ ...draft, costPrice: e.target.value })} /> : nativeCost ? fmt(nativeCost, item.currency) : "—"}</div>
+              <div className={`h-cell h-num hide-mobile ${((isEditing ? draftGainPct : gainPct) || 0) >= 0 ? "good" : "bad"}`}>{isEditing ? (draftCost ? fmt(draftGain, item.currency) : "—") : nativeCost ? fmt(nativeGain, item.currency) : "—"}</div>
+              <div className={`h-cell h-num hide-mobile ${((isEditing ? draftGainPct : gainPct) || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(isEditing ? draftGainPct : gainPct, true)}</div>
+              <div className="h-cell h-updated hide-mobile">{isEditing ? <input className="inline-input date" aria-label="Purchase date" type="date" value={draft.purchaseDate || ""} onChange={(e) => setDraft({ ...draft, purchaseDate: e.target.value })} /> : fmtDate(item.priceAsOn)}</div>
+              {isEditing ? (
+                <>
+                  <button className="table-btn save-inline" onClick={() => save(item.id)}>Save</button>
+                  <button className="table-btn" onClick={() => { setEditing(null); setDraft({}); }}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <button className="table-btn" onClick={() => beginEdit(item)}>Edit</button>
+                  <button className="table-btn danger" onClick={() => { setDeleting(deleting === item.id ? null : item.id); setEditing(null); }}>Delete</button>
+                </>
+              )}
             </div>
             {deleting === item.id && <div className="delete-panel"><b>Delete {item.name}?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => remove(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
-            {editing === item.id && (
-              <div className="edit-panel">
-                <div className="slabel" style={{ marginTop: 0 }}>Edit · {item.name}</div>
-                <div className="edit-grid">
-                  <input placeholder="Quantity" value={draft.quantity || ""} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} />
-                  <input placeholder="Unit Cost" value={draft.costPrice || ""} onChange={(e) => setDraft({ ...draft, costPrice: e.target.value })} />
-                  <input placeholder="Latest Price" value={draft.latestPrice || ""} onChange={(e) => setDraft({ ...draft, latestPrice: e.target.value })} />
-                  <input placeholder="Current Value" value={draft.value || ""} onChange={(e) => setDraft({ ...draft, value: e.target.value })} />
-                  <input placeholder="Purchase Date" value={draft.purchaseDate || ""} onChange={(e) => setDraft({ ...draft, purchaseDate: e.target.value })} />
-                  <button className="save-btn" onClick={() => save(item.id)}>Save</button>
-                </div>
-              </div>
-            )}
           </div>
         );
       })}
