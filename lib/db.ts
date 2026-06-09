@@ -64,9 +64,22 @@ export async function execute(sql: string, params: unknown[] = []) {
 
 let initialized = false;
 
+async function tableColumns(table: string) {
+  const { rows } = await execute(`PRAGMA table_info(${table})`);
+  return new Set(rows.map((row) => String(row.name)));
+}
+
+async function addMissingColumns(table: string, columns: Record<string, string>) {
+  const existing = await tableColumns(table);
+  for (const [name, definition] of Object.entries(columns)) {
+    if (!existing.has(name)) {
+      await execute(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+    }
+  }
+}
+
 export async function initDb() {
   if (initialized || !hasTurso()) return;
-  initialized = true;
   await execute(`CREATE TABLE IF NOT EXISTS portfolios (
     id INTEGER PRIMARY KEY, name TEXT, date TEXT, user_id TEXT,
     UNIQUE(name, date, user_id)
@@ -80,6 +93,46 @@ export async function initDb() {
     refreshed_at TEXT, country TEXT, pricing_mode TEXT, exchange TEXT,
     cost_price REAL, purchase_date TEXT
   )`);
+  await addMissingColumns("portfolios", {
+    user_id: "TEXT",
+  });
+  await addMissingColumns("securities", {
+    quantity: "REAL",
+    ticker: "TEXT",
+    isin: "TEXT",
+    price_source: "TEXT",
+    price_symbol: "TEXT",
+    latest_price: "REAL",
+    price_as_on: "TEXT",
+    latest_value: "REAL",
+    latest_value_inr: "REAL",
+    refresh_status: "TEXT",
+    refresh_note: "TEXT",
+    refreshed_at: "TEXT",
+    country: "TEXT",
+    pricing_mode: "TEXT",
+    exchange: "TEXT",
+    cost_price: "REAL",
+    purchase_date: "TEXT",
+  });
+  await execute(`UPDATE securities SET pricing_mode = CASE
+    WHEN asset_type IN ('Stock','ETF') THEN 'auto'
+    WHEN asset_type='Mutual Fund' AND currency='INR' THEN 'auto'
+    ELSE 'manual' END
+    WHERE pricing_mode IS NULL OR TRIM(pricing_mode)=''`);
+  await execute(`UPDATE securities SET country = CASE
+    WHEN currency='INR' THEN 'India'
+    WHEN currency='SGD' THEN 'Singapore'
+    WHEN currency='USD' THEN 'United States'
+    WHEN currency='GBP' THEN 'United Kingdom'
+    WHEN currency='EUR' THEN 'Europe'
+    WHEN currency='JPY' THEN 'Japan'
+    ELSE 'Other' END
+    WHERE country IS NULL OR TRIM(country)=''`);
+  await execute(`UPDATE securities SET price_as_on=(
+    SELECT portfolios.date FROM portfolios WHERE portfolios.id=securities.portfolio_id)
+    WHERE price_as_on IS NULL OR TRIM(price_as_on)=''`);
+  initialized = true;
 }
 
 function mapSecurity(row: Row): Security {
@@ -198,9 +251,13 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
     return;
   }
 
-  await execute("INSERT OR IGNORE INTO portfolios (name,date,user_id) VALUES (?,?,?)", ["Investments", portfolioDate, userId]);
-  const portfolioRows = await execute("SELECT id FROM portfolios WHERE name=? AND date=? AND user_id=?", ["Investments", portfolioDate, userId]);
+  let portfolioRows = await execute("SELECT id FROM portfolios WHERE name=? AND date=? AND user_id=?", ["Investments", portfolioDate, userId]);
+  if (!portfolioRows.rows[0]) {
+    await execute("INSERT INTO portfolios (name,date,user_id) VALUES (?,?,?)", ["Investments", portfolioDate, userId]);
+    portfolioRows = await execute("SELECT id FROM portfolios WHERE name=? AND date=? AND user_id=?", ["Investments", portfolioDate, userId]);
+  }
   const portfolioId = Number(portfolioRows.rows[0]?.id);
+  if (!portfolioId) throw new Error("Could not create portfolio.");
   await execute(
     `INSERT INTO securities (portfolio_id,name,asset_type,currency,value,value_inr,quantity,ticker,isin,price_source,
       price_symbol,latest_price,annual_income,return_pct,price_as_on,latest_value,latest_value_inr,refresh_status,
@@ -238,7 +295,7 @@ export async function updateSecurity(userId: string, id: number, fields: Partial
   }
   await execute(
     `UPDATE securities SET quantity=?, cost_price=?, latest_price=?, latest_value=?, latest_value_inr=?, purchase_date=?, refreshed_at=?
-     WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=? OR user_id IS NULL)`,
+     WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
     [quantity, fields.costPrice ?? security.costPrice, latestPrice, nextValue, nextValue * fxRate, fields.purchaseDate ?? security.purchaseDate, new Date().toISOString(), id, userId],
   );
 }
@@ -251,7 +308,7 @@ export async function deleteSecurity(userId: string, id: number) {
     if (idx >= 0) demo.securities.splice(idx, 1);
     return;
   }
-  await execute("DELETE FROM securities WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=? OR user_id IS NULL)", [id, userId]);
+  await execute("DELETE FROM securities WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)", [id, userId]);
 }
 
 export async function updateRefreshFields(userId: string, id: number, updates: Partial<Security>) {
@@ -275,7 +332,7 @@ export async function updateRefreshFields(userId: string, id: number, updates: P
   await execute(
     `UPDATE securities SET latest_price=?, price_as_on=?, latest_value=?, latest_value_inr=?,
       refresh_status=?, refresh_note=?, refreshed_at=?, price_source=?, price_symbol=?
-     WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=? OR user_id IS NULL)`,
+     WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
     [
       values.latest_price, values.price_as_on, values.latest_value, values.latest_value_inr,
       values.refresh_status, values.refresh_note, values.refreshed_at, values.price_source,

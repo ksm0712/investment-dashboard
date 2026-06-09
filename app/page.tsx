@@ -191,7 +191,10 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     try {
       setBusy(true);
       const res = await fetch("/api/investments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-      if (!res.ok) return setError("Could not save investment.");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        return setError(data?.error || "Could not save investment. Please try again.");
+      }
       onSaved();
       onClose();
     } finally {
