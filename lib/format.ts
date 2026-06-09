@@ -22,6 +22,18 @@ export function fmt(value: number | null | undefined, currency: string) {
   return `${symbol}${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
+export function fmtUnit(value: number | null | undefined, currency: string) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  const symbol = symbols[currency] ?? `${currency} `;
+  const abs = Math.abs(value);
+  const digits = abs < 1 ? 4 : abs < 1000 ? 2 : 0;
+  const locale = currency === "INR" ? "en-IN" : undefined;
+  return `${symbol}${value.toLocaleString(locale, {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : Math.min(digits, 2),
+    maximumFractionDigits: digits,
+  })}`;
+}
+
 export function fmtPlain(value: number | null | undefined, decimals = 0) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return value.toLocaleString(undefined, {

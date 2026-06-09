@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import type { AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets, palette } from "@/lib/constants";
-import { fmt, fmtDate, fmtPct, fmtPlain, fromInr, toInr } from "@/lib/format";
+import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr, toInr } from "@/lib/format";
 
 type PortfolioPayload = {
   user: User;
@@ -307,22 +307,21 @@ function Holdings({ securities, fx, currency, totalInr, reload }: { securities: 
       </div>
       {rows.map((item) => {
         const valueInr = item.latestValueInr ?? item.valueInr;
-        const valueDisplay = fromInr(valueInr, currency, fx);
-        const costInr = (item.quantity || 0) * (item.costPrice || 0) * (fx[item.currency] || 1);
-        const gainInr = valueInr - costInr;
-        const gainPct = costInr ? (gainInr / costInr) * 100 : null;
+        const nativeValue = item.latestValue ?? item.value ?? (item.quantity || 0) * (item.latestPrice || 0);
+        const nativeCost = (item.quantity || 0) * (item.costPrice || 0);
+        const nativeGain = nativeValue - nativeCost;
+        const gainPct = nativeCost ? (nativeGain / nativeCost) * 100 : null;
         const pct = totalInr ? (valueInr / totalInr) * 100 : 0;
-        const latestPriceDisplay = item.latestPrice ? fromInr(item.latestPrice * (fx[item.currency] || 1), currency, fx) : null;
         return (
           <div key={item.id}>
             <div className="holding-row">
               <div><div className="h-name">{item.name}</div><div className="h-sub">{item.assetType} · {pct.toFixed(1)}%</div></div>
               <div className="h-cell h-cur">{item.currency}</div>
               <div className="h-cell h-num">{fmtPlain(item.quantity, 2)}</div>
-              <div className="h-cell h-num">{fmt(latestPriceDisplay, currency)}</div>
-              <div className="h-cell h-num h-value">{fmt(valueDisplay, currency)}</div>
-              <div className="h-cell h-num hide-mobile">{costInr ? fmt(fromInr(costInr, currency, fx), currency) : "—"}</div>
-              <div className={`h-cell h-num hide-mobile ${(gainPct || 0) >= 0 ? "good" : "bad"}`}>{costInr ? fmt(fromInr(gainInr, currency, fx), currency) : "—"}</div>
+              <div className="h-cell h-num">{fmtUnit(item.latestPrice, item.currency)}</div>
+              <div className="h-cell h-num h-value">{fmt(nativeValue, item.currency)}</div>
+              <div className="h-cell h-num hide-mobile">{nativeCost ? fmt(nativeCost, item.currency) : "—"}</div>
+              <div className={`h-cell h-num hide-mobile ${(gainPct || 0) >= 0 ? "good" : "bad"}`}>{nativeCost ? fmt(nativeGain, item.currency) : "—"}</div>
               <div className={`h-cell h-num hide-mobile ${(gainPct || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(gainPct, true)}</div>
               <div className="h-cell h-updated hide-mobile">{fmtDate(item.priceAsOn)}</div>
               <button className="table-btn" onClick={() => { setEditing(editing === item.id ? null : item.id); setDeleting(null); setDraft({ quantity: String(item.quantity || ""), costPrice: String(item.costPrice || ""), latestPrice: String(item.latestPrice || ""), value: String(item.latestValue || item.value || ""), purchaseDate: item.purchaseDate || "" }); }}>Edit</button>
