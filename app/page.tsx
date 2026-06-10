@@ -134,8 +134,10 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   const [matches, setMatches] = useState<SearchResult[]>([]);
   const [matchIndex, setMatchIndex] = useState("");
   const [busy, setBusy] = useState(false);
+  const [quoteBusy, setQuoteBusy] = useState(false);
   const [error, setError] = useState("");
   const localSearchCache = useRef<Record<string, SearchResult[]>>({});
+  const quoteCache = useRef<Record<string, string>>({});
 
   const exchanges = marketExchanges[country] || ["Other"];
 
@@ -169,6 +171,41 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     }
   }
 
+  async function fetchCurrentPrice(match: SearchResult) {
+    if (!["Stock", "ETF", "Mutual Fund"].includes(match.assetType)) return;
+    const currency = marketCurrency[match.country] || "USD";
+    const key = `${match.assetType}|${match.ticker}|${currency}`;
+    if (quoteCache.current[key]) {
+      setCurrentPrice(quoteCache.current[key]);
+      return;
+    }
+    try {
+      setQuoteBusy(true);
+      const res = await fetch("/api/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: match.name,
+          assetType: match.assetType,
+          country: match.country,
+          currency,
+          ticker: match.ticker,
+          exchange: match.exchange,
+          identifierType: match.identifierType,
+        }),
+      });
+      const data = await res.json();
+      const price = Number(data.quote?.price);
+      if (res.ok && Number.isFinite(price) && price > 0) {
+        const formatted = String(Number(price.toFixed(6)));
+        quoteCache.current[key] = formatted;
+        setCurrentPrice(formatted);
+      }
+    } finally {
+      setQuoteBusy(false);
+    }
+  }
+
   function applyMatch(indexValue: string) {
     setMatchIndex(indexValue);
     const match = matches[Number(indexValue)];
@@ -179,6 +216,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     setTicker(match.ticker);
     setExchange(match.exchange || (marketExchanges[match.country] || ["Other"])[0]);
     setIdentifierType(match.identifierType);
+    fetchCurrentPrice(match);
   }
 
   async function save() {
@@ -235,7 +273,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
           </div>
           <button type="button" className="search-btn" onClick={search}>Search</button>
         </div>
-        {busy && <div className="busy-note">Searching...</div>}
+        {(busy || quoteBusy) && <div className="busy-note">{busy ? "Searching..." : "Fetching current price..."}</div>}
         {matches.length > 0 && (
           <select className="matches" value={matchIndex} onChange={(e) => applyMatch(e.target.value)}>
             <option value="">Select an asset to fill details</option>

@@ -566,6 +566,48 @@ async function mfPriceForSecurity(sec: Security) {
   return latest;
 }
 
+export async function latestPriceForInput(input: {
+  name: string;
+  assetType: Security["assetType"];
+  currency: string;
+  country: string;
+  ticker?: string | null;
+  exchange?: string | null;
+  identifierType?: string | null;
+}) {
+  const identifier = String(input.ticker || "").trim();
+  const sec = {
+    id: 0,
+    portfolioId: 0,
+    name: input.name,
+    assetType: input.assetType,
+    currency: input.currency,
+    value: 0,
+    valueInr: 0,
+    annualIncome: null,
+    returnPct: null,
+    quantity: 1,
+    ticker: input.identifierType === "ISIN" ? null : identifier || null,
+    isin: input.identifierType === "ISIN" ? identifier || null : null,
+    priceSource: null,
+    priceSymbol: identifier || null,
+    latestPrice: null,
+    priceAsOn: null,
+    latestValue: null,
+    latestValueInr: null,
+    refreshStatus: null,
+    refreshNote: null,
+    refreshedAt: null,
+    country: input.country,
+    pricingMode: "auto",
+    exchange: input.exchange || null,
+    costPrice: null,
+    purchaseDate: null,
+    source: "Quote",
+  } satisfies Security;
+  return sec.assetType === "Mutual Fund" && sec.currency === "INR" ? mfPriceForSecurity(sec) : marketPriceForSecurity(sec);
+}
+
 function bucketName(result: string) {
   if (result === "updated") return "updated";
   if (result === "manual") return "manual";
