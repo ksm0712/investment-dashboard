@@ -194,8 +194,11 @@ export async function searchSecurities(query: string) {
   const hit = cached(searchCache, key);
   if (hit) return hit;
   const shouldSearchFunds = likelyMutualFundQuery(query);
-  const yahoo = await searchYahoo(query);
-  const amfi = shouldSearchFunds || yahoo.length === 0 ? await searchAmfi(query) : [];
+  let yahoo = await searchYahoo(query);
+  if (!shouldSearchFunds && yahoo.length === 0 && key.length > 1 && key.length <= 4) {
+    yahoo = await searchYahoo(key.slice(0, -1));
+  }
+  const amfi = shouldSearchFunds ? await searchAmfi(query) : [];
   const seen = new Set<string>();
   return remember(searchCache, key, [...amfi, ...yahoo].filter((item) => {
     const key = `${item.assetType}|${item.ticker}|${item.name}`;

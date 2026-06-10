@@ -136,6 +136,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   const [busy, setBusy] = useState(false);
   const [quoteBusy, setQuoteBusy] = useState(false);
   const [error, setError] = useState("");
+  const [searchNotice, setSearchNotice] = useState("");
   const localSearchCache = useRef<Record<string, SearchResult[]>>({});
   const quoteCache = useRef<Record<string, string>>({});
   const quoteRequestId = useRef(0);
@@ -150,22 +151,30 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     const key = name.trim().toLowerCase();
     if (!key) {
       setMatches([]);
+      setSearchNotice("");
       return;
     }
     if (localSearchCache.current[key]) {
-      setMatches(localSearchCache.current[key]);
+      const cachedResults = localSearchCache.current[key];
+      setMatches(cachedResults);
+      setMatchIndex("");
+      setSearchNotice(cachedResults.length ? "" : `No matches found for "${name.trim()}". Try the ticker or full asset name.`);
       return;
     }
     setError("");
+    setSearchNotice("");
     try {
       setBusy(true);
       const res = await fetch(`/api/search?q=${encodeURIComponent(name.trim())}`);
       const data = await res.json();
       const results = data.results || [];
       localSearchCache.current[key] = results;
+      setMatchIndex("");
       setMatches(results);
+      setSearchNotice(results.length ? "" : `No matches found for "${name.trim()}". Try the ticker or full asset name.`);
     } catch {
       setMatches([]);
+      setSearchNotice("");
       setError("Search could not load results. Try again.");
     } finally {
       setBusy(false);
@@ -272,11 +281,12 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
         <div className="search-line">
           <div className="field">
             <label>Asset name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings" />
+            <input value={name} onChange={(e) => { setName(e.target.value); setMatches([]); setMatchIndex(""); setSearchNotice(""); }} placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings" />
           </div>
-          <button type="button" className="search-btn" onClick={search}>Search</button>
+          <button type="button" className="search-btn" onClick={search} disabled={busy}>{busy ? "Searching..." : "Search"}</button>
         </div>
         {(busy || quoteBusy) && <div className="busy-note">{busy ? "Searching..." : "Fetching current price..."}</div>}
+        {searchNotice && <div className="search-note">{searchNotice}</div>}
         {matches.length > 0 && (
           <select className="matches" value={matchIndex} onChange={(e) => applyMatch(e.target.value)}>
             <option value="">Select an asset to fill details</option>
