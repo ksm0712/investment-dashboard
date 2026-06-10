@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import type { AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets, palette } from "@/lib/constants";
@@ -135,6 +135,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   const [matchIndex, setMatchIndex] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const localSearchCache = useRef<Record<string, SearchResult[]>>({});
 
   const exchanges = marketExchanges[country] || ["Other"];
 
@@ -143,8 +144,13 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   }, [country, exchanges, exchange]);
 
   async function search() {
-    if (!name.trim()) {
+    const key = name.trim().toLowerCase();
+    if (!key) {
       setMatches([]);
+      return;
+    }
+    if (localSearchCache.current[key]) {
+      setMatches(localSearchCache.current[key]);
       return;
     }
     setError("");
@@ -152,7 +158,9 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
       setBusy(true);
       const res = await fetch(`/api/search?q=${encodeURIComponent(name.trim())}`);
       const data = await res.json();
-      setMatches(data.results || []);
+      const results = data.results || [];
+      localSearchCache.current[key] = results;
+      setMatches(results);
     } catch {
       setMatches([]);
       setError("Search could not load results. Try again.");
@@ -282,7 +290,14 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   );
 }
 
-function Holdings({ securities, fx, currency, totalInr, reload }: { securities: Security[]; fx: Record<string, number>; currency: string; totalInr: number; reload: () => void }) {
+function Holdings({ securities, fx, currency, totalInr, reload, onUpdate }: {
+  securities: Security[];
+  fx: Record<string, number>;
+  currency: string;
+  totalInr: number;
+  reload: () => void;
+  onUpdate: (id: number, fields: Partial<Pick<Security, "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate">>) => void;
+}) {
   const [editing, setEditing] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -296,9 +311,15 @@ function Holdings({ securities, fx, currency, totalInr, reload }: { securities: 
       value: draft.value ? Number(draft.value) : undefined,
       purchaseDate: draft.purchaseDate || undefined,
     };
-    await fetch(`/api/investments/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setEditing(null);
-    reload();
+    setDraft({});
+    onUpdate(id, body);
+    try {
+      const res = await fetch(`/api/investments/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) await reload();
+    } catch {
+      await reload();
+    }
   }
 
   async function remove(id: number) {
@@ -404,7 +425,11 @@ export default function Page() {
       const res = await fetch("/api/refresh", { method: "POST" });
       const json = await res.json();
       setSummary(json.summary);
-      await load();
+      if (json.securities && data) {
+        setData({ ...data, securities: json.securities, fx: json.fx || fx });
+      } else {
+        await load();
+      }
     } finally {
       setLoading(false);
     }
@@ -416,6 +441,31 @@ export default function Page() {
   const visible = tab === "All" ? securities : securities.filter((s) => s.country === tab);
   const stats = metricStats(visible, fx);
   const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || visible[0]?.currency || "USD");
+
+  function updateSecurityLocal(id: number, fields: Partial<Pick<Security, "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate">>) {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        securities: prev.securities.map((sec) => {
+          if (sec.id !== id) return sec;
+          const quantity = fields.quantity ?? sec.quantity ?? 0;
+          const latestPrice = fields.latestPrice ?? sec.latestPrice ?? 0;
+          const latestValue = fields.value ?? (latestPrice && quantity ? latestPrice * quantity : sec.latestValue ?? sec.value);
+          return {
+            ...sec,
+            quantity,
+            costPrice: fields.costPrice ?? sec.costPrice,
+            latestPrice,
+            latestValue,
+            latestValueInr: toInr(latestValue, sec.currency, fx),
+            purchaseDate: fields.purchaseDate ?? sec.purchaseDate,
+            refreshedAt: new Date().toISOString(),
+          };
+        }),
+      };
+    });
+  }
 
   useEffect(() => {
     if (tab !== "All" && !currency[tab]) setCurrency((prev) => ({ ...prev, [tab]: marketCurrency[tab] || visible[0]?.currency || "USD" }));
@@ -467,7 +517,7 @@ export default function Page() {
           </section>
           <section className="panel-grid"><AllocationPanel title="Asset Allocation" securities={visible} by="assetType" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />{tab === "All" && <AllocationPanel title="By Country" securities={visible} by="country" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />}</section>
           <div className="slabel">Holdings</div>
-          <Holdings securities={visible} fx={fx} currency={currentCurrency} totalInr={stats.totalInr} reload={load} />
+          <Holdings securities={visible} fx={fx} currency={currentCurrency} totalInr={stats.totalInr} reload={load} onUpdate={updateSecurityLocal} />
         </>
       )}
       {modalOpen && <AddInvestmentModal fx={fx} onClose={() => setModalOpen(false)} onSaved={load} />}

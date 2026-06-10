@@ -1,5 +1,12 @@
 import type { SearchResult } from "./types";
 
+const searchCache = new Map<string, { at: number; results: SearchResult[] }>();
+const yahooCache = new Map<string, { at: number; results: SearchResult[] }>();
+const amfiCache = new Map<string, { at: number; results: SearchResult[] }>();
+const CACHE_MS = 10 * 60 * 1000;
+let amfiCatalogueCache: { at: number; funds: any[] } | null = null;
+let amfiCataloguePromise: Promise<any[]> | null = null;
+
 const yahooExchanges: Record<string, string> = {
   NSI: "NSE",
   BSE: "BSE",
@@ -46,7 +53,7 @@ const yahooExchanges: Record<string, string> = {
   CPH: "Nasdaq Copenhagen",
 };
 
-async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 6000) {
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 3500) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -54,6 +61,18 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs =
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function cached(map: Map<string, { at: number; results: SearchResult[] }>, key: string) {
+  const hit = map.get(key);
+  return hit && Date.now() - hit.at < CACHE_MS ? hit.results : null;
+}
+
+function remember(map: Map<string, { at: number; results: SearchResult[] }>, key: string, results: SearchResult[]) {
+  map.set(key, { at: Date.now(), results });
+  const oldest = map.keys().next().value;
+  if (map.size > 100 && oldest) map.delete(oldest);
+  return results;
 }
 
 function inferCountry(symbol = "", exchange = "") {
@@ -73,11 +92,14 @@ function inferCountry(symbol = "", exchange = "") {
 }
 
 export async function searchYahoo(query: string): Promise<SearchResult[]> {
+  const key = query.trim().toLowerCase();
+  const hit = cached(yahooCache, key);
+  if (hit) return hit;
   const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0`;
   try {
-    const res = await fetchWithTimeout(url, { headers: { "User-Agent": "Mozilla/5.0" }, next: { revalidate: 300 } });
+    const res = await fetchWithTimeout(url, { headers: { "User-Agent": "Mozilla/5.0" }, next: { revalidate: 300 } }, 2500);
     const data = await res.json();
-    return (data.quotes || [])
+    return remember(yahooCache, key, (data.quotes || [])
       .filter((q: any) => q.symbol && q.shortname)
       .slice(0, 6)
       .map((q: any) => {
@@ -95,20 +117,35 @@ export async function searchYahoo(query: string): Promise<SearchResult[]> {
           identifierType: "Ticker",
         } as SearchResult;
       })
-      .filter(Boolean) as SearchResult[];
+      .filter(Boolean) as SearchResult[]);
   } catch {
     return [];
   }
 }
 
 export async function searchAmfi(query: string): Promise<SearchResult[]> {
-  if (!query.trim()) return [];
+  const key = query.trim().toLowerCase();
+  if (!key) return [];
+  const hit = cached(amfiCache, key);
+  if (hit) return hit;
   try {
-    const res = await fetchWithTimeout("https://api.mfapi.in/mf", { next: { revalidate: 24 * 3600 } });
-    const funds = await res.json();
-    const q = query.toLowerCase();
-    return (funds || [])
-      .filter((fund: any) => String(fund.schemeName || "").toLowerCase().includes(q))
+    if (!amfiCatalogueCache || Date.now() - amfiCatalogueCache.at > 24 * 60 * 60 * 1000) {
+      amfiCataloguePromise ||= fetchWithTimeout("https://api.mfapi.in/mf", { next: { revalidate: 24 * 3600 } }, 5000)
+        .then((res) => res.json())
+        .then((funds) => {
+          amfiCatalogueCache = { at: Date.now(), funds: funds || [] };
+          amfiCataloguePromise = null;
+          return amfiCatalogueCache.funds;
+        })
+        .catch((error) => {
+          amfiCataloguePromise = null;
+          throw error;
+        });
+      await amfiCataloguePromise;
+    }
+    const funds = amfiCatalogueCache?.funds || [];
+    return remember(amfiCache, key, funds
+      .filter((fund: any) => String(fund.schemeName || "").toLowerCase().includes(key))
       .slice(0, 8)
       .map((fund: any) => ({
         label: `${fund.schemeName} · ${fund.schemeCode}`,
@@ -118,20 +155,23 @@ export async function searchAmfi(query: string): Promise<SearchResult[]> {
         ticker: String(fund.schemeCode),
         exchange: "",
         identifierType: "Scheme code",
-      }));
+      })));
   } catch {
     return [];
   }
 }
 
 export async function searchSecurities(query: string) {
-  if (!query.trim()) return [];
+  const key = query.trim().toLowerCase();
+  if (!key) return [];
+  const hit = cached(searchCache, key);
+  if (hit) return hit;
   const [amfi, yahoo] = await Promise.all([searchAmfi(query), searchYahoo(query)]);
   const seen = new Set<string>();
-  return [...amfi, ...yahoo].filter((item) => {
+  return remember(searchCache, key, [...amfi, ...yahoo].filter((item) => {
     const key = `${item.assetType}|${item.ticker}|${item.name}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).slice(0, 10);
+  }).slice(0, 10));
 }

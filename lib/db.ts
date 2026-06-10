@@ -199,6 +199,19 @@ export async function getSecurities(userId: string) {
   return securities;
 }
 
+async function getSecurity(userId: string, id: number) {
+  await initDb();
+  if (!hasTurso()) return (await getSecurities(userId)).find((s) => s.id === id) || null;
+  const { rows } = await execute(
+    `SELECT s.*, p.name as source, p.date as portfolio_date
+     FROM securities s JOIN portfolios p ON s.portfolio_id=p.id
+     WHERE p.user_id=? AND s.id=?
+     LIMIT 1`,
+    [userId, id],
+  );
+  return rows[0] ? mapSecurity(rows[0]) : null;
+}
+
 export async function getPortfolios(userId: string) {
   await initDb();
   if (!hasTurso()) return demo.portfolios.filter((p) => p.userId === userId);
@@ -284,19 +297,20 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
 
 export async function updateSecurity(userId: string, id: number, fields: Partial<Pick<Security, "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate">>) {
   await initDb();
-  const security = (await getSecurities(userId)).find((s) => s.id === id);
+  const security = await getSecurity(userId, id);
   if (!security) return;
   const quantity = fields.quantity ?? security.quantity ?? 0;
   const latestPrice = fields.latestPrice ?? security.latestPrice ?? 0;
   const nextValue = fields.value ?? (latestPrice && quantity ? latestPrice * quantity : security.latestValue ?? security.value);
-  const fxRate = security.value ? security.valueInr / security.value : 1;
+  const fx = await getFx();
+  const nextValueInr = toInr(nextValue, security.currency, fx);
   if (!hasTurso()) {
     Object.assign(security, {
       quantity,
       costPrice: fields.costPrice ?? security.costPrice,
       latestPrice,
       latestValue: nextValue,
-      latestValueInr: nextValue * fxRate,
+      latestValueInr: nextValueInr,
       purchaseDate: fields.purchaseDate ?? security.purchaseDate,
       refreshedAt: new Date().toISOString(),
     });
@@ -305,7 +319,7 @@ export async function updateSecurity(userId: string, id: number, fields: Partial
   await execute(
     `UPDATE securities SET quantity=?, cost_price=?, latest_price=?, latest_value=?, latest_value_inr=?, purchase_date=?, refreshed_at=?
      WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
-    [quantity, fields.costPrice ?? security.costPrice, latestPrice, nextValue, nextValue * fxRate, fields.purchaseDate ?? security.purchaseDate, new Date().toISOString(), id, userId],
+    [quantity, fields.costPrice ?? security.costPrice, latestPrice, nextValue, nextValueInr, fields.purchaseDate ?? security.purchaseDate, new Date().toISOString(), id, userId],
   );
 }
 
@@ -321,8 +335,12 @@ export async function deleteSecurity(userId: string, id: number) {
 }
 
 export async function updateRefreshFields(userId: string, id: number, updates: Partial<Security>) {
-  const security = (await getSecurities(userId)).find((s) => s.id === id);
+  const security = await getSecurity(userId, id);
   if (!security) return;
+  return updateRefreshFieldsForSecurity(userId, security, updates);
+}
+
+export async function updateRefreshFieldsForSecurity(userId: string, security: Security, updates: Partial<Security>) {
   if (!hasTurso()) {
     Object.assign(security, updates, { refreshedAt: new Date().toISOString() });
     return;
@@ -345,7 +363,7 @@ export async function updateRefreshFields(userId: string, id: number, updates: P
     [
       values.latest_price, values.price_as_on, values.latest_value, values.latest_value_inr,
       values.refresh_status, values.refresh_note, values.refreshed_at, values.price_source,
-      values.price_symbol, id, userId,
+      values.price_symbol, security.id, userId,
     ],
   );
 }

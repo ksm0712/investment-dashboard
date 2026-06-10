@@ -1,4 +1,4 @@
-import { getSecurities, updateRefreshFields } from "./db";
+import { getSecurities, updateRefreshFieldsForSecurity } from "./db";
 import { getFx } from "./fx";
 import type { Security } from "./types";
 
@@ -574,6 +574,17 @@ function bucketName(result: string) {
   return "not_refreshed";
 }
 
+async function mapWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
+  let index = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const item = items[index++];
+      await worker(item);
+    }
+  });
+  await Promise.all(runners);
+}
+
 export async function refreshPrices(userId: string) {
   const securities = await getSecurities(userId);
   const fx = await getFx();
@@ -586,22 +597,22 @@ export async function refreshPrices(userId: string) {
     summary.byType[sec.assetType][bucket] += 1;
   }
 
-  for (const sec of securities) {
+  await mapWithConcurrency(securities, 6, async (sec) => {
     try {
       if (["Savings", "Bond", "Other"].includes(sec.assetType) || sec.pricingMode === "manual") {
-        await updateRefreshFields(userId, sec.id, {
+        await updateRefreshFieldsForSecurity(userId, sec, {
           refreshStatus: "manual_value",
           refreshNote: "Manual asset. User controls value.",
           latestValue: sec.latestValue ?? sec.value,
           latestValueInr: sec.latestValueInr ?? sec.valueInr,
         });
         await mark(sec, "manual");
-        continue;
+        return;
       }
 
       const latest = sec.assetType === "Mutual Fund" && sec.currency === "INR" ? await mfPriceForSecurity(sec) : await marketPriceForSecurity(sec);
       if (!sec.quantity) {
-        await updateRefreshFields(userId, sec.id, {
+        await updateRefreshFieldsForSecurity(userId, sec, {
           latestPrice: latest.price,
           priceAsOn: latest.date,
           refreshStatus: "needs_quantity",
@@ -609,12 +620,12 @@ export async function refreshPrices(userId: string) {
           priceSymbol: latest.symbol,
         });
         await mark(sec, "not_refreshed");
-        continue;
+        return;
       }
 
       const latestValue = latest.price * sec.quantity;
       const latestValueInr = sec.currency === "INR" ? latestValue : latestValue * (fx[sec.currency] || 1);
-      await updateRefreshFields(userId, sec.id, {
+      await updateRefreshFieldsForSecurity(userId, sec, {
         latestPrice: latest.price,
         priceAsOn: latest.date,
         latestValue,
@@ -627,7 +638,7 @@ export async function refreshPrices(userId: string) {
       await mark(sec, "updated");
     } catch (error) {
       const note = error instanceof Error ? error.message : "Refresh failed.";
-      await updateRefreshFields(userId, sec.id, {
+      await updateRefreshFieldsForSecurity(userId, sec, {
         refreshStatus: "failed",
         refreshNote: note,
         latestValue: sec.latestValue ?? sec.value,
@@ -636,6 +647,6 @@ export async function refreshPrices(userId: string) {
       summary.details.push({ name: sec.name, status: "failed", note });
       await mark(sec, "failed");
     }
-  }
+  });
   return summary;
 }
