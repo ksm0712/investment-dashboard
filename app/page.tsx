@@ -22,6 +22,31 @@ type RefreshSummary = {
   byType?: Record<string, Record<string, number>>;
 };
 
+const PORTFOLIO_CACHE_KEY = "investment-dashboard:portfolio:v1";
+
+function readPortfolioCache(): PortfolioPayload | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(PORTFOLIO_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.user || !Array.isArray(parsed?.securities) || !parsed?.fx) return null;
+    return parsed as PortfolioPayload;
+  } catch {
+    return null;
+  }
+}
+
+function writePortfolioCache(payload: PortfolioPayload | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (payload) window.sessionStorage.setItem(PORTFOLIO_CACHE_KEY, JSON.stringify(payload));
+    else window.sessionStorage.removeItem(PORTFOLIO_CACHE_KEY);
+  } catch {
+    // The live API remains the source of truth if browser storage is unavailable.
+  }
+}
+
 const assetTypes: AssetType[] = ["Stock", "ETF", "Mutual Fund", "Bond", "Savings", "Other"];
 
 function googleIcon() {
@@ -444,8 +469,9 @@ function Holdings({ securities, fx, currency, totalInr, reload, onUpdate }: {
 }
 
 export default function Page() {
-  const [data, setData] = useState<PortfolioPayload | null>(null);
-  const [loginChecked, setLoginChecked] = useState(false);
+  const [initialPortfolio] = useState<PortfolioPayload | null>(() => readPortfolioCache());
+  const [data, setData] = useState<PortfolioPayload | null>(initialPortfolio);
+  const [loginChecked, setLoginChecked] = useState(Boolean(initialPortfolio));
   const [modalOpen, setModalOpen] = useState(false);
   const [tab, setTab] = useState("All");
   const [currency, setCurrency] = useState<Record<string, string>>({ All: "USD" });
@@ -454,20 +480,27 @@ export default function Page() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
 
   async function load() {
-    const res = await fetch("/api/portfolio", { cache: "no-store" });
-    if (res.status === 401) {
-      setData(null);
+    try {
+      const res = await fetch("/api/portfolio", { cache: "no-store" });
+      if (res.status === 401) {
+        writePortfolioCache(null);
+        setData(null);
+        setLoginChecked(true);
+        return;
+      }
+      const next = await res.json();
+      writePortfolioCache(next);
+      setData(next);
+    } finally {
       setLoginChecked(true);
-      return;
     }
-    setData(await res.json());
-    setLoginChecked(true);
   }
 
   useEffect(() => { load(); }, []);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
+    writePortfolioCache(null);
     setData(null);
   }
 
@@ -479,7 +512,11 @@ export default function Page() {
       setSummary(json.summary);
       setLastRefreshedAt(new Date().toISOString());
       if (json.securities && data) {
-        setData((prev) => prev ? { ...prev, securities: json.securities, fx: json.fx || prev.fx } : prev);
+        setData((prev) => {
+          const next = prev ? { ...prev, securities: json.securities, fx: json.fx || prev.fx } : prev;
+          writePortfolioCache(next);
+          return next;
+        });
       } else {
         await load();
       }
@@ -498,7 +535,7 @@ export default function Page() {
   function updateSecurityLocal(id: number, fields: Partial<Pick<Security, "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate">>) {
     setData((prev) => {
       if (!prev) return prev;
-      return {
+      const next = {
         ...prev,
         securities: prev.securities.map((sec) => {
           if (sec.id !== id) return sec;
@@ -517,6 +554,8 @@ export default function Page() {
           };
         }),
       };
+      writePortfolioCache(next);
+      return next;
     });
   }
 
