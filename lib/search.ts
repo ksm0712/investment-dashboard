@@ -6,6 +6,7 @@ const amfiCache = new Map<string, { at: number; results: SearchResult[] }>();
 const CACHE_MS = 10 * 60 * 1000;
 let amfiCatalogueCache: { at: number; funds: any[] } | null = null;
 let amfiCataloguePromise: Promise<any[]> | null = null;
+const AMFI_CATALOGUE_MS = 24 * 60 * 60 * 1000;
 
 const yahooExchanges: Record<string, string> = {
   NSI: "NSE",
@@ -75,6 +76,31 @@ function remember(map: Map<string, { at: number; results: SearchResult[] }>, key
   return results;
 }
 
+function amfiResult(fund: any): SearchResult {
+  return {
+    label: `${fund.schemeName} · ${fund.schemeCode}`,
+    name: fund.schemeName,
+    assetType: "Mutual Fund",
+    country: "India",
+    ticker: String(fund.schemeCode),
+    exchange: "",
+    identifierType: "Scheme code",
+  };
+}
+
+function likelyMutualFundQuery(query: string) {
+  const q = query.toLowerCase();
+  return [
+    "fund", "mutual", "amfi", "scheme", "growth", "direct", "regular", "idcw", "dividend",
+    "bluechip", "income", "liquid", "debt", "equity", "nifty", "index", "small", "mid",
+    "large", "cap", "flexi", "hybrid", "gilt", "elss", "tax", "overnight", "arbitrage",
+    "hdfc", "icici", "axis", "sbi", "uti", "mirae", "nippon", "kotak", "aditya",
+    "birla", "canara", "dsp", "franklin", "quant", "parag", "tata", "motilal",
+    "bandhan", "invesco", "edelweiss", "pgim", "lic", "sundaram", "baroda", "mahindra",
+    "hsbc",
+  ].some((token) => q.includes(token));
+}
+
 function inferCountry(symbol = "", exchange = "") {
   if (symbol.endsWith(".NS") || symbol.endsWith(".BO") || exchange === "NSI" || exchange === "BSE") return "India";
   if (symbol.endsWith(".SI") || ["SGX", "SES"].includes(exchange)) return "Singapore";
@@ -129,8 +155,18 @@ export async function searchAmfi(query: string): Promise<SearchResult[]> {
   const hit = cached(amfiCache, key);
   if (hit) return hit;
   try {
-    if (!amfiCatalogueCache || Date.now() - amfiCatalogueCache.at > 24 * 60 * 60 * 1000) {
-      amfiCataloguePromise ||= fetchWithTimeout("https://api.mfapi.in/mf", { next: { revalidate: 24 * 3600 } }, 5000)
+    try {
+      const res = await fetchWithTimeout(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(query)}`, { headers: { "User-Agent": "Mozilla/5.0" }, next: { revalidate: 24 * 3600 } }, 3000);
+      if (res.ok) {
+        const matches = await res.json();
+        if (Array.isArray(matches) && matches.length) return remember(amfiCache, key, matches.slice(0, 8).map(amfiResult));
+      }
+    } catch {
+      // Fall back to the cached catalogue below.
+    }
+    let funds = amfiCatalogueCache && Date.now() - amfiCatalogueCache.at < AMFI_CATALOGUE_MS ? amfiCatalogueCache.funds : null;
+    if (!funds) {
+      amfiCataloguePromise ||= fetchWithTimeout("https://api.mfapi.in/mf", { next: { revalidate: 24 * 3600 } }, 12000)
         .then((res) => res.json())
         .then((funds) => {
           amfiCatalogueCache = { at: Date.now(), funds: funds || [] };
@@ -141,21 +177,12 @@ export async function searchAmfi(query: string): Promise<SearchResult[]> {
           amfiCataloguePromise = null;
           throw error;
         });
-      await amfiCataloguePromise;
+      funds = await amfiCataloguePromise;
     }
-    const funds = amfiCatalogueCache?.funds || [];
     return remember(amfiCache, key, funds
       .filter((fund: any) => String(fund.schemeName || "").toLowerCase().includes(key))
       .slice(0, 8)
-      .map((fund: any) => ({
-        label: `${fund.schemeName} · ${fund.schemeCode}`,
-        name: fund.schemeName,
-        assetType: "Mutual Fund",
-        country: "India",
-        ticker: String(fund.schemeCode),
-        exchange: "",
-        identifierType: "Scheme code",
-      })));
+      .map(amfiResult));
   } catch {
     return [];
   }
@@ -166,7 +193,9 @@ export async function searchSecurities(query: string) {
   if (!key) return [];
   const hit = cached(searchCache, key);
   if (hit) return hit;
-  const [amfi, yahoo] = await Promise.all([searchAmfi(query), searchYahoo(query)]);
+  const shouldSearchFunds = likelyMutualFundQuery(query);
+  const yahoo = await searchYahoo(query);
+  const amfi = shouldSearchFunds || yahoo.length === 0 ? await searchAmfi(query) : [];
   const seen = new Set<string>();
   return remember(searchCache, key, [...amfi, ...yahoo].filter((item) => {
     const key = `${item.assetType}|${item.ticker}|${item.name}`;

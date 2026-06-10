@@ -138,6 +138,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   const [error, setError] = useState("");
   const localSearchCache = useRef<Record<string, SearchResult[]>>({});
   const quoteCache = useRef<Record<string, string>>({});
+  const quoteRequestId = useRef(0);
 
   const exchanges = marketExchanges[country] || ["Other"];
 
@@ -179,6 +180,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
       setCurrentPrice(quoteCache.current[key]);
       return;
     }
+    const requestId = ++quoteRequestId.current;
     try {
       setQuoteBusy(true);
       const res = await fetch("/api/quote", {
@@ -199,10 +201,10 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
       if (res.ok && Number.isFinite(price) && price > 0) {
         const formatted = String(Number(price.toFixed(6)));
         quoteCache.current[key] = formatted;
-        setCurrentPrice(formatted);
+        if (requestId === quoteRequestId.current) setCurrentPrice(formatted);
       }
     } finally {
-      setQuoteBusy(false);
+      if (requestId === quoteRequestId.current) setQuoteBusy(false);
     }
   }
 
@@ -216,6 +218,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     setTicker(match.ticker);
     setExchange(match.exchange || (marketExchanges[match.country] || ["Other"])[0]);
     setIdentifierType(match.identifierType);
+    setCurrentPrice("");
     fetchCurrentPrice(match);
   }
 
@@ -438,6 +441,7 @@ export default function Page() {
   const [currency, setCurrency] = useState<Record<string, string>>({ All: "USD" });
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<RefreshSummary | null>(null);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch("/api/portfolio", { cache: "no-store" });
@@ -463,8 +467,9 @@ export default function Page() {
       const res = await fetch("/api/refresh", { method: "POST" });
       const json = await res.json();
       setSummary(json.summary);
+      setLastRefreshedAt(new Date().toISOString());
       if (json.securities && data) {
-        setData({ ...data, securities: json.securities, fx: json.fx || fx });
+        setData((prev) => prev ? { ...prev, securities: json.securities, fx: json.fx || prev.fx } : prev);
       } else {
         await load();
       }
@@ -512,7 +517,9 @@ export default function Page() {
   if (!loginChecked) return <main className="login-page"><div className="login-card"><div className="login-title">Investments</div></div></main>;
   if (!data) return <Login />;
 
+  const refreshedAtText = lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
   const refreshText = summary ? [
+    `Prices refreshed${refreshedAtText ? ` at ${refreshedAtText}` : ""}`,
     `${summary.updated || 0} updated`,
     summary.unchanged ? `${summary.unchanged} unchanged` : "",
     summary.manual ? `${summary.manual} manual` : "",
