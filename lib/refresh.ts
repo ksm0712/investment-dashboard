@@ -141,7 +141,7 @@ function parseFlexibleDate(value?: string | null) {
   const match = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (match) {
     const [, day, month, year] = match;
-    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
     if (Number.isFinite(parsed.getTime())) return parsed;
   }
   const direct = new Date(raw);
@@ -210,20 +210,30 @@ function parseYahooChart(data: any, symbol: string, source: string): PriceResult
   const result = data.chart?.result?.[0];
   const closes = result?.indicators?.quote?.[0]?.close || [];
   const timestamps = result?.timestamp || [];
+  const marketPrice = Number(result?.meta?.regularMarketPrice);
+  const marketTime = Number(result?.meta?.regularMarketTime);
+  const marketDate = marketTime ? new Date(marketTime * 1000).toISOString().slice(0, 10) : "";
 
   for (let i = closes.length - 1; i >= 0; i--) {
     if (Number.isFinite(Number(closes[i])) && Number(closes[i]) > 0) {
+      const closeDate = new Date(timestamps[i] * 1000).toISOString().slice(0, 10);
+      if (Number.isFinite(marketPrice) && marketPrice > 0 && marketDate && marketDate >= closeDate) {
+        return {
+          price: marketPrice,
+          date: marketDate,
+          source,
+          symbol,
+        };
+      }
       return {
         price: Number(closes[i]),
-        date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
+        date: closeDate,
         source,
         symbol,
       };
     }
   }
 
-  const marketPrice = Number(result?.meta?.regularMarketPrice);
-  const marketTime = Number(result?.meta?.regularMarketTime);
   if (Number.isFinite(marketPrice) && marketPrice > 0) {
     return {
       price: marketPrice,
@@ -360,20 +370,29 @@ async function yahooSearch(query: string) {
 
 async function marketPrice(symbol: string, assetType: string): Promise<PriceResult> {
   const errors: string[] = [];
+  const results: PriceResult[] = [];
   try {
-    return await yahooPrice(symbol);
+    results.push(await yahooPrice(symbol));
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "Yahoo failed");
   }
   try {
-    return await nasdaqPrice(symbol, assetType);
+    results.push(await nasdaqPrice(symbol, assetType));
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "Nasdaq failed");
   }
   try {
-    return await yahooFallbackPrice(symbol);
+    results.push(await yahooFallbackPrice(symbol));
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "Yahoo fallback failed");
+  }
+  if (results.length) {
+    return results.sort((a, b) => {
+      const aDate = parseFlexibleDate(a.date)?.getTime() || 0;
+      const bDate = parseFlexibleDate(b.date)?.getTime() || 0;
+      if (aDate !== bDate) return bDate - aDate;
+      return ["yahoo", "yahoo-fallback", "nasdaq"].indexOf(a.source) - ["yahoo", "yahoo-fallback", "nasdaq"].indexOf(b.source);
+    })[0];
   }
   throw new Error(errors.join("; "));
 }
@@ -547,12 +566,21 @@ async function mfPrice(code: string): Promise<PriceResult> {
   const data = await fetchJsonWithAttempts(`https://api.mfapi.in/mf/${encodeURIComponent(code)}`, { cache: "no-store" }, 3, 25000);
   const nav = data.data?.[0];
   if (!nav) throw new Error("No NAV");
+  const navDate = parseFlexibleDate(String(nav.date));
   return {
     price: Number(nav.nav),
-    date: String(nav.date),
+    date: navDate ? navDate.toISOString().slice(0, 10) : String(nav.date),
     source: "mfapi",
     symbol: code,
   };
+}
+
+async function resolveMfSchemeByName(sec: Security) {
+  for (const candidate of [sec.name, normaliseFundName(sec.name)]) {
+    const override = mfSchemeOverrides[String(candidate || "").trim().toLowerCase()];
+    if (override) return override;
+  }
+  return mfSearch(sec.name);
 }
 
 async function mfPriceForSecurity(sec: Security) {
@@ -561,6 +589,12 @@ async function mfPriceForSecurity(sec: Security) {
   const latest = await mfPrice(code);
   const navDate = parseFlexibleDate(latest.date);
   if (navDate && Date.now() - navDate.getTime() > 10 * 24 * 60 * 60 * 1000) {
+    const fallbackCode = await resolveMfSchemeByName(sec);
+    if (fallbackCode && fallbackCode !== code) {
+      const fallback = await mfPrice(fallbackCode);
+      const fallbackDate = parseFlexibleDate(fallback.date);
+      if (!fallbackDate || Date.now() - fallbackDate.getTime() <= 10 * 24 * 60 * 60 * 1000) return fallback;
+    }
     throw new Error(`mfapi scheme ${code} matched but NAV is stale (${latest.date}).`);
   }
   return latest;

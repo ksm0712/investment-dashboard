@@ -447,7 +447,13 @@ function Holdings({ securities, fx, currency, totalInr, reload, onUpdate }: {
               <div className="h-cell h-num hide-mobile">{isEditing ? <input className="inline-input" aria-label="Unit cost" value={draft.costPrice || ""} onChange={(e) => setDraft({ ...draft, costPrice: e.target.value })} /> : nativeCost ? fmt(nativeCost, item.currency) : "—"}</div>
               <div className={`h-cell h-num hide-mobile ${((isEditing ? draftGainPct : gainPct) || 0) >= 0 ? "good" : "bad"}`}>{isEditing ? (draftCost ? fmt(draftGain, item.currency) : "—") : nativeCost ? fmt(nativeGain, item.currency) : "—"}</div>
               <div className={`h-cell h-num hide-mobile ${((isEditing ? draftGainPct : gainPct) || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(isEditing ? draftGainPct : gainPct, true)}</div>
-              <div className="h-cell h-updated hide-mobile">{isEditing ? <input className="inline-input date" aria-label="Purchase date" type="date" value={draft.purchaseDate || ""} onChange={(e) => setDraft({ ...draft, purchaseDate: e.target.value })} /> : fmtDate(item.priceAsOn)}</div>
+              <div className="h-cell h-updated hide-mobile">
+                {isEditing ? (
+                  <input className="inline-input date" aria-label="Purchase date" type="date" value={draft.purchaseDate || ""} onChange={(e) => setDraft({ ...draft, purchaseDate: e.target.value })} />
+                ) : (
+                  <><span>{fmtDate(item.refreshedAt)}</span><small>Price {fmtDate(item.priceAsOn)}</small></>
+                )}
+              </div>
               {isEditing ? (
                 <>
                   <button className="table-btn save-inline" onClick={() => save(item.id)}>Save</button>

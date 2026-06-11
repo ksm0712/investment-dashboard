@@ -68,7 +68,8 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .h-num, .h-updated { justify-content:center; }
 .h-value { font-weight:700; color:#111827; }
 .h-cur { color:#667085; font-size:12px; justify-content:center; }
-.h-updated { color:#667085; font-size:12px; text-align:center; }
+.h-updated { color:#172033; font-size:12px; text-align:center; flex-direction:column; gap:2px; line-height:1.1; }
+.h-updated small { color:#667085; font-size:10px; font-weight:700; white-space:nowrap; }
 .inline-input { width:100%; min-width:0; min-height:34px; height:34px; border-radius:7px; padding:0 8px; font-size:12px; font-weight:650; text-align:center; font-variant-numeric:tabular-nums; }
 .inline-input.date { padding:0 4px; font-size:11px; }
 .table-btn { min-height:32px; height:32px; min-width:56px; width:auto; padding:0 10px; border:1px solid #d1d5db; background:#f8fafc; color:#374151; border-radius:6px; font-size:11px; font-weight:800; letter-spacing:.03em; box-shadow:none; justify-self:center; }
