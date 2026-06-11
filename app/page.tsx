@@ -451,7 +451,7 @@ function Holdings({ securities, fx, currency, totalInr, reload, onUpdate }: {
                 {isEditing ? (
                   <input className="inline-input date" aria-label="Purchase date" type="date" value={draft.purchaseDate || ""} onChange={(e) => setDraft({ ...draft, purchaseDate: e.target.value })} />
                 ) : (
-                  <><span>{fmtDate(item.refreshedAt)}</span><small>Price {fmtDate(item.priceAsOn)}</small></>
+                  fmtDate(item.refreshedAt || item.priceAsOn)
                 )}
               </div>
               {isEditing ? (
