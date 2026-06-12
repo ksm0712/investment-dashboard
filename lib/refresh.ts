@@ -288,7 +288,7 @@ async function yahooPrice(symbol: string) {
       "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36",
     },
     cache: "no-store",
-  });
+  }, 4500);
   if (!res.ok) throw new Error(`Yahoo ${symbol} returned ${res.status}`);
   return parseYahooChart(await res.json(), symbol, "yahoo");
 }
@@ -301,7 +301,7 @@ async function yahooFallbackPrice(symbol: string) {
       "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36",
     },
     cache: "no-store",
-  });
+  }, 4500);
   if (!res.ok) throw new Error(`Yahoo fallback ${symbol} returned ${res.status}`);
   return parseYahooChart(parseJsonFromReader(await res.text()), symbol, "yahoo-fallback");
 }
@@ -313,7 +313,7 @@ async function nasdaqPrice(symbol: string, assetType: string) {
   const errors: string[] = [];
   for (const assetClass of classes) {
     try {
-      const res = await fetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(clean)}/info?assetclass=${assetClass}`, {
+      const res = await fetchWithTimeout(`https://api.nasdaq.com/api/quote/${encodeURIComponent(clean)}/info?assetclass=${assetClass}`, {
         headers: {
           "Accept": "application/json,text/plain,*/*",
           "Accept-Language": "en-US,en;q=0.9",
@@ -322,7 +322,7 @@ async function nasdaqPrice(symbol: string, assetType: string) {
           "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36",
         },
         cache: "no-store",
-      });
+      }, 4500);
       if (!res.ok) {
         errors.push(`Nasdaq ${assetClass} returned ${res.status}`);
         continue;
@@ -369,23 +369,21 @@ async function yahooSearch(query: string) {
 }
 
 async function marketPrice(symbol: string, assetType: string): Promise<PriceResult> {
+  const providers = [
+    { name: "yahoo", run: () => yahooPrice(symbol) },
+    { name: "nasdaq", run: () => nasdaqPrice(symbol, assetType) },
+    { name: "yahoo-fallback", run: () => yahooFallbackPrice(symbol) },
+  ];
+  const settled = await Promise.allSettled(providers.map((provider) => provider.run()));
   const errors: string[] = [];
   const results: PriceResult[] = [];
-  try {
-    results.push(await yahooPrice(symbol));
-  } catch (error) {
-    errors.push(error instanceof Error ? error.message : "Yahoo failed");
-  }
-  try {
-    results.push(await nasdaqPrice(symbol, assetType));
-  } catch (error) {
-    errors.push(error instanceof Error ? error.message : "Nasdaq failed");
-  }
-  try {
-    results.push(await yahooFallbackPrice(symbol));
-  } catch (error) {
-    errors.push(error instanceof Error ? error.message : "Yahoo fallback failed");
-  }
+  settled.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      results.push(result.value);
+    } else {
+      errors.push(`${providers[index].name}: ${result.reason instanceof Error ? result.reason.message : "failed"}`);
+    }
+  });
   if (results.length) {
     return results.sort((a, b) => {
       const aDate = parseFlexibleDate(a.date)?.getTime() || 0;
