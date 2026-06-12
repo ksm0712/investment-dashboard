@@ -23,6 +23,7 @@ type RefreshSummary = {
 };
 
 const PORTFOLIO_CACHE_KEY = "investment-dashboard:portfolio:v1";
+const AUTO_REFRESH_ASSETS = new Set<AssetType>(["Stock", "ETF", "Mutual Fund"]);
 
 function readPortfolioCache(): PortfolioPayload | null {
   if (typeof window === "undefined") return null;
@@ -512,20 +513,115 @@ export default function Page() {
 
   async function refresh() {
     setLoading(true);
+    setSummary(null);
     try {
-      const res = await fetch("/api/refresh", { method: "POST" });
-      const json = await res.json();
-      setSummary(json.summary);
-      setLastRefreshedAt(new Date().toISOString());
-      if (json.securities && data) {
+      const items = data?.securities || [];
+      const nextSummary: RefreshSummary = { updated: 0, unchanged: 0, manual: 0, not_refreshed: 0, failed: 0, details: [], byType: {} };
+
+      const addSummary = (sec: Security, bucket: keyof Omit<RefreshSummary, "details" | "byType">, note?: string) => {
+        nextSummary[bucket] += 1;
+        nextSummary.byType ||= {};
+        nextSummary.byType[sec.assetType] ||= { updated: 0, unchanged: 0, manual: 0, not_refreshed: 0, failed: 0 };
+        nextSummary.byType[sec.assetType][bucket] += 1;
+        if (note) nextSummary.details?.push({ name: sec.name, status: bucket, note });
+      };
+
+      const applyQuoteToRow = (sec: Security, quote: { price: number; date: string; source?: string; symbol?: string }) => {
+        const latestValue = quote.price * (sec.quantity || 0);
+        const refreshedAt = new Date().toISOString();
+        const note = `Updated via ${quote.source || "market data"} price ${quote.price} on ${quote.date}.`;
         setData((prev) => {
-          const next = prev ? { ...prev, securities: json.securities, fx: json.fx || prev.fx } : prev;
+          if (!prev) return prev;
+          const next = {
+            ...prev,
+            securities: prev.securities.map((item) => item.id === sec.id ? {
+              ...item,
+              latestPrice: quote.price,
+              latestValue,
+              latestValueInr: toInr(latestValue, item.currency, prev.fx),
+              priceAsOn: quote.date,
+              priceSource: quote.source || item.priceSource,
+              priceSymbol: quote.symbol || item.priceSymbol || item.ticker,
+              refreshStatus: "updated",
+              refreshNote: note,
+              refreshedAt,
+            } : item),
+          };
           writePortfolioCache(next);
           return next;
         });
-      } else {
-        await load();
-      }
+      };
+
+      await Promise.all(items.map(async (sec) => {
+        if (!AUTO_REFRESH_ASSETS.has(sec.assetType) || sec.pricingMode === "manual") {
+          addSummary(sec, "manual");
+          return;
+        }
+
+        try {
+          const quoteRes = await fetch("/api/quote", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: sec.name,
+              assetType: sec.assetType,
+              country: sec.country,
+              currency: sec.currency,
+              ticker: sec.priceSymbol || sec.ticker || sec.isin || "",
+              exchange: sec.exchange || undefined,
+              identifierType: sec.isin && !sec.ticker ? "ISIN" : sec.assetType === "Mutual Fund" ? "Scheme code" : "Ticker",
+            }),
+          });
+          const quoteJson = await quoteRes.json();
+          const quote = quoteJson.quote;
+          const price = Number(quote?.price);
+          if (!quoteRes.ok || !Number.isFinite(price) || price <= 0 || !quote?.date) {
+            throw new Error(quoteJson.error || "No current market price returned.");
+          }
+
+          if (!sec.quantity) {
+            await fetch(`/api/investments/${sec.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                latestPrice: price,
+                value: sec.latestValue ?? sec.value,
+                priceAsOn: quote.date,
+                priceSource: quote.source,
+                priceSymbol: quote.symbol,
+                refreshStatus: "needs_quantity",
+                refreshNote: "Price found but quantity missing.",
+              }),
+            });
+            addSummary(sec, "not_refreshed", "Price found but quantity is missing.");
+            return;
+          }
+
+          const latestValue = price * sec.quantity;
+          const patchRes = await fetch(`/api/investments/${sec.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              latestPrice: price,
+              value: latestValue,
+              priceAsOn: quote.date,
+              priceSource: quote.source,
+              priceSymbol: quote.symbol,
+              refreshStatus: "updated",
+              refreshNote: `Updated via ${quote.source || "market data"} price ${price} on ${quote.date}.`,
+            }),
+          });
+          if (!patchRes.ok) throw new Error("Could not save refreshed price.");
+          applyQuoteToRow(sec, { price, date: quote.date, source: quote.source, symbol: quote.symbol });
+          addSummary(sec, "updated");
+        } catch (error) {
+          const note = error instanceof Error ? error.message : "Refresh failed.";
+          addSummary(sec, "failed", note);
+        }
+      }));
+
+      setSummary(nextSummary);
+      setLastRefreshedAt(new Date().toISOString());
     } finally {
       setLoading(false);
     }
@@ -538,7 +634,7 @@ export default function Page() {
   const stats = metricStats(visible, fx);
   const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || visible[0]?.currency || "USD");
 
-  function updateSecurityLocal(id: number, fields: Partial<Pick<Security, "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate">>) {
+  function updateSecurityLocal(id: number, fields: Partial<Pick<Security, "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate" | "priceAsOn" | "priceSource" | "priceSymbol" | "refreshStatus" | "refreshNote">>) {
     setData((prev) => {
       if (!prev) return prev;
       const next = {
@@ -555,6 +651,11 @@ export default function Page() {
             latestPrice,
             latestValue,
             latestValueInr: toInr(latestValue, sec.currency, fx),
+            priceAsOn: fields.priceAsOn ?? sec.priceAsOn,
+            priceSource: fields.priceSource ?? sec.priceSource,
+            priceSymbol: fields.priceSymbol ?? sec.priceSymbol,
+            refreshStatus: fields.refreshStatus ?? sec.refreshStatus,
+            refreshNote: fields.refreshNote ?? sec.refreshNote,
             purchaseDate: fields.purchaseDate ?? sec.purchaseDate,
             refreshedAt: new Date().toISOString(),
           };

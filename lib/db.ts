@@ -295,7 +295,12 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
   );
 }
 
-export async function updateSecurity(userId: string, id: number, fields: Partial<Pick<Security, "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate">>) {
+type SecurityUpdateFields = Partial<Pick<Security,
+  "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate" |
+  "priceAsOn" | "priceSource" | "priceSymbol" | "refreshStatus" | "refreshNote"
+>>;
+
+export async function updateSecurity(userId: string, id: number, fields: SecurityUpdateFields) {
   await initDb();
   const security = await getSecurity(userId, id);
   if (!security) return;
@@ -304,22 +309,35 @@ export async function updateSecurity(userId: string, id: number, fields: Partial
   const nextValue = fields.value ?? (latestPrice && quantity ? latestPrice * quantity : security.latestValue ?? security.value);
   const fx = await getFx();
   const nextValueInr = toInr(nextValue, security.currency, fx);
+  const refreshedAt = new Date().toISOString();
   if (!hasTurso()) {
     Object.assign(security, {
       quantity,
       costPrice: fields.costPrice ?? security.costPrice,
       latestPrice,
+      priceAsOn: fields.priceAsOn ?? security.priceAsOn,
       latestValue: nextValue,
       latestValueInr: nextValueInr,
+      priceSource: fields.priceSource ?? security.priceSource,
+      priceSymbol: fields.priceSymbol ?? security.priceSymbol,
+      refreshStatus: fields.refreshStatus ?? security.refreshStatus,
+      refreshNote: fields.refreshNote ?? security.refreshNote,
       purchaseDate: fields.purchaseDate ?? security.purchaseDate,
-      refreshedAt: new Date().toISOString(),
+      refreshedAt,
     });
     return;
   }
   await execute(
-    `UPDATE securities SET quantity=?, cost_price=?, latest_price=?, latest_value=?, latest_value_inr=?, purchase_date=?, refreshed_at=?
+    `UPDATE securities SET quantity=?, cost_price=?, latest_price=?, price_as_on=?, latest_value=?, latest_value_inr=?,
+      purchase_date=?, refreshed_at=?, price_source=?, price_symbol=?, refresh_status=?, refresh_note=?
      WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
-    [quantity, fields.costPrice ?? security.costPrice, latestPrice, nextValue, nextValueInr, fields.purchaseDate ?? security.purchaseDate, new Date().toISOString(), id, userId],
+    [
+      quantity, fields.costPrice ?? security.costPrice, latestPrice, fields.priceAsOn ?? security.priceAsOn,
+      nextValue, nextValueInr, fields.purchaseDate ?? security.purchaseDate, refreshedAt,
+      fields.priceSource ?? security.priceSource, fields.priceSymbol ?? security.priceSymbol,
+      fields.refreshStatus ?? security.refreshStatus, fields.refreshNote ?? security.refreshNote,
+      id, userId,
+    ],
   );
 }
 
