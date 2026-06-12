@@ -359,15 +359,19 @@ export async function updateRefreshFields(userId: string, id: number, updates: P
 }
 
 export async function updateRefreshFieldsForSecurity(userId: string, security: Security, updates: Partial<Security>) {
+  const latestValue = updates.latestValue ?? security.latestValue;
+  const latestValueInr = updates.latestValueInr ?? (
+    updates.latestValue === undefined || updates.latestValue === null ? security.latestValueInr : toInr(updates.latestValue, security.currency, await getFx())
+  );
   if (!hasTurso()) {
-    Object.assign(security, updates, { refreshedAt: new Date().toISOString() });
+    Object.assign(security, updates, { latestValue, latestValueInr, refreshedAt: new Date().toISOString() });
     return;
   }
   const values = {
     latest_price: updates.latestPrice ?? security.latestPrice,
     price_as_on: updates.priceAsOn ?? security.priceAsOn,
-    latest_value: updates.latestValue ?? security.latestValue,
-    latest_value_inr: updates.latestValueInr ?? security.latestValueInr,
+    latest_value: latestValue,
+    latest_value_inr: latestValueInr,
     refresh_status: updates.refreshStatus ?? security.refreshStatus,
     refresh_note: updates.refreshNote ?? security.refreshNote,
     refreshed_at: new Date().toISOString(),
