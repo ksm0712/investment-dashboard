@@ -38,6 +38,14 @@ function val(cell: any) {
   return cell.value;
 }
 
+function real(value: unknown, fallback: number): number;
+function real(value: unknown, fallback: null): number | null;
+function real(value: unknown, fallback: number | null) {
+  if (value === null || value === undefined || value === "") return fallback;
+  const number = typeof value === "number" ? value : Number(String(value).replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(number) ? number : fallback;
+}
+
 export async function execute(sql: string, params: unknown[] = []) {
   if (!hasTurso()) return { rows: [] as Row[] };
   const stmt: any = { sql };
@@ -229,7 +237,10 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
   const fx = await getFx();
   const today = new Date();
   const portfolioDate = today.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replaceAll(" ", "-");
-  const value = input.quantity * input.currentPrice;
+  const quantity = real(input.quantity, 0);
+  const currentPrice = real(input.currentPrice, 0);
+  const costPrice = real(input.costPrice, 0);
+  const value = quantity * currentPrice;
   const valueInr = toInr(value, input.currency, fx);
   const source = input.pricingMode === "auto" && input.assetType === "Mutual Fund" && input.currency === "INR"
     ? "mfapi"
@@ -251,12 +262,12 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       valueInr,
       annualIncome: null,
       returnPct: null,
-      quantity: input.quantity,
+      quantity,
       ticker: input.priceSymbol || null,
       isin: null,
       priceSource: source,
       priceSymbol: input.priceSymbol || null,
-      latestPrice: input.currentPrice,
+      latestPrice: currentPrice,
       priceAsOn: today.toISOString().slice(0, 10),
       latestValue: value,
       latestValueInr: valueInr,
@@ -266,7 +277,7 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       country: input.country,
       pricingMode: input.pricingMode,
       exchange: input.exchange || null,
-      costPrice: input.costPrice,
+      costPrice,
       purchaseDate: input.purchaseDate,
       source: "Investments",
     });
@@ -286,11 +297,11 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       refresh_note,refreshed_at,country,pricing_mode,exchange,cost_price,purchase_date)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      portfolioId, input.name, input.assetType, input.currency, value, valueInr, input.quantity, input.priceSymbol || null,
-      null, source, input.priceSymbol || null, input.currentPrice, null, null, today.toISOString().slice(0, 10),
+      portfolioId, input.name, input.assetType, input.currency, value, valueInr, quantity, input.priceSymbol || null,
+      null, source, input.priceSymbol || null, currentPrice, null, null, today.toISOString().slice(0, 10),
       value, valueInr, input.pricingMode === "auto" ? "needs_refresh" : "manual_value",
       input.pricingMode === "auto" ? "Ready for online price refresh." : "Manual asset. User controls value.",
-      today.toISOString(), input.country, input.pricingMode, input.exchange || null, input.costPrice, input.purchaseDate,
+      today.toISOString(), input.country, input.pricingMode, input.exchange || null, costPrice, input.purchaseDate,
     ],
   );
 }
@@ -304,16 +315,17 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
   await initDb();
   const security = await getSecurity(userId, id);
   if (!security) return;
-  const quantity = fields.quantity ?? security.quantity ?? 0;
-  const latestPrice = fields.latestPrice ?? security.latestPrice ?? 0;
-  const nextValue = fields.value ?? (latestPrice && quantity ? latestPrice * quantity : security.latestValue ?? security.value);
+  const quantity = real(fields.quantity ?? security.quantity, 0);
+  const latestPrice = real(fields.latestPrice ?? security.latestPrice, 0);
+  const costPrice = real(fields.costPrice ?? security.costPrice, 0);
+  const nextValue = real(fields.value ?? (latestPrice && quantity ? latestPrice * quantity : security.latestValue ?? security.value), 0);
   const fx = await getFx();
   const nextValueInr = toInr(nextValue, security.currency, fx);
   const refreshedAt = new Date().toISOString();
   if (!hasTurso()) {
     Object.assign(security, {
       quantity,
-      costPrice: fields.costPrice ?? security.costPrice,
+      costPrice,
       latestPrice,
       priceAsOn: fields.priceAsOn ?? security.priceAsOn,
       latestValue: nextValue,
@@ -332,7 +344,7 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
       purchase_date=?, refreshed_at=?, price_source=?, price_symbol=?, refresh_status=?, refresh_note=?
      WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
     [
-      quantity, fields.costPrice ?? security.costPrice, latestPrice, fields.priceAsOn ?? security.priceAsOn,
+      quantity, costPrice, latestPrice, fields.priceAsOn ?? security.priceAsOn,
       nextValue, nextValueInr, fields.purchaseDate ?? security.purchaseDate, refreshedAt,
       fields.priceSource ?? security.priceSource, fields.priceSymbol ?? security.priceSymbol,
       fields.refreshStatus ?? security.refreshStatus, fields.refreshNote ?? security.refreshNote,
@@ -359,16 +371,19 @@ export async function updateRefreshFields(userId: string, id: number, updates: P
 }
 
 export async function updateRefreshFieldsForSecurity(userId: string, security: Security, updates: Partial<Security>) {
-  const latestValue = updates.latestValue ?? security.latestValue;
-  const latestValueInr = updates.latestValueInr ?? (
-    updates.latestValue === undefined || updates.latestValue === null ? security.latestValueInr : toInr(updates.latestValue, security.currency, await getFx())
+  const latestPrice = real(updates.latestPrice ?? security.latestPrice, null);
+  const latestValue = real(updates.latestValue ?? security.latestValue, null);
+  const latestValueInr = real(updates.latestValueInr, null) ?? (
+    updates.latestValue === undefined || updates.latestValue === null
+      ? real(security.latestValueInr, null)
+      : toInr(real(updates.latestValue, 0), security.currency, await getFx())
   );
   if (!hasTurso()) {
-    Object.assign(security, updates, { latestValue, latestValueInr, refreshedAt: new Date().toISOString() });
+    Object.assign(security, updates, { latestPrice, latestValue, latestValueInr, refreshedAt: new Date().toISOString() });
     return;
   }
   const values = {
-    latest_price: updates.latestPrice ?? security.latestPrice,
+    latest_price: latestPrice,
     price_as_on: updates.priceAsOn ?? security.priceAsOn,
     latest_value: latestValue,
     latest_value_inr: latestValueInr,
