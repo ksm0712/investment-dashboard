@@ -25,7 +25,7 @@ function arg(value: unknown) {
   if (value === null || value === undefined) return { type: "null" };
   if (typeof value === "number" && !Number.isFinite(value)) return { type: "null" };
   if (typeof value === "number" && Number.isInteger(value)) return { type: "integer", value: String(value) };
-  if (typeof value === "number") return { type: "float", value: String(value) };
+  if (typeof value === "number") return { type: "float", value };
   if (typeof value === "boolean") return { type: "integer", value: value ? "1" : "0" };
   return { type: "text", value: String(value) };
 }
