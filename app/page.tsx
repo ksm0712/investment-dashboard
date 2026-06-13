@@ -513,7 +513,7 @@ export default function Page() {
     setLoading(true);
     setSummary(null);
     try {
-      const res = await fetch("/api/refresh", { method: "POST", cache: "no-store" });
+      const res = await fetch(`/api/refresh?ts=${Date.now()}`, { method: "POST", cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not refresh prices.");
       setSummary(json.summary);
