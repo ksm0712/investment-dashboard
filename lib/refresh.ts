@@ -201,6 +201,10 @@ async function fetchJsonWithAttempts(url: string, init: any = {}, attempts = 2, 
   throw lastError instanceof Error ? lastError : new Error("Request failed");
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function yahooChartUrl(symbol: string) {
   return `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d`;
 }
@@ -374,24 +378,32 @@ async function marketPrice(symbol: string, assetType: string): Promise<PriceResu
     { name: "nasdaq", run: () => nasdaqPrice(symbol, assetType) },
     { name: "yahoo-fallback", run: () => yahooFallbackPrice(symbol) },
   ];
-  const settled = await Promise.allSettled(providers.map((provider) => provider.run()));
-  const errors: string[] = [];
   const results: PriceResult[] = [];
-  settled.forEach((result, index) => {
-    if (result.status === "fulfilled") {
-      results.push(result.value);
-    } else {
-      errors.push(`${providers[index].name}: ${result.reason instanceof Error ? result.reason.message : "failed"}`);
-    }
-  });
-  if (results.length) {
-    return results.sort((a, b) => {
+  const errors: string[] = [];
+
+  function bestResult() {
+    return [...results].sort((a, b) => {
       const aDate = parseFlexibleDate(a.date)?.getTime() || 0;
       const bDate = parseFlexibleDate(b.date)?.getTime() || 0;
       if (aDate !== bDate) return bDate - aDate;
       return ["yahoo", "yahoo-fallback", "nasdaq"].indexOf(a.source) - ["yahoo", "yahoo-fallback", "nasdaq"].indexOf(b.source);
     })[0];
   }
+
+  const running = providers.map(async (provider) => {
+    try {
+      results.push(await provider.run());
+    } catch (error) {
+      errors.push(`${provider.name}: ${error instanceof Error ? error.message : "failed"}`);
+    }
+  });
+
+  await Promise.race([Promise.allSettled(running), sleep(1800)]);
+  if (results.length) return bestResult();
+
+  await Promise.allSettled(running);
+  if (results.length) return bestResult();
+
   throw new Error(errors.join("; "));
 }
 
@@ -561,7 +573,13 @@ async function resolveMfScheme(sec: Security) {
 }
 
 async function mfPrice(code: string): Promise<PriceResult> {
-  const data = await fetchJsonWithAttempts(`https://api.mfapi.in/mf/${encodeURIComponent(code)}`, { cache: "no-store" }, 3, 25000);
+  const encoded = encodeURIComponent(code);
+  let data: any;
+  try {
+    data = await fetchJsonWithAttempts(`https://api.mfapi.in/mf/${encoded}/latest`, { cache: "no-store" }, 2, 8000);
+  } catch {
+    data = await fetchJsonWithAttempts(`https://api.mfapi.in/mf/${encoded}`, { cache: "no-store" }, 1, 12000);
+  }
   const nav = data.data?.[0];
   if (!nav) throw new Error("No NAV");
   const navDate = parseFlexibleDate(String(nav.date));
