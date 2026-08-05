@@ -2,6 +2,7 @@ import { getSecurities, updateRefreshFieldsForSecurity } from "./db";
 import { getFx } from "./fx";
 import type { Security } from "./types";
 import { calculateAsset } from "./portfolio-engine";
+import YahooFinance from "yahoo-finance2";
 
 type PriceResult = {
   price: number;
@@ -14,6 +15,8 @@ type PriceResult = {
   targetSource?: string;
   targetAsOn?: string;
 };
+
+const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 const tickerOverrides: Record<string, string> = {
   "sap se|EUR": "SAP.DE",
@@ -131,7 +134,7 @@ const preferredQuoteTypes = new Set(["EQUITY", "ETF", "MUTUALFUND"]);
 
 let mfCatalogueCache: any[] | null = null;
 
-function parsePrice(value?: string | null) {
+function parsePrice(value?: string | number | null) {
   const parsed = Number(String(value || "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
@@ -311,6 +314,30 @@ async function yahooPrice(symbol: string) {
   return parseYahooChart(await res.json(), symbol, "yahoo");
 }
 
+async function yahooFinance2Price(symbol: string): Promise<PriceResult> {
+  const data = await yahooFinance.quoteSummary(symbol, {
+    modules: ["financialData", "summaryDetail", "price"],
+  });
+  const price = parsePrice(data.price?.regularMarketPrice);
+  if (!price) throw new Error(`No Yahoo Finance quote for ${symbol}`);
+  const marketTime = data.price?.regularMarketTime;
+  const date = marketTime instanceof Date
+    ? marketTime.toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  const targetPrice = parsePrice(data.financialData?.targetMeanPrice);
+  return {
+    price,
+    date,
+    source: "yahoo-finance2",
+    symbol,
+    week52Low: parsePrice(data.summaryDetail?.fiftyTwoWeekLow) ?? undefined,
+    week52High: parsePrice(data.summaryDetail?.fiftyTwoWeekHigh) ?? undefined,
+    targetPrice: targetPrice ?? undefined,
+    targetSource: targetPrice ? "yahoo-analyst-consensus" : undefined,
+    targetAsOn: targetPrice ? new Date().toISOString().slice(0, 10) : undefined,
+  };
+}
+
 async function yahooFallbackPrice(symbol: string) {
   const res = await fetchWithTimeout(`https://r.jina.ai/http://${yahooChartUrl(symbol)}`, {
     headers: {
@@ -322,6 +349,30 @@ async function yahooFallbackPrice(symbol: string) {
   }, 4500);
   if (!res.ok) throw new Error(`Yahoo fallback ${symbol} returned ${res.status}`);
   return parseYahooChart(parseJsonFromReader(await res.text()), symbol, "yahoo-fallback");
+}
+
+async function fmpPrice(symbol: string): Promise<PriceResult> {
+  const apiKey = String(process.env.FMP_API_KEY || "").trim();
+  if (!apiKey) throw new Error("FMP key not configured");
+  const data = await fetchJsonWithAttempts(
+    `https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(symbol)}`,
+    { headers: { "Accept": "application/json", "apikey": apiKey }, cache: "no-store" }, 1, 6000,
+  );
+  const quote = Array.isArray(data) ? data[0] : data;
+  const price = parsePrice(quote?.price);
+  if (!price) throw new Error(`No FMP quote for ${symbol}`);
+  const timestamp = Number(quote?.timestamp);
+  const date = Number.isFinite(timestamp) && timestamp > 0
+    ? new Date(timestamp * 1000).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  return {
+    price,
+    date,
+    source: "fmp",
+    symbol: String(quote?.symbol || symbol),
+    week52Low: parsePrice(quote?.yearLow ?? quote?.yearLowPrice) ?? undefined,
+    week52High: parsePrice(quote?.yearHigh ?? quote?.yearHighPrice) ?? undefined,
+  };
 }
 
 async function nasdaqPrice(symbol: string, assetType: string) {
@@ -517,6 +568,8 @@ async function yahooSearch(query: string) {
 
 async function marketPrice(symbol: string, assetType: string): Promise<PriceResult> {
   const providers = [
+    { name: "yahoo-finance2", run: () => yahooFinance2Price(symbol) },
+    { name: "fmp", run: () => fmpPrice(symbol) },
     { name: "yahoo", run: () => yahooPrice(symbol) },
     { name: "nasdaq", run: () => nasdaqPrice(symbol, assetType) },
     { name: "yahoo-fallback", run: () => yahooFallbackPrice(symbol) },
@@ -529,7 +582,7 @@ async function marketPrice(symbol: string, assetType: string): Promise<PriceResu
       const aDate = parseFlexibleDate(a.date)?.getTime() || 0;
       const bDate = parseFlexibleDate(b.date)?.getTime() || 0;
       if (aDate !== bDate) return bDate - aDate;
-      return ["yahoo", "yahoo-fallback", "nasdaq"].indexOf(a.source) - ["yahoo", "yahoo-fallback", "nasdaq"].indexOf(b.source);
+      return ["yahoo-finance2", "fmp", "yahoo", "yahoo-fallback", "nasdaq"].indexOf(a.source) - ["yahoo-finance2", "fmp", "yahoo", "yahoo-fallback", "nasdaq"].indexOf(b.source);
     });
     const primary = ordered[0];
     const richest = ordered.find((item) => item.week52Low || item.week52High) || primary;
@@ -661,7 +714,7 @@ async function marketPriceForSecurity(sec: Security) {
   }
 
   async function enrich(result: PriceResult) {
-    if (!result.symbol) return result;
+    if (!result.symbol || (result.targetPrice && result.week52Low && result.week52High)) return result;
     try {
       const intelligence = await marketIntelligence(
         result.symbol,

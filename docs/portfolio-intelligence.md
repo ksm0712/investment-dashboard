@@ -69,6 +69,6 @@ The deployed `main` branch remains unchanged until this feature branch is review
 
 ## Target-provider policy
 
-For stocks, the backend asks providers in order and stops when the required data is complete. Provider precedence is Financial Modeling Prep consensus, Nasdaq analyst consensus, Twelve Data international analyst average, then Alpha Vantage analyst target. FMP is the primary one-call global target source; Nasdaq is the no-key fallback for supported U.S. securities. A provider failure moves to the next source and must never be presented as a valid action.
+For stocks, the backend first makes one Yahoo Finance quote-summary request for the current price, 52-week range, and mean analyst target in the listing currency. FMP, Nasdaq, Twelve Data, and Alpha Vantage remain automatic fallbacks. A provider failure moves to the next source and must never be presented as a valid action.
 
 ETFs generally do not receive company-style analyst consensus price targets. The product must label any future ETF target methodology accurately (for example, model target or NAV-based target) instead of presenting a 52-week high as analyst consensus.

@@ -70,7 +70,7 @@ Refresh feedback tells users what updated and flags provider or database issues 
 | Auth | Google OAuth 2.0, signed HTTP-only session cookie |
 | Database | Turso/libSQL |
 | Deployment | Vercel |
-| Market Data | Yahoo Finance chart endpoints, Nasdaq, Twelve Data, FMP, Alpha Vantage, mfapi.in |
+| Market Data | Yahoo Finance, Nasdaq, FMP, Twelve Data, Alpha Vantage, mfapi.in |
 | Currency | Live FX conversion with local fallback rates |
 
 ## Architecture
@@ -146,7 +146,7 @@ AUTH_COOKIE_SECRET=your_long_random_secret
 APP_URL=https://your-vercel-url.vercel.app
 ```
 
-`FMP_API_KEY` is the primary global analyst-target provider. Nasdaq remains the no-key fallback for supported U.S. securities; Twelve Data and Alpha Vantage are optional additional fallbacks. The app records which provider supplied each target.
+Yahoo Finance is the no-key global source for prices, 52-week ranges, and analyst targets. FMP, Nasdaq, Twelve Data, and Alpha Vantage remain automatic fallbacks. The app records which provider supplied each target.
 
 Google OAuth callback:
 
