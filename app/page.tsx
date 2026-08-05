@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Plus, Trash2, X } from "lucide-react";
-import type { AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
+import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
+import type { PortfolioAction } from "@/lib/portfolio-engine";
 import { currencies, marketCurrency, marketExchanges, markets, palette } from "@/lib/constants";
 import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr } from "@/lib/format";
 
@@ -10,6 +11,7 @@ type PortfolioPayload = {
   user: User;
   securities: Security[];
   fx: Record<string, number>;
+  actionHistory: ActionHistoryEntry[];
 };
 
 type RefreshSummary = {
@@ -408,9 +410,21 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   );
 }
 
-function Holdings({ securities, totalInr, reload }: {
+function marketFreshness(item: Security) {
+  const raw = item.marketDataAsOn || item.priceAsOn || item.refreshedAt;
+  if (!raw) return { label: "No date", className: "missing" };
+  const timestamp = new Date(raw).getTime();
+  if (!Number.isFinite(timestamp)) return { label: "Unknown", className: "missing" };
+  const ageDays = Math.max(0, (Date.now() - timestamp) / 86_400_000);
+  if (ageDays <= 3) return { label: "Fresh", className: "fresh" };
+  if (ageDays <= 7) return { label: "Aging", className: "aging" };
+  return { label: "Stale", className: "stale" };
+}
+
+function Holdings({ securities, totalInr, actionHistory, reload }: {
   securities: Security[];
   totalInr: number;
+  actionHistory: ActionHistoryEntry[];
   reload: () => void;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -510,6 +524,8 @@ function Holdings({ securities, totalInr, reload }: {
         const pct = totalInr ? (valueInr / totalInr) * 100 : 0;
         const settings = settingsDraft[item.id] || { targetPrice: String(item.targetPrice || ""), allocation: String(item.allocation || "") };
         const actionClass = item.action.toLowerCase().replaceAll(" ", "-");
+        const freshness = marketFreshness(item);
+        const itemHistory = actionHistory.filter((entry) => entry.securityId === item.id).slice(0, 5);
         const metrics = [
           ["52-week low", fmtUnit(item.week52Low, item.currency)],
           ["% above 52-week low", ratio(item.pctAbove52WeekLow, true)],
@@ -539,7 +555,7 @@ function Holdings({ securities, totalInr, reload }: {
               <div className="h-cell h-num hide-mobile">{fmt(item.investedCost, item.currency)}</div>
               <div className={`h-cell h-num hide-mobile ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`}>{fmt(item.gainLoss, item.currency)}</div>
               <div className={`h-cell h-num hide-mobile ${(item.gainPct || 0) >= 0 ? "good" : "bad"}`}>{ratio(item.gainPct, true)}</div>
-              <div className="h-cell h-updated hide-mobile">{fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</div>
+              <div className="h-cell h-updated hide-mobile"><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><small>{fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</small></div>
               <button className="table-btn" onClick={() => toggle(item.id)}>{isOpen ? "Close" : "Details"}</button>
               <button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={15} /></button>
             </div>
@@ -554,6 +570,21 @@ function Holdings({ securities, totalInr, reload }: {
                 </div>
                 <div className="action-explanation">{item.actionReasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
                 <div className="metric-grid">{metrics.map(([label, value]) => <div className="metric-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+
+                <div className="detail-section">
+                  <div className="detail-section-head"><div><h3>Action history</h3><p>A new entry is saved only when the Excel-based recommendation changes.</p></div><span>{itemHistory.length ? `${itemHistory.length} recent` : "No changes yet"}</span></div>
+                  {itemHistory.length > 0 ? (
+                    <div className="history-list">
+                      {itemHistory.map((entry) => (
+                        <div className="history-row" key={entry.id}>
+                          <span className="history-dot" />
+                          <div><strong>{entry.previousAction ? `${entry.previousAction} → ${entry.action}` : entry.action}</strong><small>{entry.reasons[0] || "Initial recommendation recorded."}</small></div>
+                          <div className="history-meta"><strong>{fmtUnit(entry.currentPrice, item.currency)}</strong><small>{fmtDate(entry.recordedAt)}</small></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div className="empty-history">The first recommendation will be recorded automatically.</div>}
+                </div>
 
                 <div className="detail-section">
                   <div className="detail-section-head"><div><h3>Strategy settings</h3><p>The API target updates automatically. Saving a target here creates an explicit manual override.</p></div></div>
@@ -599,6 +630,8 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<RefreshSummary | null>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
+  const [actionFilter, setActionFilter] = useState<"All" | PortfolioAction>("All");
+  const [holdingQuery, setHoldingQuery] = useState("");
 
   async function load() {
     try {
@@ -643,7 +676,7 @@ export default function Page() {
       setLastRefreshedAt(new Date().toISOString());
       if (json.securities && data) {
         setData((prev) => {
-          const next = prev ? { ...prev, securities: json.securities, fx: json.fx || prev.fx } : prev;
+          const next = prev ? { ...prev, securities: json.securities, fx: json.fx || prev.fx, actionHistory: json.actionHistory || prev.actionHistory || [] } : prev;
           writePortfolioCache(next);
           return next;
         });
@@ -661,13 +694,24 @@ export default function Page() {
   const securities = data?.securities || [];
   const fx = data?.fx || { INR: 1, USD: 83.5 };
   const countries = useMemo(() => [...new Set(securities.map((s) => s.country))].sort(), [securities]);
-  const visible = tab === "All" ? securities : securities.filter((s) => s.country === tab);
-  const stats = metricStats(visible, fx);
-  const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || visible[0]?.currency || "USD");
+  const countryVisible = tab === "All" ? securities : securities.filter((s) => s.country === tab);
+  const visible = countryVisible.filter((security) => {
+    const matchesAction = actionFilter === "All" || security.action === actionFilter;
+    const needle = holdingQuery.trim().toLowerCase();
+    const matchesQuery = !needle || [security.name, security.priceSymbol, security.ticker, security.assetType, security.country]
+      .some((value) => String(value || "").toLowerCase().includes(needle));
+    return matchesAction && matchesQuery;
+  });
+  const stats = metricStats(countryVisible, fx);
+  const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || countryVisible[0]?.currency || "USD");
+  const actionOptions: Array<"All" | PortfolioAction> = ["All", "Sell", "Review to Sell", "Buy", "Review to Buy", "Continue to Monitor", "Insufficient Data"];
+  const actionCounts = new Map(actionOptions.map((action) => [action, action === "All" ? countryVisible.length : countryVisible.filter((security) => security.action === action).length]));
+  const attentionCount = countryVisible.filter((security) => ["Sell", "Review to Sell", "Buy", "Review to Buy"].includes(security.action)).length;
+  const recentChanges = (data?.actionHistory || []).filter((entry) => entry.previousAction).slice(0, 3);
 
   useEffect(() => {
-    if (tab !== "All" && !currency[tab]) setCurrency((prev) => ({ ...prev, [tab]: marketCurrency[tab] || visible[0]?.currency || "USD" }));
-  }, [tab, currency, visible]);
+    if (tab !== "All" && !currency[tab]) setCurrency((prev) => ({ ...prev, [tab]: marketCurrency[tab] || countryVisible[0]?.currency || "USD" }));
+  }, [tab, currency, countryVisible]);
 
   if (!loginChecked) return <main className="login-page"><div className="login-card"><div className="login-title">Investments</div></div></main>;
   if (!data) return <Login />;
@@ -715,9 +759,18 @@ export default function Page() {
             <div className="register-metric"><div className="register-metric-label">Annual Income</div><div className="register-metric-value">{stats.income ? fmt(fromInr(stats.income, currentCurrency, fx), currentCurrency) : "—"}</div></div>
             <div className="register-metric"><div className="register-metric-label">Yield</div><div className="register-metric-value">{fmtPct(stats.yieldPct)}</div></div>
           </section>
-          <section className="panel-grid"><AllocationPanel title="Asset Allocation" securities={visible} by="assetType" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />{tab === "All" && <AllocationPanel title="By Country" securities={visible} by="country" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />}</section>
-          <div className="slabel">Holdings</div>
-          <Holdings securities={visible} totalInr={stats.totalInr} reload={load} />
+          <section className="decision-center">
+            <div className="decision-copy"><span className="eyebrow">Decision center</span><h2>{attentionCount ? `${attentionCount} holding${attentionCount === 1 ? "" : "s"} need attention` : "Your portfolio is in monitoring mode"}</h2><p>Recommendations update from live price, 52-week range, analyst target, allocation, and every purchase lot.</p></div>
+            <div className="decision-status"><span>Automatic refresh</span><strong>Daily · 10:00 SGT</strong></div>
+          </section>
+          {recentChanges.length > 0 && <section className="change-strip"><div><span className="eyebrow">Recent changes</span>{recentChanges.map((entry) => <span className="change-item" key={entry.id}><strong>{entry.securityName}</strong> {entry.previousAction} → {entry.action}</span>)}</div></section>}
+          <section className="action-toolbar">
+            <div className="action-filters">{actionOptions.map((action) => <button key={action} className={`action-filter ${actionFilter === action ? "on" : ""}`} onClick={() => setActionFilter(action)}><span>{action}</span><strong>{actionCounts.get(action) || 0}</strong></button>)}</div>
+            <input className="holding-search" aria-label="Search holdings" placeholder="Search holdings" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} />
+          </section>
+          <section className="panel-grid"><AllocationPanel title="Asset Allocation" securities={countryVisible} by="assetType" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />{tab === "All" && <AllocationPanel title="By Country" securities={countryVisible} by="country" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />}</section>
+          <div className="slabel">Holdings <span className="result-count">{visible.length} of {countryVisible.length}</span></div>
+          <Holdings securities={visible} totalInr={stats.totalInr} actionHistory={data.actionHistory || []} reload={load} />
         </>
       )}
       {modalOpen && <AddInvestmentModal fx={fx} onClose={() => setModalOpen(false)} onSaved={load} />}

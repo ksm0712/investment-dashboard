@@ -21,6 +21,9 @@ The app was rebuilt from an earlier Streamlit prototype into a responsive Next.j
 - Multiple purchase lots per asset, including lot-level dates, quantities, prices, and fees.
 - Automatic average cost, lowest purchase, remaining allocation, trigger, and gain calculations.
 - Auditable Buy, Review to Buy, Continue, Review to Sell, Sell, and Insufficient Data actions.
+- A decision center with action counts, one-click action filters, holding search, and data-freshness badges.
+- Persistent action history that records the price, target, source, reason, and previous recommendation only when an action changes.
+- Secure daily portfolio refreshes through Vercel Cron, with manual refresh still available on demand.
 - Refresh live prices for auto-priced assets while keeping bonds, savings, and manual assets user-controlled.
 - Portfolio summary with total value, total cost, gain/loss, gain percentage, annual income, and yield.
 - Asset allocation and country allocation panels with collapsible sections.
@@ -83,6 +86,8 @@ User
   -> Turso/libSQL for user-scoped portfolio data
   -> Quote providers for live prices, ranges, and targets
   -> Pure decision engine for derived metrics and actions
+  -> Action history for recommendation transitions
+  -> Vercel Cron for daily automatic recalculation
 ```
 
 Key design choices:
@@ -90,6 +95,7 @@ Key design choices:
 - User data is scoped by Google user id at the database layer.
 - Assets and purchase lots are separate records: market intelligence belongs to the asset; cost history belongs to its lots.
 - All Excel-derived formulas and action precedence live in one tested calculation engine.
+- Action history is event-based rather than snapshot-based, so unchanged recommendations do not create duplicate records.
 - Refreshes run server-side so provider logic and database writes are not exposed to the browser.
 - Stock and ETF refreshes race multiple quote providers, then choose the freshest result.
 - Mutual fund refreshes use mfapi's latest NAV endpoint first to avoid downloading full history.
@@ -143,10 +149,13 @@ ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 AUTH_COOKIE_SECRET=your_long_random_secret
+CRON_SECRET=your_long_random_cron_secret
 APP_URL=https://your-vercel-url.vercel.app
 ```
 
 Yahoo Finance is the no-key global source for prices, 52-week ranges, and analyst targets. FMP, Nasdaq, Twelve Data, and Alpha Vantage remain automatic fallbacks. The app records which provider supplied each target.
+
+The included Vercel schedule refreshes every auto-priced account daily at 02:00 UTC / 10:00 Singapore time. Vercel sends `CRON_SECRET` as a bearer token so the endpoint cannot be triggered publicly. Vercel Hobby supports this once-daily schedule; paid plans can increase the frequency later.
 
 Google OAuth callback:
 
@@ -167,4 +176,4 @@ Vercel automatically creates a production deployment when `main` is pushed.
 
 ## Project Status
 
-The app is deployed and usable as a multi-user portfolio tracker. Current focus areas are expanding provider coverage for more global exchanges, improving provider diagnostics, and adding optional portfolio import/export.
+The feature branch now includes the complete spreadsheet-equivalent decision layer, global target and market-data sourcing, purchase lots, action filtering, persistent recommendation history, freshness indicators, and scheduled daily refresh. The production `main` branch remains unchanged until this work is reviewed and merged.
