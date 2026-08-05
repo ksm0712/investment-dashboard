@@ -367,6 +367,7 @@ function Holdings({ securities, totalInr, reload }: {
   reload: () => void;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [editorAsset, setEditorAsset] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [lotDraft, setLotDraft] = useState<Record<string, string>>({ purchaseDate: new Date().toISOString().slice(0, 10) });
   const [editingLot, setEditingLot] = useState<number | null>(null);
@@ -378,8 +379,12 @@ function Holdings({ securities, totalInr, reload }: {
     return fmtPct(value === null ? null : value * 100, signed);
   }
 
-  function toggle(id: number) {
+  function toggleDetails(id: number) {
     setExpanded((current) => current.has(id) ? new Set() : new Set([id]));
+  }
+
+  function openEditor(id: number) {
+    setEditorAsset(id);
     setEditingLot(null);
     setLotDraft({ purchaseDate: new Date().toISOString().slice(0, 10) });
   }
@@ -449,9 +454,13 @@ function Holdings({ securities, totalInr, reload }: {
 
   if (!rows.length) return <div className="alloc-meta">No holdings.</div>;
   return (
-    <div className="asset-card-list">
+    <div className="asset-register">
+      <div className="asset-register-row asset-register-head" aria-hidden="true">
+        <span>Asset</span><span>Price</span><span>Target</span><span>To target</span><span className="range-column">52W low</span><span className="range-column">Above low</span><span className="range-column">52W high</span><span className="range-column">Below high</span><span>Avg buy</span><span>Above buy</span><span>Shares</span><span>Gain / loss</span><span>Gain %</span><span className="trigger-column">Aggressive</span><span className="trigger-column">Conservative</span><span>Action</span>
+      </div>
       {rows.map((item) => {
-        const isOpen = expanded.has(item.id);
+        const isDetailsOpen = expanded.has(item.id);
+        const isEditorOpen = editorAsset === item.id;
         const valueInr = item.latestValueInr ?? item.valueInr;
         const pct = totalInr ? (valueInr / totalInr) * 100 : 0;
         const allocation = allocationDraft[item.id] ?? String(item.allocation ?? "");
@@ -487,21 +496,36 @@ function Holdings({ securities, totalInr, reload }: {
           ["% above conservative", ratio(item.pctAboveConservativeTrigger, true), conservativeTone],
         ];
         return (
-          <article className={`asset-summary-card action-${actionClass}`} key={item.id}>
-            <header className="asset-summary-head">
-              <div className="asset-identity">
-                <div className="asset-kicker">{item.assetType} · {item.priceSymbol || item.ticker || item.exchange || item.country}</div>
-                <h2>{item.name}</h2>
-                <div className="asset-meta">{pct.toFixed(1)}% of portfolio · {item.lots.length} lot{item.lots.length === 1 ? "" : "s"} · {item.country}</div>
-              </div>
-              <div className="asset-card-actions">
-                <div className="card-updated" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><span>{fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</span></div>
-                <button className="table-btn" onClick={() => toggle(item.id)}>Lots &amp; allocation</button>
-                <button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={14} /></button>
-              </div>
-            </header>
+          <article className={`asset-row-shell action-${actionClass}`} key={item.id}>
+            <button className={`asset-register-row asset-data-row ${isDetailsOpen ? "open" : ""}`} onClick={() => toggleDetails(item.id)} aria-expanded={isDetailsOpen}>
+              <span className="asset-row-name"><i className={`row-chevron ${isDetailsOpen ? "open" : ""}`}>›</i><span><strong>{item.name}</strong><small>{item.priceSymbol || item.ticker || item.exchange || item.assetType} · {pct.toFixed(1)}%</small></span></span>
+              <span>{fmtUnit(item.latestPrice, item.currency)}</span>
+              <span>{fmtUnit(item.targetPrice, item.currency)}</span>
+              <span>{ratio(item.priceToTarget, true)}</span>
+              <span className="range-column">{fmtUnit(item.week52Low, item.currency)}</span>
+              <span className="range-column">{ratio(item.pctAbove52WeekLow, true)}</span>
+              <span className="range-column">{fmtUnit(item.week52High, item.currency)}</span>
+              <span className="range-column">{ratio(item.pctBelow52WeekHigh)}</span>
+              <span>{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
+              <span>{ratio(item.pctAboveLowestPurchase, true)}</span>
+              <span>{fmtPlain(item.sharesHeld, 2)}</span>
+              <span className={(item.gainLoss || 0) >= 0 ? "good" : "bad"}>{fmt(item.gainLoss, item.currency)}</span>
+              <span className={(item.gainPct || 0) >= 0 ? "good" : "bad"}>{ratio(item.gainPct, true)}</span>
+              <span className="trigger-column">{fmtUnit(item.aggressiveSellTrigger, item.currency)}</span>
+              <span className="trigger-column">{fmtUnit(item.conservativeSellTrigger, item.currency)}</span>
+              <span><span className={`action-badge ${actionClass}`}>{item.action}</span></span>
+            </button>
 
-            <div className="asset-insight-layout" aria-label={`${item.name} portfolio details`}>
+            {isDetailsOpen && <div className="asset-expanded">
+              <div className="expanded-summary-head">
+                <div><strong>{item.action}</strong><p>{item.actionReasons.join(" ")}</p></div>
+                <div className="asset-card-actions">
+                  <div className="card-updated" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><span>{fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</span></div>
+                  <button className="table-btn" onClick={() => openEditor(item.id)}>Lots &amp; allocation</button>
+                  <button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={14} /></button>
+                </div>
+              </div>
+              <div className="asset-insight-layout" aria-label={`${item.name} portfolio details`}>
               <section className="insight-panel market-insight">
                 <div className="insight-heading">Market</div>
                 <div className="insight-hero-grid">{marketMetrics.slice(0, 3).map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
@@ -518,13 +542,14 @@ function Holdings({ securities, totalInr, reload }: {
                 <p className="decision-reason">{item.actionReasons.join(" ")}</p>
                 <div className="insight-detail-grid decision-details">{triggerMetrics.map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
               </section>
+              </div>
+              {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
             </div>
-
-            {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
-            {isOpen && (
+            }
+            {isEditorOpen && (
               <div className="asset-editor-backdrop" role="dialog" aria-modal="true" aria-label={`Lots and allocation for ${item.name}`}>
               <div className="asset-editor">
-                <div className="editor-title"><div><h3>Lots &amp; allocation</h3><p>{item.name} · purchases are combined into the asset totals.</p></div><button className="icon-btn" aria-label="Close lots and allocation" onClick={() => toggle(item.id)}><X size={16} /></button></div>
+                <div className="editor-title"><div><h3>Lots &amp; allocation</h3><p>{item.name} · purchases are combined into the asset totals.</p></div><button className="icon-btn" aria-label="Close lots and allocation" onClick={() => setEditorAsset(null)}><X size={16} /></button></div>
                 <div className="editor-allocation">
                   <div className="compact-form">
                     <label>Allocation amount ({item.currency})<input value={allocation} onChange={(e) => setAllocationDraft((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="Not set" /></label>

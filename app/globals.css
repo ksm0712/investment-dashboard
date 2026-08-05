@@ -89,6 +89,33 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .holdings-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 0 10px; }
 .holdings-toolbar .slabel { margin:0; }
 .asset-card-list { display:grid; gap:12px; margin-bottom:26px; }
+.asset-register { overflow:hidden; margin-bottom:26px; border:1px solid #dbe3ee; border-radius:10px; background:#fff; box-shadow:0 10px 28px rgba(15,23,42,.05); }
+.asset-row-shell { border-left:4px solid #94a3b8; border-bottom:1px solid #e2e8f0; }
+.asset-row-shell:last-child { border-bottom:0; }
+.asset-row-shell.action-sell { border-left-color:#ef4444; }
+.asset-row-shell.action-review-to-sell { border-left-color:#f97316; }
+.asset-row-shell.action-buy { border-left-color:#10b981; }
+.asset-row-shell.action-review-to-buy { border-left-color:#3b82f6; }
+.asset-row-shell.action-insufficient-data { border-left-color:#f59e0b; }
+.asset-register-row { width:100%; display:grid; grid-template-columns:minmax(210px,2.2fr) repeat(14,minmax(58px,.72fr)) minmax(110px,1.05fr); align-items:stretch; }
+.asset-register-head { min-height:42px; padding-left:4px; background:#eef2f7; color:#526174; }
+.asset-register-head > span { display:flex; align-items:center; justify-content:center; padding:6px 5px; border-right:1px solid #dbe3ee; font-size:8px; line-height:1.15; font-weight:900; letter-spacing:.045em; text-align:center; text-transform:uppercase; }
+.asset-register-head > span:first-child { justify-content:flex-start; padding-left:15px; }
+.asset-data-row { min-height:58px; padding:0; border:0; border-radius:0; background:#fff; color:#172033; box-shadow:none; text-align:center; }
+.asset-data-row:hover, .asset-data-row.open { background:#f8fafc; }
+.asset-data-row > span { min-width:0; display:flex; align-items:center; justify-content:center; padding:7px 5px; border-right:1px solid #edf1f5; font-size:10px; font-weight:750; font-variant-numeric:tabular-nums; }
+.asset-data-row > span:last-child, .asset-register-head > span:last-child { border-right:0; }
+.asset-row-name { justify-content:flex-start !important; gap:8px; padding-left:10px !important; text-align:left; }
+.asset-row-name > span { min-width:0; }
+.asset-row-name strong { display:block; overflow:hidden; color:#0f172a; font-size:12px; font-weight:900; text-overflow:ellipsis; white-space:nowrap; }
+.asset-row-name small { display:block; overflow:hidden; margin-top:3px; color:#64748b; font-size:8px; font-style:normal; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+.row-chevron { color:#64748b; font-size:18px; font-style:normal; line-height:1; transform:rotate(0); transition:transform .15s ease; }
+.row-chevron.open { transform:rotate(90deg); }
+.asset-expanded { padding:14px 14px 16px; border-top:1px solid #dbe3ee; background:#f8fafc; }
+.expanded-summary-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:0 2px 8px; }
+.expanded-summary-head > div:first-child > strong { color:#0f172a; font-size:13px; font-weight:900; }
+.expanded-summary-head p { margin:4px 0 0; color:#64748b; font-size:10px; line-height:1.45; }
+.asset-expanded .asset-insight-layout { padding:8px 0 0; }
 .asset-summary-card { overflow:hidden; background:#fff; border:1px solid #dbe3ee; border-left:5px solid #94a3b8; border-radius:12px; box-shadow:0 10px 28px rgba(15,23,42,.055); }
 .asset-summary-card.action-sell { border-left-color:#ef4444; }
 .asset-summary-card.action-review-to-sell { border-left-color:#f97316; }
@@ -303,6 +330,7 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
   .portfolio-toolbar .select-wrap { width:120px; }
   .holdings-toolbar { align-items:stretch; flex-direction:column; }
   .asset-card-actions { flex-wrap:wrap; }
+  .expanded-summary-head { align-items:stretch; flex-direction:column; }
 }
 
 @media (max-width: 560px) {
@@ -315,4 +343,21 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 @media (min-width: 561px) and (max-width: 1100px) {
   .asset-insight-layout { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .decision-insight { grid-column:1 / -1; }
+}
+
+@media (max-width: 1350px) {
+  .asset-register-row { grid-template-columns:minmax(190px,2fr) repeat(12,minmax(56px,.72fr)) minmax(108px,1fr); }
+  .asset-register-row > .trigger-column { display:none; }
+}
+
+@media (max-width: 1050px) {
+  .asset-register-row { grid-template-columns:minmax(180px,2fr) repeat(8,minmax(54px,.72fr)) minmax(104px,1fr); }
+  .asset-register-row > .range-column { display:none; }
+}
+
+@media (max-width: 600px) {
+  .asset-register-row { grid-template-columns:minmax(145px,1.6fr) repeat(5,minmax(46px,.7fr)) minmax(88px,1fr); }
+  .asset-register-row > :nth-child(4), .asset-register-row > :nth-child(10), .asset-register-row > :nth-child(11) { display:none; }
+  .asset-register-head > span { font-size:7px; }
+  .asset-data-row > span { font-size:9px; }
 }
