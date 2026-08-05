@@ -66,3 +66,9 @@ Actions are mutually exclusive and evaluated from top to bottom:
 6. Add action-change history and alerts only after calculations and data freshness are proven reliable.
 
 The deployed `main` branch remains unchanged until this feature branch is reviewed and explicitly merged.
+
+## Target-provider policy
+
+For stocks, the backend queries multiple target providers and normalizes them into one value, source and as-of date. Provider precedence is Twelve Data's international analyst average, Financial Modeling Prep consensus, Nasdaq analyst consensus, then Alpha Vantage analyst target. Twelve Data, FMP and Alpha Vantage require server-side API keys; Nasdaq is the no-key fallback for supported U.S. securities. A provider failure must never be presented as a valid action.
+
+ETFs generally do not receive company-style analyst consensus price targets. The product must label any future ETF target methodology accurately (for example, model target or NAV-based target) instead of presenting a 52-week high as analyst consensus.

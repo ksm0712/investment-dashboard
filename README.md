@@ -130,11 +130,16 @@ Create `.env.local` for local development or configure these in Vercel:
 ```bash
 TURSO_DATABASE_URL=libsql://your-database.turso.io
 TURSO_AUTH_TOKEN=your_turso_token
+TWELVE_DATA_API_KEY=your_twelve_data_key
+FMP_API_KEY=your_financial_modeling_prep_key
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 AUTH_COOKIE_SECRET=your_long_random_secret
 APP_URL=https://your-vercel-url.vercel.app
 ```
+
+`TWELVE_DATA_API_KEY`, `FMP_API_KEY`, and `ALPHA_VANTAGE_API_KEY` are optional target-data providers. Twelve Data is the preferred international analyst-target source; the others form a fallback chain. The app records which provider supplied each target. Nasdaq remains the no-key fallback for supported U.S. securities.
 
 Google OAuth callback:
 

@@ -402,6 +402,114 @@ async function nasdaqIntelligence(symbol: string, assetType: string): Promise<Pa
   };
 }
 
+async function alphaVantageIntelligence(symbol: string): Promise<Partial<PriceResult>> {
+  const apiKey = String(process.env.ALPHA_VANTAGE_API_KEY || "").trim();
+  if (!apiKey) return {};
+  const data = await fetchJsonWithAttempts(
+    `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(apiKey)}`,
+    { cache: "no-store" }, 1, 6000,
+  );
+  if (data?.Note || data?.Information) throw new Error(data.Note || data.Information);
+  const targetPrice = parsePrice(data?.AnalystTargetPrice);
+  const week52Low = parsePrice(data?.["52WeekLow"]);
+  const week52High = parsePrice(data?.["52WeekHigh"]);
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    targetPrice: targetPrice ?? undefined,
+    targetSource: targetPrice ? "alpha-vantage-analyst-target" : undefined,
+    targetAsOn: targetPrice ? today : undefined,
+    week52Low: week52Low ?? undefined,
+    week52High: week52High ?? undefined,
+  };
+}
+
+async function fmpIntelligence(symbol: string): Promise<Partial<PriceResult>> {
+  const apiKey = String(process.env.FMP_API_KEY || "").trim();
+  if (!apiKey) return {};
+  const headers = { "Accept": "application/json", "apikey": apiKey };
+  const [targetResult, quoteResult] = await Promise.allSettled([
+    fetchJsonWithAttempts(
+      `https://financialmodelingprep.com/stable/price-target-consensus?symbol=${encodeURIComponent(symbol)}`,
+      { headers, cache: "no-store" }, 1, 6000,
+    ),
+    fetchJsonWithAttempts(
+      `https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(symbol)}`,
+      { headers, cache: "no-store" }, 1, 6000,
+    ),
+  ]);
+  const targetPayload = targetResult.status === "fulfilled"
+    ? (Array.isArray(targetResult.value) ? targetResult.value[0] : targetResult.value)
+    : null;
+  const quotePayload = quoteResult.status === "fulfilled"
+    ? (Array.isArray(quoteResult.value) ? quoteResult.value[0] : quoteResult.value)
+    : null;
+  const targetPrice = parsePrice(
+    targetPayload?.targetConsensus
+    ?? targetPayload?.consensus
+    ?? targetPayload?.targetMedian
+    ?? targetPayload?.lastMonthAvgPriceTarget
+    ?? targetPayload?.lastQuarterAvgPriceTarget,
+  );
+  const week52Low = parsePrice(quotePayload?.yearLow ?? quotePayload?.yearLowPrice);
+  const week52High = parsePrice(quotePayload?.yearHigh ?? quotePayload?.yearHighPrice);
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    targetPrice: targetPrice ?? undefined,
+    targetSource: targetPrice ? "fmp-price-target-consensus" : undefined,
+    targetAsOn: targetPrice ? today : undefined,
+    week52Low: week52Low ?? undefined,
+    week52High: week52High ?? undefined,
+  };
+}
+
+async function twelveDataIntelligence(symbol: string, exchange?: string | null): Promise<Partial<PriceResult>> {
+  const apiKey = String(process.env.TWELVE_DATA_API_KEY || "").trim();
+  if (!apiKey) return {};
+  const suffixPattern = /\.(NS|BO|SI|L|T|HK|AX|TO|DE|F|SW|MI|MC|SS|SZ|V|NZ|IR|LU|ST|OL|CO|KS|TW|TWO|JK|KL|BK|PS|VN|SA|MX|JO|PA|AS)$/i;
+  const providerSymbol = exchange ? symbol.replace(suffixPattern, "") : symbol;
+  const query = new URLSearchParams({ symbol: providerSymbol, apikey: apiKey });
+  if (exchange && exchange !== "Other") query.set("exchange", exchange);
+  const data = await fetchJsonWithAttempts(
+    `https://api.twelvedata.com/price_target?${query.toString()}`,
+    { cache: "no-store" }, 1, 6000,
+  );
+  if (data?.status === "error") throw new Error(data?.message || "Twelve Data target lookup failed.");
+  const targetPrice = parsePrice(data?.price_target?.average ?? data?.price_target?.median);
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    targetPrice: targetPrice ?? undefined,
+    targetSource: targetPrice ? "twelve-data-analyst-average" : undefined,
+    targetAsOn: targetPrice ? today : undefined,
+  };
+}
+
+async function marketIntelligence(symbol: string, assetType: string, exchange?: string | null): Promise<Partial<PriceResult>> {
+  const providers = [
+    { name: "twelve-data", run: () => twelveDataIntelligence(symbol, exchange) },
+    { name: "fmp", run: () => fmpIntelligence(symbol) },
+    { name: "nasdaq", run: () => nasdaqIntelligence(symbol, assetType) },
+    { name: "alpha-vantage", run: () => alphaVantageIntelligence(symbol) },
+  ];
+  const settled = await Promise.allSettled(providers.map((provider) => provider.run()));
+  const results = settled
+    .map((result, index) => result.status === "fulfilled" ? { ...result.value, provider: providers[index].name } : null)
+    .filter(Boolean) as Array<Partial<PriceResult> & { provider: string }>;
+
+  // Prefer dedicated consensus providers, but fill every missing field from any successful provider.
+  const target = results.find((item) => item.provider === "twelve-data" && item.targetPrice)
+    || results.find((item) => item.provider === "fmp" && item.targetPrice)
+    || results.find((item) => item.provider === "nasdaq" && item.targetPrice)
+    || results.find((item) => item.provider === "alpha-vantage" && item.targetPrice);
+  const range = results.find((item) => item.week52Low && item.week52High);
+  return {
+    targetPrice: target?.targetPrice,
+    targetSource: target?.targetSource,
+    targetAsOn: target?.targetAsOn,
+    week52Low: range?.week52Low,
+    week52High: range?.week52High,
+  };
+}
+
 async function yahooSearch(query: string) {
   const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0`;
   const headers = {
@@ -572,7 +680,7 @@ async function marketPriceForSecurity(sec: Security) {
   async function enrich(result: PriceResult) {
     if (!result.symbol) return result;
     try {
-      const intelligence = await nasdaqIntelligence(result.symbol, sec.assetType);
+      const intelligence = await marketIntelligence(result.symbol, sec.assetType, sec.exchange);
       return {
         ...result,
         week52Low: intelligence.week52Low ?? result.week52Low,
@@ -810,6 +918,7 @@ export async function refreshPrices(userId: string) {
 
       const latestValue = latest.price * sec.quantity;
       const latestValueInr = sec.currency === "INR" ? latestValue : latestValue * (fx[sec.currency] || 1);
+      const targetMissing = ["Stock", "ETF"].includes(sec.assetType) && !(latest.targetPrice ?? sec.targetPrice);
       await updateRefreshFieldsForSecurity(userId, sec, {
         latestPrice: latest.price,
         priceAsOn: latest.date,
@@ -822,12 +931,19 @@ export async function refreshPrices(userId: string) {
         targetAsOn: latest.targetAsOn ?? sec.targetAsOn,
         latestValue,
         latestValueInr,
-        refreshStatus: "updated",
-        refreshNote: `Updated via ${latest.source} price ${latest.price} on ${latest.date}.`,
+        refreshStatus: targetMissing ? "needs_target" : "updated",
+        refreshNote: targetMissing
+          ? `Price updated via ${latest.source}; no analyst target was returned by the configured providers.`
+          : `Updated via ${latest.source} price ${latest.price} on ${latest.date}.`,
         priceSource: latest.source,
         priceSymbol: latest.symbol,
       });
-      await mark(sec, "updated");
+      if (targetMissing) {
+        summary.details.push({ name: sec.name, status: "needs_target", note: "Configure a global target provider or add a reviewed target override." });
+        await mark(sec, "not_refreshed");
+      } else {
+        await mark(sec, "updated");
+      }
     } catch (error) {
       const note = error instanceof Error ? error.message : "Refresh failed.";
       await updateRefreshFieldsForSecurity(userId, sec, {
