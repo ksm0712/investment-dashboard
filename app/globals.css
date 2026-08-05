@@ -45,9 +45,21 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .portfolio-toolbar .tabs { min-width:0; }
 .portfolio-toolbar .select-wrap label { margin-bottom:3px; }
 .portfolio-toolbar .select-wrap select { min-height:36px; }
+.action-filter-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.action-filter-chip { display:flex; align-items:center; gap:7px; min-height:36px; padding:0 13px; border:1px solid #dbe3ee; border-radius:999px; background:#fff; color:#475569; font-size:12px; font-weight:800; }
+.action-filter-chip strong { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background:#f1f5f9; color:#334155; font-size:11px; font-weight:850; }
+.action-filter-chip:hover { border-color:#94a3b8; }
+.action-filter-chip.on { border-color:#0f172a; background:#0f172a; color:#fff; }
+.action-filter-chip.on strong { background:rgba(255,255,255,.18); color:#fff; }
+.action-filter-chip.sell.on { border-color:#be123c; background:#be123c; }
+.action-filter-chip.review-to-sell.on { border-color:#c2410c; background:#c2410c; }
+.action-filter-chip.buy.on { border-color:#047857; background:#047857; }
+.action-filter-chip.review-to-buy.on { border-color:#1d4ed8; background:#1d4ed8; }
+.action-filter-chip.insufficient-data.on { border-color:#b45309; background:#b45309; }
 .holdings-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 0 10px; }
 .holdings-toolbar .slabel { margin:0; }
 .holding-search { flex:0 0 190px; width:190px; min-height:34px; font-size:11px; }
+.empty-holdings-note { padding:22px; text-align:center; border:1px dashed #cbd5e1; border-radius:10px; background:#fff; }
 
 /* Holdings list */
 .asset-register { overflow:hidden; margin-bottom:26px; border:1px solid #dbe3ee; border-radius:12px; background:#fff; box-shadow:0 10px 28px rgba(15,23,42,.05); }
@@ -92,7 +104,8 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .holding-position-cell small, .holding-gain-cell small { display:block; margin-top:3px; color:#64748b; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; }
 .holding-gain-cell.good strong, .holding-gain-cell.good small { color:#047857; }
 .holding-gain-cell.bad strong, .holding-gain-cell.bad small { color:#be123c; }
-.holding-action-cell { display:flex; justify-content:flex-end; }
+.holding-action-cell { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+.holding-action-reason { display:block; max-width:220px; color:#64748b; font-size:10px; font-weight:600; line-height:1.35; text-align:right; }
 
 .asset-expanded { padding:14px 14px 16px; border-top:1px solid #dbe3ee; background:#f8fafc; }
 .expanded-summary-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:0 2px 8px; }
@@ -244,8 +257,11 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
   .holding-price-cell { grid-area:price; }
   .holding-position-cell { grid-area:position; display:block; }
   .holding-gain-cell { grid-area:gain; text-align:right; }
-  .holding-action-cell { grid-area:action; align-items:flex-start; }
+  .holding-action-cell { grid-area:action; align-items:flex-end; max-width:180px; }
+  .holding-action-reason { max-width:180px; }
   .alerts-panel { position:fixed; top:70px; left:12px; right:12px; width:auto; }
+  .action-filter-row { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; }
+  .action-filter-chip { flex:0 0 auto; }
 }
 
 @media (max-width: 560px) {

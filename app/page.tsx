@@ -361,6 +361,17 @@ function marketFreshness(item: Security) {
   return { label: "Stale", className: "stale" };
 }
 
+const ACTION_PRIORITY: Record<string, number> = {
+  Sell: 0,
+  "Review to Sell": 1,
+  Buy: 2,
+  "Review to Buy": 3,
+  "Insufficient Data": 4,
+  "Continue to Monitor": 5,
+};
+
+const ACTION_FILTERS = ["All", "Sell", "Review to Sell", "Buy", "Review to Buy", "Continue to Monitor", "Insufficient Data"];
+
 function actionIcon(action: string) {
   if (action === "Buy" || action === "Review to Buy") return <TrendingUp size={12} />;
   if (action === "Sell" || action === "Review to Sell") return <TrendingDown size={12} />;
@@ -449,11 +460,12 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
   );
 }
 
-function Holdings({ securities, totalInr, reload, focusId }: {
+function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
   securities: Security[];
   totalInr: number;
   reload: () => void;
   focusId: number | null;
+  emptyMessage: string;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [editorAsset, setEditorAsset] = useState<number | null>(null);
@@ -462,7 +474,11 @@ function Holdings({ securities, totalInr, reload, focusId }: {
   const [editingLot, setEditingLot] = useState<number | null>(null);
   const [allocationDraft, setAllocationDraft] = useState<Record<number, string>>({});
   const [message, setMessage] = useState<Record<number, string>>({});
-  const rows = [...securities].sort((a, b) => (b.latestValueInr ?? b.valueInr) - (a.latestValueInr ?? a.valueInr));
+  const rows = [...securities].sort((a, b) => {
+    const rank = (ACTION_PRIORITY[a.action] ?? 9) - (ACTION_PRIORITY[b.action] ?? 9);
+    if (rank !== 0) return rank;
+    return (b.latestValueInr ?? b.valueInr) - (a.latestValueInr ?? a.valueInr);
+  });
 
   function ratio(value: number | null, signed = false) {
     return fmtPct(value === null ? null : value * 100, signed);
@@ -548,7 +564,7 @@ function Holdings({ securities, totalInr, reload, focusId }: {
     });
   }
 
-  if (!rows.length) return <div className="alloc-meta">No holdings.</div>;
+  if (!rows.length) return <div className="alloc-meta empty-holdings-note">{emptyMessage}</div>;
   return (
     <div className="asset-register">
       <div className="holding-row holding-row-head" aria-hidden="true">
@@ -619,6 +635,7 @@ function Holdings({ securities, totalInr, reload, focusId }: {
               </span>
               <span className="holding-action-cell">
                 <span className={`action-badge ${actionClass}`}>{actionIcon(item.action)}{item.action}</span>
+                {item.actionReasons[0] && <small className="holding-action-reason">{item.actionReasons[0]}</small>}
               </span>
             </button>
 
@@ -699,6 +716,7 @@ export default function Page() {
   const [summary, setSummary] = useState<RefreshSummary | null>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [holdingQuery, setHoldingQuery] = useState("");
+  const [actionFilter, setActionFilter] = useState("All");
   const [focusId, setFocusId] = useState<number | null>(null);
   const autoRefreshAttempted = useRef(false);
 
@@ -764,11 +782,17 @@ export default function Page() {
   const fx = data?.fx || { INR: 1, USD: 83.5 };
   const countries = useMemo(() => [...new Set(securities.map((s) => s.country))].sort(), [securities]);
   const countryVisible = tab === "All" ? securities : securities.filter((s) => s.country === tab);
-  const visible = countryVisible.filter((security) => {
+  const searchMatched = countryVisible.filter((security) => {
     const needle = holdingQuery.trim().toLowerCase();
     return !needle || [security.name, security.priceSymbol, security.ticker, security.assetType, security.country, security.action]
       .some((value) => String(value || "").toLowerCase().includes(needle));
   });
+  const actionCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const security of searchMatched) counts[security.action] = (counts[security.action] || 0) + 1;
+    return counts;
+  }, [searchMatched]);
+  const visible = actionFilter === "All" ? searchMatched : searchMatched.filter((security) => security.action === actionFilter);
   const stats = metricStats(countryVisible, fx);
   const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || countryVisible[0]?.currency || "USD");
 
@@ -841,11 +865,29 @@ export default function Page() {
             <div className="register-metric"><div className="register-metric-label">Gain / Loss</div><div className={`register-metric-value ${(stats.gainPct || 0) >= 0 ? "good" : "bad"}`}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</div></div>
             <div className="register-metric"><div className="register-metric-label">Return</div><div className={`register-metric-value ${(stats.gainPct || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(stats.gainPct)}</div></div>
           </section>
+          <section className="action-filter-row" aria-label="Filter holdings by recommended action">
+            {ACTION_FILTERS.map((action) => {
+              const count = action === "All" ? searchMatched.length : (actionCounts[action] || 0);
+              if (action !== "All" && count === 0 && actionFilter !== action) return null;
+              const cls = action === "All" ? "all" : action.toLowerCase().replaceAll(" ", "-");
+              return (
+                <button key={action} className={`action-filter-chip ${cls} ${actionFilter === action ? "on" : ""}`} onClick={() => setActionFilter(action)}>
+                  {action}<strong>{count}</strong>
+                </button>
+              );
+            })}
+          </section>
           <section className="holdings-toolbar">
             <div className="slabel register-title-row"><span>Holdings <span className="result-count">{visible.length} of {countryVisible.length}</span></span></div>
             <input className="holding-search" aria-label="Search holdings" placeholder="Search holdings" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} />
           </section>
-          <Holdings securities={visible} totalInr={stats.totalInr} reload={load} focusId={focusId} />
+          <Holdings
+            securities={visible}
+            totalInr={stats.totalInr}
+            reload={load}
+            focusId={focusId}
+            emptyMessage={actionFilter === "All" ? "No holdings match your search." : `Nothing is currently flagged ${actionFilter}.`}
+          />
         </>
       )}
       {modalOpen && <AddInvestmentModal fx={fx} onClose={() => setModalOpen(false)} onSaved={load} />}
