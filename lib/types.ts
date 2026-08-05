@@ -73,9 +73,16 @@ export type AddInvestmentInput = {
   costPrice: number;
   currentPrice: number;
   priceSymbol?: string;
+  priceSource?: string | null;
+  priceAsOn?: string | null;
   exchange?: string;
   purchaseDate: string;
   allocation?: number | null;
+  targetPrice?: number | null;
+  targetSource?: string | null;
+  targetAsOn?: string | null;
+  week52Low?: number | null;
+  week52High?: number | null;
 };
 
 export type SearchResult = {

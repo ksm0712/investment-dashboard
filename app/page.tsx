@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Plus, Trash2, X } from "lucide-react";
 import type { AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets, palette } from "@/lib/constants";
-import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr, toInr } from "@/lib/format";
+import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr } from "@/lib/format";
 
 type PortfolioPayload = {
   user: User;
@@ -22,7 +22,7 @@ type RefreshSummary = {
   byType?: Record<string, Record<string, number>>;
 };
 
-const PORTFOLIO_CACHE_KEY = "investment-dashboard:portfolio:v1";
+const PORTFOLIO_CACHE_KEY = "investment-dashboard:portfolio:v2";
 function readPortfolioCache(): PortfolioPayload | null {
   if (typeof window === "undefined") return null;
   try {
@@ -79,7 +79,7 @@ function Login() {
 
 function metricStats(securities: Security[], fx: Record<string, number>) {
   const totalInr = securities.reduce((sum, s) => sum + (s.latestValueInr ?? s.valueInr ?? 0), 0);
-  const costInr = securities.reduce((sum, s) => sum + ((s.quantity || 0) * (s.costPrice || 0) * (fx[s.currency] || 1)), 0);
+  const costInr = securities.reduce((sum, s) => sum + ((s.investedCost || 0) * (fx[s.currency] || 1)), 0);
   const gainInr = totalInr - costInr;
   const gainPct = costInr ? (gainInr / costInr) * 100 : null;
   const income = securities.reduce((sum, s) => sum + (s.annualIncome || 0), 0);
@@ -155,6 +155,14 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   const [costPrice, setCostPrice] = useState("");
   const [currentPrice, setCurrentPrice] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
+  const [allocation, setAllocation] = useState("");
+  const [targetPrice, setTargetPrice] = useState("");
+  const [targetSource, setTargetSource] = useState("");
+  const [targetAsOn, setTargetAsOn] = useState("");
+  const [week52Low, setWeek52Low] = useState("");
+  const [week52High, setWeek52High] = useState("");
+  const [priceSource, setPriceSource] = useState("");
+  const [priceAsOn, setPriceAsOn] = useState("");
   const [matches, setMatches] = useState<SearchResult[]>([]);
   const [matchIndex, setMatchIndex] = useState("");
   const [busy, setBusy] = useState(false);
@@ -162,7 +170,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   const [error, setError] = useState("");
   const [searchNotice, setSearchNotice] = useState("");
   const localSearchCache = useRef<Record<string, SearchResult[]>>({});
-  const quoteCache = useRef<Record<string, string>>({});
+  const quoteCache = useRef<Record<string, Record<string, unknown>>>({});
   const quoteRequestId = useRef(0);
 
   const exchanges = marketExchanges[country] || ["Other"];
@@ -209,8 +217,22 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     if (!["Stock", "ETF", "Mutual Fund"].includes(match.assetType)) return;
     const currency = marketCurrency[match.country] || "USD";
     const key = `${match.assetType}|${match.ticker}|${currency}`;
+    function applyQuote(quote: Record<string, unknown>) {
+      const price = Number(quote.price);
+      if (Number.isFinite(price) && price > 0) setCurrentPrice(String(Number(price.toFixed(6))));
+      const target = Number(quote.targetPrice);
+      setTargetPrice(Number.isFinite(target) && target > 0 ? String(Number(target.toFixed(6))) : "");
+      setTargetSource(String(quote.targetSource || ""));
+      setTargetAsOn(String(quote.targetAsOn || ""));
+      const low = Number(quote.week52Low);
+      const high = Number(quote.week52High);
+      setWeek52Low(Number.isFinite(low) && low > 0 ? String(Number(low.toFixed(6))) : "");
+      setWeek52High(Number.isFinite(high) && high > 0 ? String(Number(high.toFixed(6))) : "");
+      setPriceSource(String(quote.source || ""));
+      setPriceAsOn(String(quote.date || ""));
+    }
     if (quoteCache.current[key]) {
-      setCurrentPrice(quoteCache.current[key]);
+      applyQuote(quoteCache.current[key]);
       return;
     }
     const requestId = ++quoteRequestId.current;
@@ -230,11 +252,9 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
         }),
       });
       const data = await res.json();
-      const price = Number(data.quote?.price);
-      if (res.ok && Number.isFinite(price) && price > 0) {
-        const formatted = String(Number(price.toFixed(6)));
-        quoteCache.current[key] = formatted;
-        if (requestId === quoteRequestId.current) setCurrentPrice(formatted);
+      if (res.ok && data.quote) {
+        quoteCache.current[key] = data.quote;
+        if (requestId === quoteRequestId.current) applyQuote(data.quote);
       }
     } finally {
       if (requestId === quoteRequestId.current) setQuoteBusy(false);
@@ -252,6 +272,13 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     setExchange(match.exchange || (marketExchanges[match.country] || ["Other"])[0]);
     setIdentifierType(match.identifierType);
     setCurrentPrice("");
+    setTargetPrice("");
+    setTargetSource("");
+    setTargetAsOn("");
+    setWeek52Low("");
+    setWeek52High("");
+    setPriceSource("");
+    setPriceAsOn("");
     fetchCurrentPrice(match);
   }
 
@@ -276,8 +303,16 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
       costPrice: c,
       currentPrice: p,
       priceSymbol: ticker.trim(),
+      priceSource: priceSource || null,
+      priceAsOn: priceAsOn || null,
       exchange,
       purchaseDate,
+      allocation: allocation ? Number(allocation) : null,
+      targetPrice: targetPrice ? Number(targetPrice) : null,
+      targetSource: targetSource || (targetPrice ? "manual" : null),
+      targetAsOn: targetAsOn || (targetPrice ? new Date().toISOString().slice(0, 10) : null),
+      week52Low: week52Low ? Number(week52Low) : null,
+      week52High: week52High ? Number(week52High) : null,
     };
     try {
       setBusy(true);
@@ -356,8 +391,16 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
           <div className="field"><label>Quantity bought</label><input value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1.000000" /></div>
           <div className="field"><label>Cost price</label><input value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="100.00" /></div>
           <div className="field"><label>Date bought</label><input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} /></div>
-          <div className="field"><label>Current price</label><input value={currentPrice} onChange={(e) => setCurrentPrice(e.target.value)} placeholder="150.00" /></div>
+          <div className="field"><label>Current price</label><input value={currentPrice} onChange={(e) => { setCurrentPrice(e.target.value); setPriceSource("manual"); setPriceAsOn(new Date().toISOString().slice(0, 10)); }} placeholder="150.00" /></div>
         </div>
+        <div className="form-section-title">Strategy</div>
+        <div className="form-grid grid-4">
+          <div className="field"><label>Allocation limit</label><input value={allocation} onChange={(e) => setAllocation(e.target.value)} placeholder="50000" /></div>
+          <div className="field"><label>Analyst target</label><input value={targetPrice} onChange={(e) => { setTargetPrice(e.target.value); setTargetSource("manual"); setTargetAsOn(new Date().toISOString().slice(0, 10)); }} placeholder={quoteBusy ? "Fetching…" : "Auto-filled when available"} /></div>
+          <div className="field"><label>52-week low</label><input value={week52Low} readOnly placeholder="Auto-filled" /></div>
+          <div className="field"><label>52-week high</label><input value={week52High} readOnly placeholder="Auto-filled" /></div>
+        </div>
+        {targetPrice && <div className="provider-note">Target source: {targetSource || "manual"}{targetAsOn ? ` · ${fmtDate(targetAsOn)}` : ""}</div>}
         {error && <div className="bad" style={{ marginTop: 14, fontWeight: 700 }}>{error}</div>}
         <button type="button" className="save-btn" style={{ marginTop: 20, width: 190 }} onClick={save}>Save Investment</button>
       </div>
@@ -365,107 +408,181 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   );
 }
 
-function Holdings({ securities, fx, currency, totalInr, reload, onUpdate }: {
+function Holdings({ securities, totalInr, reload }: {
   securities: Security[];
-  fx: Record<string, number>;
-  currency: string;
   totalInr: number;
   reload: () => void;
-  onUpdate: (id: number, fields: Partial<Pick<Security, "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate">>) => void;
 }) {
-  const [editing, setEditing] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [deleting, setDeleting] = useState<number | null>(null);
-  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [lotDraft, setLotDraft] = useState<Record<string, string>>({ purchaseDate: new Date().toISOString().slice(0, 10) });
+  const [editingLot, setEditingLot] = useState<number | null>(null);
+  const [settingsDraft, setSettingsDraft] = useState<Record<number, { targetPrice: string; allocation: string }>>({});
+  const [message, setMessage] = useState<Record<number, string>>({});
   const rows = [...securities].sort((a, b) => (b.latestValueInr ?? b.valueInr) - (a.latestValueInr ?? a.valueInr));
 
-  async function save(id: number) {
-    const body = {
-      quantity: draft.quantity ? Number(draft.quantity) : undefined,
-      costPrice: draft.costPrice ? Number(draft.costPrice) : undefined,
-      latestPrice: draft.latestPrice ? Number(draft.latestPrice) : undefined,
-      value: draft.value ? Number(draft.value) : undefined,
-      purchaseDate: draft.purchaseDate || undefined,
-    };
-    setEditing(null);
-    setDraft({});
-    onUpdate(id, body);
-    try {
-      const res = await fetch(`/api/investments/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) await reload();
-    } catch {
+  function ratio(value: number | null, signed = false) {
+    return fmtPct(value === null ? null : value * 100, signed);
+  }
+
+  function toggle(id: number) {
+    setExpanded((current) => current.has(id) ? new Set() : new Set([id]));
+    setEditingLot(null);
+    setLotDraft({ purchaseDate: new Date().toISOString().slice(0, 10) });
+  }
+
+  async function removeAsset(id: number) {
+    await fetch(`/api/investments/${id}`, { method: "DELETE" });
+    setDeleting(null);
+    await reload();
+  }
+
+  async function saveSettings(item: Security) {
+    const draft = settingsDraft[item.id] || { targetPrice: String(item.targetPrice || ""), allocation: String(item.allocation || "") };
+    const targetPrice = Number(draft.targetPrice);
+    const allocation = Number(draft.allocation);
+    const res = await fetch(`/api/investments/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetPrice: Number.isFinite(targetPrice) && targetPrice > 0 ? targetPrice : undefined,
+        targetSource: Number.isFinite(targetPrice) && targetPrice > 0 ? "manual" : undefined,
+        targetAsOn: Number.isFinite(targetPrice) && targetPrice > 0 ? new Date().toISOString().slice(0, 10) : undefined,
+        allocation: Number.isFinite(allocation) && allocation >= 0 ? allocation : undefined,
+      }),
+    });
+    setMessage((current) => ({ ...current, [item.id]: res.ok ? "Strategy settings saved." : "Could not save strategy settings." }));
+    if (res.ok) await reload();
+  }
+
+  async function saveLot(item: Security) {
+    const quantity = Number(lotDraft.quantity);
+    const costPrice = Number(lotDraft.costPrice);
+    const fees = Number(lotDraft.fees || 0);
+    if (!(quantity > 0) || !(costPrice >= 0) || !(fees >= 0)) {
+      setMessage((current) => ({ ...current, [item.id]: "Enter a positive quantity and valid cost values." }));
+      return;
+    }
+    const url = editingLot ? `/api/lots/${editingLot}` : `/api/investments/${item.id}/lots`;
+    const res = await fetch(url, {
+      method: editingLot ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity, costPrice, fees, purchaseDate: lotDraft.purchaseDate || null }),
+    });
+    if (res.ok) {
+      setEditingLot(null);
+      setLotDraft({ purchaseDate: new Date().toISOString().slice(0, 10) });
+      setMessage((current) => ({ ...current, [item.id]: "Purchase lots updated and asset totals recalculated." }));
+      await reload();
+    } else {
+      const data = await res.json().catch(() => null);
+      setMessage((current) => ({ ...current, [item.id]: data?.error || "Could not save purchase lot." }));
+    }
+  }
+
+  async function removeLot(item: Security, lotId: number) {
+    const res = await fetch(`/api/lots/${lotId}`, { method: "DELETE" });
+    if (res.ok) {
+      setMessage((current) => ({ ...current, [item.id]: "Purchase lot deleted and totals recalculated." }));
       await reload();
     }
   }
 
-  async function remove(id: number) {
-    await fetch(`/api/investments/${id}`, { method: "DELETE" });
-    setDeleting(null);
-    reload();
-  }
-
-  function beginEdit(item: Security) {
-    setEditing(item.id);
-    setDeleting(null);
-    setDraft({
-      quantity: String(item.quantity || ""),
-      costPrice: String(item.costPrice || ""),
-      latestPrice: String(item.latestPrice || ""),
-      value: String(item.latestValue || item.value || ""),
-      purchaseDate: item.purchaseDate || "",
+  function beginLotEdit(lot: Security["lots"][number]) {
+    setEditingLot(lot.id);
+    setLotDraft({
+      quantity: String(lot.quantity),
+      costPrice: String(lot.costPrice),
+      fees: String(lot.fees || ""),
+      purchaseDate: lot.purchaseDate || "",
     });
   }
 
   if (!rows.length) return <div className="alloc-meta">No holdings.</div>;
   return (
     <div className="holdings">
-      <div className="holding-head">
-        <span>Security</span><span>Cur</span><span>Qty</span><span>Mkt Price</span><span>Value</span><span className="hide-mobile">Cost</span><span className="hide-mobile">Gain/Loss</span><span className="hide-mobile">Gain %</span><span className="hide-mobile">Updated</span><span /><span />
+      <div className="holding-head intelligence-head">
+        <span>Security</span><span>Action</span><span>Market</span><span>Target</span><span>Value</span><span className="hide-mobile">Cost</span><span className="hide-mobile">Gain/Loss</span><span className="hide-mobile">Gain %</span><span className="hide-mobile">Updated</span><span /><span />
       </div>
       {rows.map((item) => {
-        const isEditing = editing === item.id;
-        const draftQuantity = Number(draft.quantity || 0);
-        const draftLatestPrice = Number(draft.latestPrice || 0);
-        const draftValue = Number(draft.value || (draftQuantity && draftLatestPrice ? draftQuantity * draftLatestPrice : 0));
-        const draftCost = draftQuantity * Number(draft.costPrice || 0);
-        const draftGain = draftValue - draftCost;
-        const draftGainPct = draftCost ? (draftGain / draftCost) * 100 : null;
+        const isOpen = expanded.has(item.id);
         const valueInr = item.latestValueInr ?? item.valueInr;
-        const nativeValue = item.latestValue ?? item.value ?? (item.quantity || 0) * (item.latestPrice || 0);
-        const nativeCost = (item.quantity || 0) * (item.costPrice || 0);
-        const nativeGain = nativeValue - nativeCost;
-        const gainPct = nativeCost ? (nativeGain / nativeCost) * 100 : null;
         const pct = totalInr ? (valueInr / totalInr) * 100 : 0;
+        const settings = settingsDraft[item.id] || { targetPrice: String(item.targetPrice || ""), allocation: String(item.allocation || "") };
+        const actionClass = item.action.toLowerCase().replaceAll(" ", "-");
+        const metrics = [
+          ["52-week low", fmtUnit(item.week52Low, item.currency)],
+          ["% above 52-week low", ratio(item.pctAbove52WeekLow, true)],
+          ["52-week high", fmtUnit(item.week52High, item.currency)],
+          ["% below 52-week high", ratio(item.pctBelow52WeekHigh)],
+          ["Price to target", ratio(item.priceToTarget, true)],
+          ["Average purchase", fmtUnit(item.averagePurchasePrice, item.currency)],
+          ["Lowest purchase", fmtUnit(item.lowestPurchasePrice, item.currency)],
+          ["Allocation", fmt(item.allocation, item.currency)],
+          ["Remaining allocation", fmt(item.allocationRemaining, item.currency)],
+          ["Aggressive sell trigger", fmtUnit(item.aggressiveSellTrigger, item.currency)],
+          ["% above aggressive", ratio(item.pctAboveAggressiveTrigger, true)],
+          ["Conservative sell trigger", fmtUnit(item.conservativeSellTrigger, item.currency)],
+          ["% above conservative", ratio(item.pctAboveConservativeTrigger, true)],
+        ];
         return (
-          <div key={item.id}>
-            <div className={`holding-row ${isEditing ? "editing" : ""}`}>
-              <div><div className="h-name">{item.name}</div><div className="h-sub">{isEditing ? "Editing position" : `${item.assetType} · ${pct.toFixed(1)}%`}</div></div>
-              <div className="h-cell h-cur">{item.currency}</div>
-              <div className="h-cell h-num">{isEditing ? <input className="inline-input" aria-label="Quantity" value={draft.quantity || ""} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} /> : fmtPlain(item.quantity, 2)}</div>
-              <div className="h-cell h-num">{isEditing ? <input className="inline-input" aria-label="Market price" value={draft.latestPrice || ""} onChange={(e) => setDraft({ ...draft, latestPrice: e.target.value })} /> : fmtUnit(item.latestPrice, item.currency)}</div>
-              <div className="h-cell h-num h-value">{isEditing ? <input className="inline-input" aria-label="Current value" value={draft.value || ""} onChange={(e) => setDraft({ ...draft, value: e.target.value })} /> : fmt(nativeValue, item.currency)}</div>
-              <div className="h-cell h-num hide-mobile">{isEditing ? <input className="inline-input" aria-label="Unit cost" value={draft.costPrice || ""} onChange={(e) => setDraft({ ...draft, costPrice: e.target.value })} /> : nativeCost ? fmt(nativeCost, item.currency) : "—"}</div>
-              <div className={`h-cell h-num hide-mobile ${((isEditing ? draftGainPct : gainPct) || 0) >= 0 ? "good" : "bad"}`}>{isEditing ? (draftCost ? fmt(draftGain, item.currency) : "—") : nativeCost ? fmt(nativeGain, item.currency) : "—"}</div>
-              <div className={`h-cell h-num hide-mobile ${((isEditing ? draftGainPct : gainPct) || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(isEditing ? draftGainPct : gainPct, true)}</div>
-              <div className="h-cell h-updated hide-mobile">
-                {isEditing ? (
-                  <input className="inline-input date" aria-label="Purchase date" type="date" value={draft.purchaseDate || ""} onChange={(e) => setDraft({ ...draft, purchaseDate: e.target.value })} />
-                ) : (
-                  fmtDate(item.refreshedAt || item.priceAsOn)
-                )}
-              </div>
-              {isEditing ? (
-                <>
-                  <button className="table-btn save-inline" onClick={() => save(item.id)}>Save</button>
-                  <button className="table-btn" onClick={() => { setEditing(null); setDraft({}); }}>Cancel</button>
-                </>
-              ) : (
-                <>
-                  <button className="table-btn" onClick={() => beginEdit(item)}>Edit</button>
-                  <button className="table-btn danger" onClick={() => { setDeleting(deleting === item.id ? null : item.id); setEditing(null); }}>Delete</button>
-                </>
-              )}
+          <div key={item.id} className="asset-record">
+            <div className={`holding-row intelligence-row ${isOpen ? "open" : ""}`}>
+              <button className="asset-toggle" onClick={() => toggle(item.id)} aria-expanded={isOpen}>
+                <ChevronDown size={16} className={`asset-chevron ${isOpen ? "open" : ""}`} />
+                <span><span className="h-name">{item.name}</span><span className="h-sub">{item.assetType} · {item.priceSymbol || item.ticker || item.exchange || item.country} · {fmtPlain(item.sharesHeld, 2)} shares · {pct.toFixed(1)}%</span></span>
+              </button>
+              <div className="h-cell"><span className={`action-badge ${actionClass}`}>{item.action}</span></div>
+              <div className="h-cell h-num">{fmtUnit(item.latestPrice, item.currency)}</div>
+              <div className="h-cell h-num">{fmtUnit(item.targetPrice, item.currency)}</div>
+              <div className="h-cell h-num h-value">{fmt(item.marketValue, item.currency)}</div>
+              <div className="h-cell h-num hide-mobile">{fmt(item.investedCost, item.currency)}</div>
+              <div className={`h-cell h-num hide-mobile ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`}>{fmt(item.gainLoss, item.currency)}</div>
+              <div className={`h-cell h-num hide-mobile ${(item.gainPct || 0) >= 0 ? "good" : "bad"}`}>{ratio(item.gainPct, true)}</div>
+              <div className="h-cell h-updated hide-mobile">{fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</div>
+              <button className="table-btn" onClick={() => toggle(item.id)}>{isOpen ? "Close" : "Details"}</button>
+              <button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={15} /></button>
             </div>
-            {deleting === item.id && <div className="delete-panel"><b>Delete {item.name}?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => remove(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
+
+            {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
+
+            {isOpen && (
+              <div className="intelligence-panel">
+                <div className="intelligence-title-row">
+                  <div><div className="intelligence-title">Investment Intelligence</div><div className="intelligence-source">Market: {item.marketDataSource || item.priceSource || "—"} · Target: {item.targetSource || "not available"}{item.targetAsOn ? ` · ${fmtDate(item.targetAsOn)}` : ""}</div></div>
+                  <span className={`action-badge large ${actionClass}`}>{item.action}</span>
+                </div>
+                <div className="action-explanation">{item.actionReasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+                <div className="metric-grid">{metrics.map(([label, value]) => <div className="metric-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+
+                <div className="detail-section">
+                  <div className="detail-section-head"><div><h3>Strategy settings</h3><p>The API target updates automatically. Saving a target here creates an explicit manual override.</p></div></div>
+                  <div className="compact-form">
+                    <label>Target price<input value={settings.targetPrice} onChange={(e) => setSettingsDraft((current) => ({ ...current, [item.id]: { ...settings, targetPrice: e.target.value } }))} /></label>
+                    <label>Allocation limit<input value={settings.allocation} onChange={(e) => setSettingsDraft((current) => ({ ...current, [item.id]: { ...settings, allocation: e.target.value } }))} /></label>
+                    <button className="table-btn save-inline" onClick={() => saveSettings(item)}>Save strategy</button>
+                  </div>
+                </div>
+
+                <div className="detail-section">
+                  <div className="detail-section-head"><div><h3>Purchase lots</h3><p>Each purchase is stored separately; totals and actions are calculated for the asset as a whole.</p></div><span>{item.lots.length} lot{item.lots.length === 1 ? "" : "s"}</span></div>
+                  <div className="lots-table">
+                    <div className="lot-row lot-head"><span>Date</span><span>Quantity</span><span>Cost price</span><span>Fees</span><span>Cost value</span><span /><span /></div>
+                    {item.lots.map((lot) => <div className="lot-row" key={lot.id}><span>{fmtDate(lot.purchaseDate)}</span><span>{fmtPlain(lot.quantity, 4)}</span><span>{fmtUnit(lot.costPrice, item.currency)}</span><span>{fmtUnit(lot.fees, item.currency)}</span><strong>{fmt(lot.quantity * lot.costPrice + lot.fees, item.currency)}</strong><button className="table-btn" onClick={() => beginLotEdit(lot)}>Edit</button><button className="icon-btn danger" aria-label="Delete purchase lot" onClick={() => removeLot(item, lot.id)}><Trash2 size={14} /></button></div>)}
+                    {!item.lots.length && <div className="empty-lots">No purchase lots yet. Add the first purchase below.</div>}
+                  </div>
+                  <div className="compact-form lot-form">
+                    <label>Purchase date<input type="date" value={lotDraft.purchaseDate || ""} onChange={(e) => setLotDraft({ ...lotDraft, purchaseDate: e.target.value })} /></label>
+                    <label>Quantity<input value={lotDraft.quantity || ""} onChange={(e) => setLotDraft({ ...lotDraft, quantity: e.target.value })} placeholder="10" /></label>
+                    <label>Cost price<input value={lotDraft.costPrice || ""} onChange={(e) => setLotDraft({ ...lotDraft, costPrice: e.target.value })} placeholder="100.00" /></label>
+                    <label>Fees<input value={lotDraft.fees || ""} onChange={(e) => setLotDraft({ ...lotDraft, fees: e.target.value })} placeholder="0.00" /></label>
+                    <button className="table-btn save-inline" onClick={() => saveLot(item)}><Plus size={14} /> {editingLot ? "Update lot" : "Add lot"}</button>
+                    {editingLot && <button className="table-btn" onClick={() => { setEditingLot(null); setLotDraft({ purchaseDate: new Date().toISOString().slice(0, 10) }); }}>Cancel</button>}
+                  </div>
+                </div>
+                {message[item.id] && <div className="inline-message">{message[item.id]}</div>}
+              </div>
+            )}
           </div>
         );
       })}
@@ -474,9 +591,8 @@ function Holdings({ securities, fx, currency, totalInr, reload, onUpdate }: {
 }
 
 export default function Page() {
-  const [initialPortfolio] = useState<PortfolioPayload | null>(() => readPortfolioCache());
-  const [data, setData] = useState<PortfolioPayload | null>(initialPortfolio);
-  const [loginChecked, setLoginChecked] = useState(Boolean(initialPortfolio));
+  const [data, setData] = useState<PortfolioPayload | null>(null);
+  const [loginChecked, setLoginChecked] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [tab, setTab] = useState("All");
   const [currency, setCurrency] = useState<Record<string, string>>({ All: "USD" });
@@ -501,7 +617,14 @@ export default function Page() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const cached = readPortfolioCache();
+    if (cached) {
+      setData(cached);
+      setLoginChecked(true);
+    }
+    load();
+  }, []);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -541,38 +664,6 @@ export default function Page() {
   const visible = tab === "All" ? securities : securities.filter((s) => s.country === tab);
   const stats = metricStats(visible, fx);
   const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || visible[0]?.currency || "USD");
-
-  function updateSecurityLocal(id: number, fields: Partial<Pick<Security, "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate" | "priceAsOn" | "priceSource" | "priceSymbol" | "refreshStatus" | "refreshNote">>) {
-    setData((prev) => {
-      if (!prev) return prev;
-      const next = {
-        ...prev,
-        securities: prev.securities.map((sec) => {
-          if (sec.id !== id) return sec;
-          const quantity = fields.quantity ?? sec.quantity ?? 0;
-          const latestPrice = fields.latestPrice ?? sec.latestPrice ?? 0;
-          const latestValue = fields.value ?? (latestPrice && quantity ? latestPrice * quantity : sec.latestValue ?? sec.value);
-          return {
-            ...sec,
-            quantity,
-            costPrice: fields.costPrice ?? sec.costPrice,
-            latestPrice,
-            latestValue,
-            latestValueInr: toInr(latestValue, sec.currency, fx),
-            priceAsOn: fields.priceAsOn ?? sec.priceAsOn,
-            priceSource: fields.priceSource ?? sec.priceSource,
-            priceSymbol: fields.priceSymbol ?? sec.priceSymbol,
-            refreshStatus: fields.refreshStatus ?? sec.refreshStatus,
-            refreshNote: fields.refreshNote ?? sec.refreshNote,
-            purchaseDate: fields.purchaseDate ?? sec.purchaseDate,
-            refreshedAt: new Date().toISOString(),
-          };
-        }),
-      };
-      writePortfolioCache(next);
-      return next;
-    });
-  }
 
   useEffect(() => {
     if (tab !== "All" && !currency[tab]) setCurrency((prev) => ({ ...prev, [tab]: marketCurrency[tab] || visible[0]?.currency || "USD" }));
@@ -626,7 +717,7 @@ export default function Page() {
           </section>
           <section className="panel-grid"><AllocationPanel title="Asset Allocation" securities={visible} by="assetType" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />{tab === "All" && <AllocationPanel title="By Country" securities={visible} by="country" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />}</section>
           <div className="slabel">Holdings</div>
-          <Holdings securities={visible} fx={fx} currency={currentCurrency} totalInr={stats.totalInr} reload={load} onUpdate={updateSecurityLocal} />
+          <Holdings securities={visible} totalInr={stats.totalInr} reload={load} />
         </>
       )}
       {modalOpen && <AddInvestmentModal fx={fx} onClose={() => setModalOpen(false)} onSaved={load} />}

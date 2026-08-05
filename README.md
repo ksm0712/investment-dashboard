@@ -16,12 +16,16 @@ The app was rebuilt from an earlier Streamlit prototype into a responsive Next.j
 
 - Google sign-in so each user only sees their own portfolio.
 - Add stocks, ETFs, and Indian mutual funds with ticker, ISIN, or scheme-code based identifiers.
-- Current price autofill during add flow.
+- Current price, 52-week range, and analyst-target autofill during add flow.
+- One consolidated row per asset with expandable spreadsheet-equivalent investment intelligence.
+- Multiple purchase lots per asset, including lot-level dates, quantities, prices, and fees.
+- Automatic average cost, lowest purchase, remaining allocation, trigger, and gain calculations.
+- Auditable Buy, Review to Buy, Continue, Review to Sell, Sell, and Insufficient Data actions.
 - Refresh live prices for auto-priced assets while keeping bonds, savings, and manual assets user-controlled.
 - Portfolio summary with total value, total cost, gain/loss, gain percentage, annual income, and yield.
 - Asset allocation and country allocation panels with collapsible sections.
 - Currency-aware views across markets, including USD and INR.
-- Inline row editing for quantity, cost, price, value, and purchase date.
+- Editable strategy settings and purchase lots without duplicating the asset.
 - Clear refresh feedback showing when prices were refreshed and how many holdings updated.
 - Cloud persistence through Turso/libSQL.
 
@@ -66,7 +70,7 @@ Refresh feedback tells users what updated and flags provider or database issues 
 | Auth | Google OAuth 2.0, signed HTTP-only session cookie |
 | Database | Turso/libSQL |
 | Deployment | Vercel |
-| Market Data | Yahoo Finance chart endpoints, Nasdaq quote API, mfapi.in |
+| Market Data | Yahoo Finance chart endpoints, Nasdaq, Twelve Data, FMP, Alpha Vantage, mfapi.in |
 | Currency | Live FX conversion with local fallback rates |
 
 ## Architecture
@@ -77,12 +81,15 @@ User
   -> API routes
   -> Google OAuth for identity
   -> Turso/libSQL for user-scoped portfolio data
-  -> Quote providers for live prices
+  -> Quote providers for live prices, ranges, and targets
+  -> Pure decision engine for derived metrics and actions
 ```
 
 Key design choices:
 
 - User data is scoped by Google user id at the database layer.
+- Assets and purchase lots are separate records: market intelligence belongs to the asset; cost history belongs to its lots.
+- All Excel-derived formulas and action precedence live in one tested calculation engine.
 - Refreshes run server-side so provider logic and database writes are not exposed to the browser.
 - Stock and ETF refreshes race multiple quote providers, then choose the freshest result.
 - Mutual fund refreshes use mfapi's latest NAV endpoint first to avoid downloading full history.

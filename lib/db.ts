@@ -343,9 +343,11 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
   const costPrice = real(input.costPrice, 0);
   const value = quantity * currentPrice;
   const valueInr = toInr(value, input.currency, fx);
-  const source = input.pricingMode === "auto" && input.assetType === "Mutual Fund" && input.currency === "INR"
+  const defaultSource = input.pricingMode === "auto" && input.assetType === "Mutual Fund" && input.currency === "INR"
     ? "mfapi"
     : input.pricingMode === "auto" ? "yfinance" : "manual";
+  const source = input.priceSource || defaultSource;
+  const priceAsOn = input.priceAsOn || today.toISOString().slice(0, 10);
 
   if (!hasTurso()) {
     let portfolio = demo.portfolios.find((p) => p.userId === userId && p.name === "Investments");
@@ -363,9 +365,9 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
     };
     const calculation = calculateAsset({
       currentPrice,
-      targetPrice: null,
-      week52Low: null,
-      week52High: null,
+      targetPrice: input.targetPrice ?? null,
+      week52Low: input.week52Low ?? null,
+      week52High: input.week52High ?? null,
       allocation: input.allocation ?? null,
       lots: [lot],
     });
@@ -386,7 +388,7 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       priceSource: source,
       priceSymbol: input.priceSymbol || null,
       latestPrice: currentPrice,
-      priceAsOn: today.toISOString().slice(0, 10),
+      priceAsOn,
       latestValue: value,
       latestValueInr: valueInr,
       refreshStatus: input.pricingMode === "auto" ? "needs_refresh" : "manual_value",
@@ -397,13 +399,13 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       exchange: input.exchange || null,
       costPrice,
       purchaseDate: input.purchaseDate,
-      targetPrice: null,
-      targetSource: null,
-      targetAsOn: null,
-      week52Low: null,
-      week52High: null,
-      marketDataSource: null,
-      marketDataAsOn: null,
+      targetPrice: input.targetPrice ?? null,
+      targetSource: input.targetSource ?? null,
+      targetAsOn: input.targetAsOn ?? null,
+      week52Low: input.week52Low ?? null,
+      week52High: input.week52High ?? null,
+      marketDataSource: source,
+      marketDataAsOn: priceAsOn,
       allocation: input.allocation ?? null,
       lots: [lot],
       source: "Investments",
@@ -421,15 +423,18 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
   const inserted = await execute(
     `INSERT INTO securities (portfolio_id,name,asset_type,currency,value,value_inr,quantity,ticker,isin,price_source,
       price_symbol,latest_price,annual_income,return_pct,price_as_on,latest_value,latest_value_inr,refresh_status,
-      refresh_note,refreshed_at,country,pricing_mode,exchange,cost_price,purchase_date,allocation,lots_migrated)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+      refresh_note,refreshed_at,country,pricing_mode,exchange,cost_price,purchase_date,allocation,lots_migrated,
+      target_price,target_source,target_as_on,week_52_low,week_52_high,market_data_source,market_data_as_on)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
     [
       portfolioId, input.name, input.assetType, input.currency, value, valueInr, quantity, input.priceSymbol || null,
-      null, source, input.priceSymbol || null, currentPrice, null, null, today.toISOString().slice(0, 10),
+      null, source, input.priceSymbol || null, currentPrice, null, null, priceAsOn,
       value, valueInr, input.pricingMode === "auto" ? "needs_refresh" : "manual_value",
       input.pricingMode === "auto" ? "Ready for online price refresh." : "Manual asset. User controls value.",
       today.toISOString(), input.country, input.pricingMode, input.exchange || null, costPrice, input.purchaseDate,
       input.allocation ?? null, 1,
+      input.targetPrice ?? null, input.targetSource ?? null, input.targetAsOn ?? null,
+      input.week52Low ?? null, input.week52High ?? null, source, priceAsOn,
     ],
   );
   const securityId = Number(inserted.rows[0]?.id);

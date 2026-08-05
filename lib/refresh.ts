@@ -918,7 +918,9 @@ export async function refreshPrices(userId: string) {
 
       const latestValue = latest.price * sec.quantity;
       const latestValueInr = sec.currency === "INR" ? latestValue : latestValue * (fx[sec.currency] || 1);
-      const targetMissing = ["Stock", "ETF"].includes(sec.assetType) && !(latest.targetPrice ?? sec.targetPrice);
+      const manualTarget = sec.targetSource === "manual" ? sec.targetPrice : null;
+      const effectiveTarget = manualTarget ?? latest.targetPrice ?? sec.targetPrice;
+      const targetMissing = ["Stock", "ETF"].includes(sec.assetType) && !effectiveTarget;
       await updateRefreshFieldsForSecurity(userId, sec, {
         latestPrice: latest.price,
         priceAsOn: latest.date,
@@ -926,9 +928,9 @@ export async function refreshPrices(userId: string) {
         week52High: latest.week52High ?? sec.week52High,
         marketDataSource: latest.source,
         marketDataAsOn: latest.date,
-        targetPrice: latest.targetPrice ?? sec.targetPrice,
-        targetSource: latest.targetSource ?? sec.targetSource,
-        targetAsOn: latest.targetAsOn ?? sec.targetAsOn,
+        targetPrice: effectiveTarget,
+        targetSource: manualTarget ? "manual" : latest.targetSource ?? sec.targetSource,
+        targetAsOn: manualTarget ? sec.targetAsOn : latest.targetAsOn ?? sec.targetAsOn,
         latestValue,
         latestValueInr,
         refreshStatus: targetMissing ? "needs_target" : "updated",
