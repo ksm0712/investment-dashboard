@@ -136,7 +136,8 @@ export function calculateAsset(input: AssetCalculationInput): AssetCalculation {
       actionReasons.push("Allocation remains available.");
     } else {
       actionReasons.push("No buy or sell threshold is currently satisfied.");
-      if (!hasAllocation) actionReasons.push("No remaining allocation is available.");
+      if (allocationRemaining === null) actionReasons.push("Allocation is not set, so buy signals are disabled.");
+      else if (!hasAllocation) actionReasons.push("No remaining allocation is available.");
       if (!atOrBelowLowestPurchase) actionReasons.push("Price is above the lowest purchase price.");
     }
   }

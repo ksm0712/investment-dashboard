@@ -81,6 +81,42 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .threshold-safe { background:#dcfce7 !important; color:#166534; font-weight:850; }
 .register-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .register-title-row > span:last-child { color:#2563eb; font-size:9px; letter-spacing:.04em; }
+.asset-card-list { display:grid; gap:18px; margin-bottom:26px; }
+.asset-summary-card { overflow:hidden; background:#fff; border:1px solid #dbe3ee; border-left:5px solid #94a3b8; border-radius:12px; box-shadow:0 10px 28px rgba(15,23,42,.055); }
+.asset-summary-card.action-sell { border-left-color:#ef4444; }
+.asset-summary-card.action-review-to-sell { border-left-color:#f97316; }
+.asset-summary-card.action-buy { border-left-color:#10b981; }
+.asset-summary-card.action-review-to-buy { border-left-color:#3b82f6; }
+.asset-summary-card.action-insufficient-data { border-left-color:#f59e0b; }
+.asset-summary-head { display:flex; align-items:flex-start; justify-content:space-between; gap:22px; padding:20px 22px 14px; }
+.asset-identity { min-width:0; }
+.asset-kicker { margin-bottom:5px; color:#64748b; font-size:9px; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }
+.asset-identity h2 { margin:0; color:#0f172a; font-size:21px; line-height:1.2; font-weight:900; letter-spacing:-.025em; }
+.asset-meta { margin-top:6px; color:#64748b; font-size:11px; font-weight:600; }
+.asset-decision { min-width:170px; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+.decision-label { color:#94a3b8; font-size:9px; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }
+.action-reason-line { display:flex; flex-wrap:wrap; gap:7px; padding:0 22px 16px; }
+.action-reason-line span { padding:5px 8px; border-radius:6px; background:#f1f5f9; color:#475569; font-size:10px; font-weight:700; }
+.asset-metric-section { padding:13px 22px 16px; border-top:1px solid #e8edf3; }
+.market-section { background:#f8fafc; }
+.trigger-section { background:#fbfdff; }
+.asset-section-label { margin-bottom:9px; color:#64748b; font-size:9px; font-weight:900; letter-spacing:.11em; text-transform:uppercase; }
+.asset-metric-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(125px,1fr)); gap:1px; overflow:hidden; border:1px solid #dfe7f1; border-radius:9px; background:#dfe7f1; }
+.asset-metric { min-width:0; min-height:64px; padding:11px 12px; background:#fff; font-variant-numeric:tabular-nums; }
+.asset-metric span { display:block; min-height:22px; margin-bottom:4px; color:#64748b; font-size:8px; line-height:1.25; font-weight:850; letter-spacing:.055em; text-transform:uppercase; }
+.asset-metric strong { display:block; overflow:hidden; color:#172033; font-size:13px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+.asset-metric.strong strong { color:#0f172a; font-size:15px; font-weight:900; }
+.range-line { display:grid; grid-template-columns:auto minmax(120px,1fr) auto; align-items:center; gap:10px; margin-top:10px; color:#64748b; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.045em; }
+.range-track { position:relative; height:5px; border-radius:999px; background:linear-gradient(90deg,#10b981 0%,#facc15 50%,#ef4444 100%); }
+.range-track i { position:absolute; top:50%; width:11px; height:11px; border:2px solid #fff; border-radius:999px; background:#0f172a; box-shadow:0 1px 4px rgba(15,23,42,.35); transform:translate(-50%,-50%); }
+.asset-summary-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 22px; border-top:1px solid #dfe7f1; background:#f8fafc; }
+.source-line { min-width:0; display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; color:#64748b; font-size:9px; font-weight:650; }
+.asset-footer-actions { flex:0 0 auto; display:flex; align-items:center; gap:7px; }
+.asset-editor { padding:18px 22px 22px; border-top:1px solid #cbd5e1; background:#f8fafc; }
+.editor-title h3 { margin:0; color:#0f172a; font-size:16px; font-weight:900; }
+.editor-title p { margin:4px 0 0; color:#64748b; font-size:11px; }
+.editor-allocation { margin-top:16px; }
+.editor-lots { margin-top:18px; padding-top:18px; border-top:1px solid #dbe4ef; }
 .holding-head, .holding-row { display:grid; grid-template-columns:minmax(240px,2.4fr) 60px 84px 110px 110px 110px 110px 82px 102px 64px 76px; gap:0; align-items:center; }
 .intelligence-head, .intelligence-row { grid-template-columns:minmax(210px,2.2fr) minmax(108px,1fr) 88px 92px 96px 96px 96px 74px 88px 64px 42px; }
 .holding-head { background:#f8fafc; padding:10px; border-bottom:1px solid #e5e7eb; }
@@ -200,7 +236,7 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .change-strip .eyebrow { margin:0 8px 0 0; color:#1d4ed8; }
 .change-item { padding:5px 8px; border-radius:6px; background:#fff; color:#475569; font-size:10px; }
 .change-item strong { color:#0f172a; }
-.action-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:16px; }
+.action-toolbar { display:flex; align-items:flex-start; justify-content:flex-end; gap:14px; margin-bottom:16px; }
 .action-filters { display:flex; flex-wrap:wrap; gap:6px; }
 .action-filter { min-height:34px; display:flex; align-items:center; gap:7px; padding:0 10px; border:1px solid #dbe3ee; border-radius:8px; background:#fff; color:#64748b; font-size:10px; font-weight:800; }
 .action-filter strong { display:grid; place-items:center; min-width:19px; height:19px; padding:0 5px; border-radius:999px; background:#f1f5f9; color:#334155; font-size:9px; }
@@ -225,4 +261,10 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
   .history-meta { grid-column:2; text-align:left; }
   .portfolio-register { --asset-col:210px; }
   .asset-tools-panel { width:calc(100vw - 32px); padding:18px 14px 22px; }
+  .asset-summary-head, .asset-summary-footer { align-items:stretch; flex-direction:column; }
+  .asset-decision { min-width:0; align-items:flex-start; }
+  .asset-footer-actions { justify-content:flex-end; }
+  .asset-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .asset-summary-head, .asset-metric-section, .asset-editor { padding-left:14px; padding-right:14px; }
+  .action-reason-line { padding-left:14px; padding-right:14px; }
 }
