@@ -8,6 +8,11 @@ type PriceResult = {
   date: string;
   source: string;
   symbol?: string;
+  week52Low?: number;
+  week52High?: number;
+  targetPrice?: number;
+  targetSource?: string;
+  targetAsOn?: string;
 };
 
 const tickerOverrides: Record<string, string> = {
@@ -218,6 +223,8 @@ function parseYahooChart(data: any, symbol: string, source: string): PriceResult
   const marketPrice = Number(result?.meta?.regularMarketPrice);
   const marketTime = Number(result?.meta?.regularMarketTime);
   const marketDate = marketTime ? new Date(marketTime * 1000).toISOString().slice(0, 10) : "";
+  const week52Low = parsePrice(result?.meta?.fiftyTwoWeekLow);
+  const week52High = parsePrice(result?.meta?.fiftyTwoWeekHigh);
 
   for (let i = closes.length - 1; i >= 0; i--) {
     if (Number.isFinite(Number(closes[i])) && Number(closes[i]) > 0) {
@@ -228,6 +235,8 @@ function parseYahooChart(data: any, symbol: string, source: string): PriceResult
           date: marketDate,
           source,
           symbol,
+          week52Low: week52Low ?? undefined,
+          week52High: week52High ?? undefined,
         };
       }
       return {
@@ -235,6 +244,8 @@ function parseYahooChart(data: any, symbol: string, source: string): PriceResult
         date: closeDate,
         source,
         symbol,
+        week52Low: week52Low ?? undefined,
+        week52High: week52High ?? undefined,
       };
     }
   }
@@ -245,6 +256,8 @@ function parseYahooChart(data: any, symbol: string, source: string): PriceResult
       date: marketTime ? new Date(marketTime * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
       source,
       symbol,
+      week52Low: week52Low ?? undefined,
+      week52High: week52High ?? undefined,
     };
   }
 
@@ -351,6 +364,44 @@ async function nasdaqPrice(symbol: string, assetType: string) {
   throw new Error(errors.filter(Boolean).join("; ") || `No Nasdaq price for ${symbol}`);
 }
 
+async function nasdaqIntelligence(symbol: string, assetType: string): Promise<Partial<PriceResult>> {
+  const clean = symbol.trim().replace(/\.(US|U)$/i, "");
+  if (!clean || clean.includes(".")) return {};
+  const assetClass = assetType === "ETF" ? "etf" : "stocks";
+  const headers = {
+    "Accept": "application/json,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Origin": "https://www.nasdaq.com",
+    "Referer": `https://www.nasdaq.com/market-activity/${assetClass}/${encodeURIComponent(clean.toLowerCase())}`,
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36",
+  };
+  const [summaryResult, targetResult] = await Promise.allSettled([
+    fetchJsonWithAttempts(
+      `https://api.nasdaq.com/api/quote/${encodeURIComponent(clean)}/summary?assetclass=${assetClass}`,
+      { headers, cache: "no-store" }, 1, 4500,
+    ),
+    assetClass === "stocks"
+      ? fetchJsonWithAttempts(
+          `https://api.nasdaq.com/api/analyst/${encodeURIComponent(clean)}/targetprice`,
+          { headers, cache: "no-store" }, 1, 4500,
+        )
+      : Promise.resolve(null),
+  ]);
+  const summary = summaryResult.status === "fulfilled" ? summaryResult.value?.data?.summaryData : null;
+  const rangeText = String(summary?.FiftTwoWeekHighLow?.value || "");
+  const [rangeHigh, rangeLow] = rangeText.split("/").map((value) => parsePrice(value));
+  const targetData = targetResult.status === "fulfilled" ? targetResult.value?.data?.consensusOverview : null;
+  const targetPrice = parsePrice(targetData?.priceTarget) ?? parsePrice(summary?.OneYrTarget?.value);
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    week52Low: rangeLow ?? undefined,
+    week52High: rangeHigh ?? undefined,
+    targetPrice: targetPrice ?? undefined,
+    targetSource: targetPrice ? "nasdaq-analyst-consensus" : undefined,
+    targetAsOn: targetPrice ? today : undefined,
+  };
+}
+
 async function yahooSearch(query: string) {
   const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0`;
   const headers = {
@@ -383,12 +434,19 @@ async function marketPrice(symbol: string, assetType: string): Promise<PriceResu
   const errors: string[] = [];
 
   function bestResult() {
-    return [...results].sort((a, b) => {
+    const ordered = [...results].sort((a, b) => {
       const aDate = parseFlexibleDate(a.date)?.getTime() || 0;
       const bDate = parseFlexibleDate(b.date)?.getTime() || 0;
       if (aDate !== bDate) return bDate - aDate;
       return ["yahoo", "yahoo-fallback", "nasdaq"].indexOf(a.source) - ["yahoo", "yahoo-fallback", "nasdaq"].indexOf(b.source);
-    })[0];
+    });
+    const primary = ordered[0];
+    const richest = ordered.find((item) => item.week52Low || item.week52High) || primary;
+    return {
+      ...primary,
+      week52Low: primary.week52Low ?? richest.week52Low,
+      week52High: primary.week52High ?? richest.week52High,
+    };
   }
 
   const running = providers.map(async (provider) => {
@@ -511,16 +569,33 @@ async function marketPriceForSecurity(sec: Security) {
     return null;
   }
 
+  async function enrich(result: PriceResult) {
+    if (!result.symbol) return result;
+    try {
+      const intelligence = await nasdaqIntelligence(result.symbol, sec.assetType);
+      return {
+        ...result,
+        week52Low: intelligence.week52Low ?? result.week52Low,
+        week52High: intelligence.week52High ?? result.week52High,
+        targetPrice: intelligence.targetPrice ?? result.targetPrice,
+        targetSource: intelligence.targetSource ?? result.targetSource,
+        targetAsOn: intelligence.targetAsOn ?? result.targetAsOn,
+      };
+    } catch {
+      return result;
+    }
+  }
+
   const direct = await trySymbols(directPriceSymbols(sec));
-  if (direct) return direct;
+  if (direct) return enrich(direct);
 
   const searched = await trySymbols(await searchedPriceSymbols(sec));
-  if (searched) return searched;
+  if (searched) return enrich(searched);
 
   const firstWord = sec.name.trim().split(/\s+/)[0]?.toUpperCase();
   const fallbackSymbols = firstWord ? (currencySuffixes[sec.currency.toUpperCase()] || []).map((suffix) => `${firstWord}${suffix}`) : [];
   const suffixed = await trySymbols(fallbackSymbols);
-  if (suffixed) return suffixed;
+  if (suffixed) return enrich(suffixed);
 
   throw new Error(errors.join("; ") || "Missing identifier.");
 }
@@ -718,6 +793,13 @@ export async function refreshPrices(userId: string) {
         await updateRefreshFieldsForSecurity(userId, sec, {
           latestPrice: latest.price,
           priceAsOn: latest.date,
+          week52Low: latest.week52Low ?? sec.week52Low,
+          week52High: latest.week52High ?? sec.week52High,
+          marketDataSource: latest.source,
+          marketDataAsOn: latest.date,
+          targetPrice: latest.targetPrice ?? sec.targetPrice,
+          targetSource: latest.targetSource ?? sec.targetSource,
+          targetAsOn: latest.targetAsOn ?? sec.targetAsOn,
           refreshStatus: "needs_quantity",
           refreshNote: "Price found but quantity missing.",
           priceSymbol: latest.symbol,
@@ -731,6 +813,13 @@ export async function refreshPrices(userId: string) {
       await updateRefreshFieldsForSecurity(userId, sec, {
         latestPrice: latest.price,
         priceAsOn: latest.date,
+        week52Low: latest.week52Low ?? sec.week52Low,
+        week52High: latest.week52High ?? sec.week52High,
+        marketDataSource: latest.source,
+        marketDataAsOn: latest.date,
+        targetPrice: latest.targetPrice ?? sec.targetPrice,
+        targetSource: latest.targetSource ?? sec.targetSource,
+        targetAsOn: latest.targetAsOn ?? sec.targetAsOn,
         latestValue,
         latestValueInr,
         refreshStatus: "updated",

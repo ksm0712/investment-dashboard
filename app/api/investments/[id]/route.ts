@@ -19,6 +19,13 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         refreshNote: body.refreshNote,
         priceSource: body.priceSource,
         priceSymbol: body.priceSymbol,
+        week52Low: body.week52Low,
+        week52High: body.week52High,
+        marketDataSource: body.marketDataSource,
+        marketDataAsOn: body.marketDataAsOn,
+        targetPrice: body.targetPrice,
+        targetSource: body.targetSource,
+        targetAsOn: body.targetAsOn,
       });
     } else {
       await updateSecurity(user.sub, Number(id), body);

@@ -629,15 +629,26 @@ export async function updateRefreshFieldsForSecurity(userId: string, security: S
     refreshed_at: new Date().toISOString(),
     price_source: updates.priceSource ?? security.priceSource,
     price_symbol: updates.priceSymbol ?? security.priceSymbol,
+    week_52_low: updates.week52Low ?? security.week52Low,
+    week_52_high: updates.week52High ?? security.week52High,
+    market_data_source: updates.marketDataSource ?? security.marketDataSource,
+    market_data_as_on: updates.marketDataAsOn ?? security.marketDataAsOn,
+    target_price: updates.targetPrice ?? security.targetPrice,
+    target_source: updates.targetSource ?? security.targetSource,
+    target_as_on: updates.targetAsOn ?? security.targetAsOn,
   };
   await execute(
     `UPDATE securities SET latest_price=?, price_as_on=?, latest_value=?, latest_value_inr=?,
-      refresh_status=?, refresh_note=?, refreshed_at=?, price_source=?, price_symbol=?
+      refresh_status=?, refresh_note=?, refreshed_at=?, price_source=?, price_symbol=?,
+      week_52_low=?,week_52_high=?,market_data_source=?,market_data_as_on=?,
+      target_price=?,target_source=?,target_as_on=?
      WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
     [
       values.latest_price, values.price_as_on, values.latest_value, values.latest_value_inr,
       values.refresh_status, values.refresh_note, values.refreshed_at, values.price_source,
-      values.price_symbol, security.id, userId,
+      values.price_symbol, values.week_52_low, values.week_52_high, values.market_data_source,
+      values.market_data_as_on, values.target_price, values.target_source, values.target_as_on,
+      security.id, userId,
     ],
   );
 }
