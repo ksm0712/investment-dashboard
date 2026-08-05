@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Minus, Plus, Trash2, TrendingDown, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr } from "@/lib/format";
@@ -361,10 +361,99 @@ function marketFreshness(item: Security) {
   return { label: "Stale", className: "stale" };
 }
 
-function Holdings({ securities, totalInr, reload }: {
+function actionIcon(action: string) {
+  if (action === "Buy" || action === "Review to Buy") return <TrendingUp size={12} />;
+  if (action === "Sell" || action === "Review to Sell") return <TrendingDown size={12} />;
+  if (action === "Insufficient Data") return <AlertTriangle size={12} />;
+  return <Minus size={12} />;
+}
+
+function clampPct(value: number) {
+  return Math.min(100, Math.max(0, value));
+}
+
+function RangeBar({ low, high, price, target, currency }: {
+  low: number | null; high: number | null; price: number | null; target: number | null; currency: string;
+}) {
+  if (low === null || high === null || !(high > low)) {
+    return <div className="holding-range holding-range-empty">52-week range not available</div>;
+  }
+  const pricePct = price === null ? null : clampPct(((price - low) / (high - low)) * 100);
+  const targetPct = target === null ? null : clampPct(((target - low) / (high - low)) * 100);
+  return (
+    <div className="holding-range">
+      <div className="holding-range-track">
+        {targetPct !== null && <i className="range-marker target" style={{ left: `${targetPct}%` }} title={`Analyst target ${fmtUnit(target, currency)}`} />}
+        {pricePct !== null && <i className="range-marker price" style={{ left: `${pricePct}%` }} title={`Current price ${fmtUnit(price, currency)}`} />}
+      </div>
+      <div className="holding-range-labels"><span>{fmtUnit(low, currency)}</span><span>{fmtUnit(high, currency)}</span></div>
+    </div>
+  );
+}
+
+const ALERTS_SEEN_KEY = "investment-dashboard:alerts:lastSeen";
+
+function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryEntry[]; onSelect: (id: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [lastSeen, setLastSeen] = useState("");
+
+  useEffect(() => {
+    setLastSeen(window.localStorage.getItem(ALERTS_SEEN_KEY) || "");
+  }, []);
+
+  const changes = useMemo(() => actionHistory.filter((entry) => entry.previousAction), [actionHistory]);
+  const unread = changes.filter((entry) => !lastSeen || entry.recordedAt > lastSeen).length;
+
+  function toggle() {
+    setOpen((current) => {
+      const next = !current;
+      if (next) {
+        const now = new Date().toISOString();
+        window.localStorage.setItem(ALERTS_SEEN_KEY, now);
+        setLastSeen(now);
+      }
+      return next;
+    });
+  }
+
+  return (
+    <div className="alerts-wrap">
+      <button className="icon-btn alerts-bell" onClick={toggle} aria-label="Recommendation alerts">
+        <Bell size={17} />
+        {unread > 0 && <span className="alerts-badge">{unread > 9 ? "9+" : unread}</span>}
+      </button>
+      {open && (
+        <>
+          <div className="alerts-backdrop" onClick={() => setOpen(false)} />
+          <div className="alerts-panel" role="dialog" aria-label="Recent recommendation changes">
+            <div className="alerts-panel-head">Recommendation changes</div>
+            {changes.length === 0 && (
+              <div className="alerts-empty">No recommendation changes yet. You&apos;ll see updates here the moment a holding&apos;s action changes, like Continue to Monitor flipping to Buy.</div>
+            )}
+            <div className="alerts-list">
+              {changes.slice(0, 25).map((entry) => (
+                <button key={entry.id} className="alert-item" onClick={() => { onSelect(entry.securityId); setOpen(false); }}>
+                  <div className="alert-item-top"><strong>{entry.securityName}</strong><span className="alert-time">{fmtDate(entry.recordedAt)}</span></div>
+                  <div className="alert-item-transition">
+                    <span className={`action-badge small ${(entry.previousAction || "").toLowerCase().replaceAll(" ", "-")}`}>{entry.previousAction}</span>
+                    <ArrowRight size={11} />
+                    <span className={`action-badge small ${entry.action.toLowerCase().replaceAll(" ", "-")}`}>{entry.action}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Holdings({ securities, totalInr, reload, focusId }: {
   securities: Security[];
   totalInr: number;
   reload: () => void;
+  focusId: number | null;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [editorAsset, setEditorAsset] = useState<number | null>(null);
@@ -382,6 +471,13 @@ function Holdings({ securities, totalInr, reload }: {
   function toggleDetails(id: number) {
     setExpanded((current) => current.has(id) ? new Set() : new Set([id]));
   }
+
+  useEffect(() => {
+    if (focusId === null) return;
+    setExpanded(new Set([focusId]));
+    const el = document.getElementById(`holding-${focusId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusId]);
 
   function openEditor(id: number) {
     setEditorAsset(id);
@@ -455,8 +551,12 @@ function Holdings({ securities, totalInr, reload }: {
   if (!rows.length) return <div className="alloc-meta">No holdings.</div>;
   return (
     <div className="asset-register">
-      <div className="asset-register-row asset-register-head" aria-hidden="true">
-        <span>Asset</span><span>Price</span><span>Target</span><span>To target</span><span className="range-column">52W low</span><span className="range-column">Above low</span><span className="range-column">52W high</span><span className="range-column">Below high</span><span>Avg buy</span><span>Above buy</span><span>Shares</span><span>Gain / loss</span><span>Gain %</span><span className="trigger-column">Aggressive</span><span className="trigger-column">Conservative</span><span>Action</span>
+      <div className="holding-row holding-row-head" aria-hidden="true">
+        <span className="holding-name-cell">Asset</span>
+        <span className="holding-price-cell">Price &amp; 52-week range</span>
+        <span className="holding-position-cell">Your position</span>
+        <span className="holding-gain-cell">Gain / loss</span>
+        <span className="holding-action-cell">Action</span>
       </div>
       {rows.map((item) => {
         const isDetailsOpen = expanded.has(item.id);
@@ -496,24 +596,30 @@ function Holdings({ securities, totalInr, reload }: {
           ["% above conservative", ratio(item.pctAboveConservativeTrigger, true), conservativeTone],
         ];
         return (
-          <article className={`asset-row-shell action-${actionClass}`} key={item.id}>
-            <button className={`asset-register-row asset-data-row ${isDetailsOpen ? "open" : ""}`} onClick={() => toggleDetails(item.id)} aria-expanded={isDetailsOpen}>
-              <span className="asset-row-name"><i className={`row-chevron ${isDetailsOpen ? "open" : ""}`}>›</i><span><strong>{item.name}</strong><small>{item.priceSymbol || item.ticker || item.exchange || item.assetType} · {pct.toFixed(1)}%</small></span></span>
-              <span>{fmtUnit(item.latestPrice, item.currency)}</span>
-              <span>{fmtUnit(item.targetPrice, item.currency)}</span>
-              <span>{ratio(item.priceToTarget, true)}</span>
-              <span className="range-column">{fmtUnit(item.week52Low, item.currency)}</span>
-              <span className="range-column">{ratio(item.pctAbove52WeekLow, true)}</span>
-              <span className="range-column">{fmtUnit(item.week52High, item.currency)}</span>
-              <span className="range-column">{ratio(item.pctBelow52WeekHigh)}</span>
-              <span>{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
-              <span>{ratio(item.pctAboveLowestPurchase, true)}</span>
-              <span>{fmtPlain(item.sharesHeld, 2)}</span>
-              <span className={(item.gainLoss || 0) >= 0 ? "good" : "bad"}>{fmt(item.gainLoss, item.currency)}</span>
-              <span className={(item.gainPct || 0) >= 0 ? "good" : "bad"}>{ratio(item.gainPct, true)}</span>
-              <span className="trigger-column">{fmtUnit(item.aggressiveSellTrigger, item.currency)}</span>
-              <span className="trigger-column">{fmtUnit(item.conservativeSellTrigger, item.currency)}</span>
-              <span><span className={`action-badge ${actionClass}`}>{item.action}</span></span>
+          <article className={`asset-row-shell action-${actionClass}`} key={item.id} id={`holding-${item.id}`}>
+            <button className={`holding-row ${isDetailsOpen ? "open" : ""}`} onClick={() => toggleDetails(item.id)} aria-expanded={isDetailsOpen}>
+              <span className="holding-name-cell">
+                <i className={`row-chevron ${isDetailsOpen ? "open" : ""}`}>›</i>
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>{item.priceSymbol || item.ticker || item.exchange || item.assetType} · {pct.toFixed(1)}% of portfolio</small>
+                </span>
+              </span>
+              <span className="holding-price-cell">
+                <span className="holding-price-line"><strong>{fmtUnit(item.latestPrice, item.currency)}</strong><span className={`mini-freshness ${freshness.className}`} title={`Market data ${freshness.label.toLowerCase()} · ${fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}`} /></span>
+                <RangeBar low={item.week52Low} high={item.week52High} price={item.latestPrice} target={item.targetPrice} currency={item.currency} />
+              </span>
+              <span className="holding-position-cell">
+                <strong>{fmt(item.marketValue, item.currency)}</strong>
+                <small>{fmtPlain(item.sharesHeld, 2)} sh · avg {fmtUnit(item.averagePurchasePrice, item.currency)}</small>
+              </span>
+              <span className={`holding-gain-cell ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`}>
+                <strong>{fmt(item.gainLoss, item.currency)}</strong>
+                <small>{ratio(item.gainPct, true)}</small>
+              </span>
+              <span className="holding-action-cell">
+                <span className={`action-badge ${actionClass}`}>{actionIcon(item.action)}{item.action}</span>
+              </span>
             </button>
 
             {isDetailsOpen && <div className="asset-expanded">
@@ -593,6 +699,7 @@ export default function Page() {
   const [summary, setSummary] = useState<RefreshSummary | null>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [holdingQuery, setHoldingQuery] = useState("");
+  const [focusId, setFocusId] = useState<number | null>(null);
   const autoRefreshAttempted = useRef(false);
 
   async function load() {
@@ -665,6 +772,12 @@ export default function Page() {
   const stats = metricStats(countryVisible, fx);
   const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || countryVisible[0]?.currency || "USD");
 
+  function focusSecurity(id: number) {
+    setTab("All");
+    setHoldingQuery("");
+    setFocusId(id);
+  }
+
   useEffect(() => {
     if (!data || autoRefreshAttempted.current) return;
     const needsIntelligence = data.securities.some((security) =>
@@ -700,6 +813,7 @@ export default function Page() {
       <nav className="topnav">
         <div className="brand"><div className="brand-name">Investments</div></div>
         <div className="actions">
+          <AlertsBell actionHistory={data.actionHistory} onSelect={focusSecurity} />
           <button className="primary-btn" onClick={() => setModalOpen(true)}>＋ Add Investment</button>
           <div className="profile-chip" title={data.user.email || data.user.name || "Signed in user"}>
             {data.user.picture ? (
@@ -731,7 +845,7 @@ export default function Page() {
             <div className="slabel register-title-row"><span>Holdings <span className="result-count">{visible.length} of {countryVisible.length}</span></span></div>
             <input className="holding-search" aria-label="Search holdings" placeholder="Search holdings" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} />
           </section>
-          <Holdings securities={visible} totalInr={stats.totalInr} reload={load} />
+          <Holdings securities={visible} totalInr={stats.totalInr} reload={load} focusId={focusId} />
         </>
       )}
       {modalOpen && <AddInvestmentModal fx={fx} onClose={() => setModalOpen(false)} onSaved={load} />}
