@@ -459,9 +459,6 @@ function Holdings({ securities, totalInr, reload }: {
         const freshness = marketFreshness(item);
         const aggressiveTone = item.pctAboveAggressiveTrigger === null ? "" : item.pctAboveAggressiveTrigger >= -0.05 ? "threshold-danger" : item.pctAboveAggressiveTrigger >= -0.1 ? "threshold-watch" : "threshold-safe";
         const conservativeTone = item.pctAboveConservativeTrigger === null ? "" : item.pctAboveConservativeTrigger >= 0 ? "threshold-danger" : item.pctAboveConservativeTrigger >= -0.1 ? "threshold-watch" : "threshold-safe";
-        const rangePosition = item.latestPrice && item.week52Low && item.week52High && item.week52High > item.week52Low
-          ? Math.max(0, Math.min(100, ((item.latestPrice - item.week52Low) / (item.week52High - item.week52Low)) * 100))
-          : null;
         const positionMetrics = [
           ["Shares held", fmtPlain(item.sharesHeld, 4), ""],
           ["Average purchase", fmtUnit(item.averagePurchasePrice, item.currency), ""],
@@ -489,6 +486,12 @@ function Holdings({ securities, totalInr, reload }: {
           ["Conservative sell trigger", fmtUnit(item.conservativeSellTrigger, item.currency), ""],
           ["% above conservative", ratio(item.pctAboveConservativeTrigger, true), conservativeTone],
         ];
+        const compactMetrics = [
+          ...marketMetrics,
+          ...positionMetrics.slice(0, 7),
+          positionMetrics[7],
+          ...triggerMetrics,
+        ];
         return (
           <article className={`asset-summary-card action-${actionClass}`} key={item.id}>
             <header className="asset-summary-head">
@@ -503,33 +506,22 @@ function Holdings({ securities, totalInr, reload }: {
               </div>
             </header>
 
-            <div className="action-reason-line">{item.actionReasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+            <div className="action-reason-line">{item.actionReasons.join(" · ")}</div>
 
-            <section className="asset-metric-section">
-              <div className="asset-section-label">Your position</div>
-              <div className="asset-metric-grid position-grid">{positionMetrics.map(([label, value, tone]) => <div className={`asset-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-            </section>
-
-            <section className="asset-metric-section market-section">
-              <div className="asset-section-label">Market &amp; 52-week range</div>
-              <div className="asset-metric-grid market-grid">{marketMetrics.map(([label, value, tone]) => <div className={`asset-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-              {rangePosition !== null && <div className="range-line" aria-label={`Current price is ${rangePosition.toFixed(0)}% through its 52-week range`}><span>52-week low</span><div className="range-track"><i style={{ left: `${rangePosition}%` }} /></div><span>52-week high</span></div>}
-            </section>
-
-            <section className="asset-metric-section trigger-section">
-              <div className="asset-section-label">Excel decision triggers</div>
-              <div className="asset-metric-grid trigger-grid">{triggerMetrics.map(([label, value, tone]) => <div className={`asset-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+            <section className="compact-asset-metrics" aria-label={`${item.name} portfolio details`}>
+              {compactMetrics.map(([label, value, tone]) => <div className={`asset-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}
             </section>
 
             <footer className="asset-summary-footer">
-              <div className="source-line"><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><span>Updated {fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</span><span>Market: {item.marketDataSource || item.priceSource || "—"}</span><span>Target: {item.targetSource || "not available"}</span></div>
+              <div className="source-line" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><span>Updated {fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</span></div>
               <div className="asset-footer-actions"><button className="table-btn" onClick={() => toggle(item.id)}>{isOpen ? "Close editor" : "Lots & allocation"}</button><button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={14} /></button></div>
             </footer>
 
             {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
             {isOpen && (
+              <div className="asset-editor-backdrop" role="dialog" aria-modal="true" aria-label={`Lots and allocation for ${item.name}`}>
               <div className="asset-editor">
-                <div className="editor-title"><div><h3>Lots &amp; allocation</h3><p>Purchases stay separate, while every number above is calculated for {item.name} as a whole.</p></div></div>
+                <div className="editor-title"><div><h3>Lots &amp; allocation</h3><p>{item.name} · purchases are combined into the asset totals.</p></div><button className="icon-btn" aria-label="Close lots and allocation" onClick={() => toggle(item.id)}><X size={16} /></button></div>
                 <div className="editor-allocation">
                   <div className="compact-form">
                     <label>Allocation amount ({item.currency})<input value={allocation} onChange={(e) => setAllocationDraft((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="Not set" /></label>
@@ -553,6 +545,7 @@ function Holdings({ securities, totalInr, reload }: {
                   </div>
                 </div>
                 {message[item.id] && <div className="inline-message">{message[item.id]}</div>}
+              </div>
               </div>
             )}
           </article>
@@ -695,17 +688,19 @@ export default function Page() {
         <div className="empty"><div className="empty-icon">📂</div><div className="empty-title">No investments yet</div><div className="empty-sub">Click <b style={{ color: "#2563eb" }}>＋ Add Investment</b> above to get started</div></div>
       ) : (
         <>
-          <div className="control-row"><button className="refresh-btn" onClick={refresh} disabled={loading}>{loading ? "Refreshing..." : "Refresh Prices"}</button>{refreshText && <span className="refresh-results">{refreshText}{refreshDetails ? ` (${refreshDetails})` : ""}</span>}</div>
-          <div className="tabs">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item}</button>)}</div>
-          <div className="select-row"><div className="select-wrap"><label>View in currency</label><select value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div></div>
+          <section className="portfolio-toolbar">
+            <div className="control-row"><button className="refresh-btn" onClick={refresh} disabled={loading}>{loading ? "Refreshing..." : "Refresh Prices"}</button>{refreshText && <span className="refresh-results">{refreshText}{refreshDetails ? ` (${refreshDetails})` : ""}</span>}</div>
+            <div className="tabs">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item}</button>)}</div>
+            <div className="select-wrap"><label>Currency</label><select value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>
+          </section>
           <section className="register-strip">
             <div className="register-metric"><div className="register-metric-label">{tab === "All" ? "Total Portfolio" : "Market Value"}</div><div className="register-metric-value">{fmt(fromInr(stats.totalInr, currentCurrency, fx), currentCurrency)}</div></div>
             <div className="register-metric"><div className="register-metric-label">Total Cost</div><div className="register-metric-value">{stats.costInr ? fmt(fromInr(stats.costInr, currentCurrency, fx), currentCurrency) : "—"}</div></div>
             <div className="register-metric"><div className="register-metric-label">Gain / Loss</div><div className={`register-metric-value ${(stats.gainPct || 0) >= 0 ? "good" : "bad"}`}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</div></div>
             <div className="register-metric"><div className="register-metric-label">Return</div><div className={`register-metric-value ${(stats.gainPct || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(stats.gainPct)}</div></div>
           </section>
-          <div className="slabel register-title-row"><span>Holdings <span className="result-count">{visible.length} of {countryVisible.length}</span></span><span>Complete asset summaries</span></div>
-          <section className="action-toolbar">
+          <section className="holdings-toolbar">
+            <div className="slabel register-title-row"><span>Holdings <span className="result-count">{visible.length} of {countryVisible.length}</span></span></div>
             <input className="holding-search" aria-label="Search holdings" placeholder="Search holdings" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} />
           </section>
           <Holdings securities={visible} totalInr={stats.totalInr} reload={load} />
