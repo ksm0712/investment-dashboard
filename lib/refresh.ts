@@ -427,22 +427,11 @@ async function fmpIntelligence(symbol: string): Promise<Partial<PriceResult>> {
   const apiKey = String(process.env.FMP_API_KEY || "").trim();
   if (!apiKey) return {};
   const headers = { "Accept": "application/json", "apikey": apiKey };
-  const [targetResult, quoteResult] = await Promise.allSettled([
-    fetchJsonWithAttempts(
-      `https://financialmodelingprep.com/stable/price-target-consensus?symbol=${encodeURIComponent(symbol)}`,
-      { headers, cache: "no-store" }, 1, 6000,
-    ),
-    fetchJsonWithAttempts(
-      `https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(symbol)}`,
-      { headers, cache: "no-store" }, 1, 6000,
-    ),
-  ]);
-  const targetPayload = targetResult.status === "fulfilled"
-    ? (Array.isArray(targetResult.value) ? targetResult.value[0] : targetResult.value)
-    : null;
-  const quotePayload = quoteResult.status === "fulfilled"
-    ? (Array.isArray(quoteResult.value) ? quoteResult.value[0] : quoteResult.value)
-    : null;
+  const targetResult = await fetchJsonWithAttempts(
+    `https://financialmodelingprep.com/stable/price-target-consensus?symbol=${encodeURIComponent(symbol)}`,
+    { headers, cache: "no-store" }, 1, 6000,
+  );
+  const targetPayload = Array.isArray(targetResult) ? targetResult[0] : targetResult;
   const targetPrice = parsePrice(
     targetPayload?.targetConsensus
     ?? targetPayload?.consensus
@@ -450,15 +439,11 @@ async function fmpIntelligence(symbol: string): Promise<Partial<PriceResult>> {
     ?? targetPayload?.lastMonthAvgPriceTarget
     ?? targetPayload?.lastQuarterAvgPriceTarget,
   );
-  const week52Low = parsePrice(quotePayload?.yearLow ?? quotePayload?.yearLowPrice);
-  const week52High = parsePrice(quotePayload?.yearHigh ?? quotePayload?.yearHighPrice);
   const today = new Date().toISOString().slice(0, 10);
   return {
     targetPrice: targetPrice ?? undefined,
     targetSource: targetPrice ? "fmp-price-target-consensus" : undefined,
     targetAsOn: targetPrice ? today : undefined,
-    week52Low: week52Low ?? undefined,
-    week52High: week52High ?? undefined,
   };
 }
 
@@ -483,31 +468,29 @@ async function twelveDataIntelligence(symbol: string, exchange?: string | null):
   };
 }
 
-async function marketIntelligence(symbol: string, assetType: string, exchange?: string | null): Promise<Partial<PriceResult>> {
+async function marketIntelligence(symbol: string, assetType: string, exchange?: string | null, needsRange = true): Promise<Partial<PriceResult>> {
   const providers = [
-    { name: "twelve-data", run: () => twelveDataIntelligence(symbol, exchange) },
     { name: "fmp", run: () => fmpIntelligence(symbol) },
     { name: "nasdaq", run: () => nasdaqIntelligence(symbol, assetType) },
+    { name: "twelve-data", run: () => twelveDataIntelligence(symbol, exchange) },
     { name: "alpha-vantage", run: () => alphaVantageIntelligence(symbol) },
   ];
-  const settled = await Promise.allSettled(providers.map((provider) => provider.run()));
-  const results = settled
-    .map((result, index) => result.status === "fulfilled" ? { ...result.value, provider: providers[index].name } : null)
-    .filter(Boolean) as Array<Partial<PriceResult> & { provider: string }>;
-
-  // Prefer dedicated consensus providers, but fill every missing field from any successful provider.
-  const target = results.find((item) => item.provider === "twelve-data" && item.targetPrice)
-    || results.find((item) => item.provider === "fmp" && item.targetPrice)
-    || results.find((item) => item.provider === "nasdaq" && item.targetPrice)
-    || results.find((item) => item.provider === "alpha-vantage" && item.targetPrice);
-  const range = results.find((item) => item.week52Low && item.week52High);
-  return {
-    targetPrice: target?.targetPrice,
-    targetSource: target?.targetSource,
-    targetAsOn: target?.targetAsOn,
-    week52Low: range?.week52Low,
-    week52High: range?.week52High,
-  };
+  const intelligence: Partial<PriceResult> = {};
+  for (const provider of providers) {
+    try {
+      const result = await provider.run();
+      intelligence.targetPrice ??= result.targetPrice;
+      intelligence.targetSource ??= result.targetSource;
+      intelligence.targetAsOn ??= result.targetAsOn;
+      intelligence.week52Low ??= result.week52Low;
+      intelligence.week52High ??= result.week52High;
+      const hasRequiredRange = !needsRange || Boolean(intelligence.week52Low && intelligence.week52High);
+      if (intelligence.targetPrice && hasRequiredRange) break;
+    } catch {
+      // Move to the next provider. The first complete response wins.
+    }
+  }
+  return intelligence;
 }
 
 async function yahooSearch(query: string) {
@@ -680,7 +663,12 @@ async function marketPriceForSecurity(sec: Security) {
   async function enrich(result: PriceResult) {
     if (!result.symbol) return result;
     try {
-      const intelligence = await marketIntelligence(result.symbol, sec.assetType, sec.exchange);
+      const intelligence = await marketIntelligence(
+        result.symbol,
+        sec.assetType,
+        sec.exchange,
+        !(result.week52Low && result.week52High),
+      );
       return {
         ...result,
         week52Low: intelligence.week52Low ?? result.week52Low,

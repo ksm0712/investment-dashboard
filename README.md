@@ -146,7 +146,7 @@ AUTH_COOKIE_SECRET=your_long_random_secret
 APP_URL=https://your-vercel-url.vercel.app
 ```
 
-`TWELVE_DATA_API_KEY`, `FMP_API_KEY`, and `ALPHA_VANTAGE_API_KEY` are optional target-data providers. Twelve Data is the preferred international analyst-target source; the others form a fallback chain. The app records which provider supplied each target. Nasdaq remains the no-key fallback for supported U.S. securities.
+`FMP_API_KEY` is the primary global analyst-target provider. Nasdaq remains the no-key fallback for supported U.S. securities; Twelve Data and Alpha Vantage are optional additional fallbacks. The app records which provider supplied each target.
 
 Google OAuth callback:
 
