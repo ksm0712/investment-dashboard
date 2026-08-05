@@ -486,12 +486,6 @@ function Holdings({ securities, totalInr, reload }: {
           ["Conservative sell trigger", fmtUnit(item.conservativeSellTrigger, item.currency), ""],
           ["% above conservative", ratio(item.pctAboveConservativeTrigger, true), conservativeTone],
         ];
-        const compactMetrics = [
-          ...marketMetrics,
-          ...positionMetrics.slice(0, 7),
-          positionMetrics[7],
-          ...triggerMetrics,
-        ];
         return (
           <article className={`asset-summary-card action-${actionClass}`} key={item.id}>
             <header className="asset-summary-head">
@@ -500,22 +494,31 @@ function Holdings({ securities, totalInr, reload }: {
                 <h2>{item.name}</h2>
                 <div className="asset-meta">{pct.toFixed(1)}% of portfolio · {item.lots.length} lot{item.lots.length === 1 ? "" : "s"} · {item.country}</div>
               </div>
-              <div className="asset-decision">
-                <span className="decision-label">Action</span>
-                <span className={`action-badge large ${actionClass}`}>{item.action}</span>
+              <div className="asset-card-actions">
+                <div className="card-updated" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><span>{fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</span></div>
+                <button className="table-btn" onClick={() => toggle(item.id)}>Lots &amp; allocation</button>
+                <button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={14} /></button>
               </div>
             </header>
 
-            <div className="action-reason-line">{item.actionReasons.join(" · ")}</div>
+            <div className="asset-insight-layout" aria-label={`${item.name} portfolio details`}>
+              <section className="insight-panel market-insight">
+                <div className="insight-heading">Market</div>
+                <div className="insight-hero-grid">{marketMetrics.slice(0, 3).map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+                <div className="insight-detail-grid market-details">{marketMetrics.slice(3).map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+              </section>
 
-            <section className="compact-asset-metrics" aria-label={`${item.name} portfolio details`}>
-              {compactMetrics.map(([label, value, tone]) => <div className={`asset-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}
-            </section>
+              <section className="insight-panel position-insight">
+                <div className="insight-heading">Your position</div>
+                <div className="insight-detail-grid position-details">{positionMetrics.map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+              </section>
 
-            <footer className="asset-summary-footer">
-              <div className="source-line" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><span>Updated {fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</span></div>
-              <div className="asset-footer-actions"><button className="table-btn" onClick={() => toggle(item.id)}>{isOpen ? "Close editor" : "Lots & allocation"}</button><button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={14} /></button></div>
-            </footer>
+              <section className="insight-panel decision-insight">
+                <div className="decision-topline"><div className="insight-heading">Decision</div><span className={`action-badge large ${actionClass}`}>{item.action}</span></div>
+                <p className="decision-reason">{item.actionReasons.join(" ")}</p>
+                <div className="insight-detail-grid decision-details">{triggerMetrics.map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+              </section>
+            </div>
 
             {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
             {isOpen && (
