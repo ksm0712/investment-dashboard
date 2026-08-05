@@ -1,6 +1,15 @@
 export type AssetType = "Stock" | "ETF" | "Mutual Fund" | "Bond" | "Savings" | "Other";
 
-export type Security = {
+import type { AssetCalculation, InvestmentLot, PortfolioAction } from "./portfolio-engine";
+
+export type Lot = InvestmentLot & {
+  id: number;
+  securityId: number;
+  purchaseDate: string | null;
+  fees: number;
+};
+
+export type Security = AssetCalculation & {
   id: number;
   portfolioId: number;
   name: string;
@@ -27,6 +36,16 @@ export type Security = {
   exchange: string | null;
   costPrice: number | null;
   purchaseDate: string | null;
+  targetPrice: number | null;
+  targetSource: string | null;
+  targetAsOn: string | null;
+  week52Low: number | null;
+  week52High: number | null;
+  marketDataSource: string | null;
+  marketDataAsOn: string | null;
+  allocation: number | null;
+  lots: Lot[];
+  action: PortfolioAction;
   source: string;
 };
 
@@ -56,6 +75,7 @@ export type AddInvestmentInput = {
   priceSymbol?: string;
   exchange?: string;
   purchaseDate: string;
+  allocation?: number | null;
 };
 
 export type SearchResult = {

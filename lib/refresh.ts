@@ -1,6 +1,7 @@
 import { getSecurities, updateRefreshFieldsForSecurity } from "./db";
 import { getFx } from "./fx";
 import type { Security } from "./types";
+import { calculateAsset } from "./portfolio-engine";
 
 type PriceResult = {
   price: number;
@@ -627,6 +628,7 @@ export async function latestPriceForInput(input: {
 }) {
   const identifier = String(input.ticker || "").trim();
   const sec = {
+    ...calculateAsset({ currentPrice: null, targetPrice: null, week52Low: null, week52High: null, allocation: null, lots: [] }),
     id: 0,
     portfolioId: 0,
     name: input.name,
@@ -653,6 +655,15 @@ export async function latestPriceForInput(input: {
     exchange: input.exchange || null,
     costPrice: null,
     purchaseDate: null,
+    targetPrice: null,
+    targetSource: null,
+    targetAsOn: null,
+    week52Low: null,
+    week52High: null,
+    marketDataSource: null,
+    marketDataAsOn: null,
+    allocation: null,
+    lots: [],
     source: "Quote",
   } satisfies Security;
   return sec.assetType === "Mutual Fund" && sec.currency === "INR" ? mfPriceForSecurity(sec) : marketPriceForSecurity(sec);

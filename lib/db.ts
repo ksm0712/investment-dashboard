@@ -1,12 +1,14 @@
-import type { AddInvestmentInput, Portfolio, Security } from "./types";
+import type { AddInvestmentInput, Lot, Portfolio, Security } from "./types";
 import { toInr } from "./format";
 import { getFx } from "./fx";
+import { calculateAsset } from "./portfolio-engine";
 
 type Row = Record<string, unknown>;
 
 const demo = {
   nextPortfolioId: 1,
   nextSecurityId: 1,
+  nextLotId: 1,
   portfolios: [] as Portfolio[],
   securities: [] as Security[],
 };
@@ -110,6 +112,16 @@ export async function initDb() {
     refreshed_at TEXT, country TEXT, pricing_mode TEXT, exchange TEXT,
     cost_price REAL, purchase_date TEXT
   )`);
+  await execute(`CREATE TABLE IF NOT EXISTS investment_lots (
+    id INTEGER PRIMARY KEY,
+    security_id INTEGER NOT NULL,
+    quantity REAL NOT NULL,
+    cost_price REAL NOT NULL,
+    purchase_date TEXT,
+    fees REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(security_id) REFERENCES securities(id)
+  )`);
   await addMissingColumns("portfolios", {
     user_id: "TEXT",
   });
@@ -131,6 +143,15 @@ export async function initDb() {
     exchange: "TEXT",
     cost_price: "REAL",
     purchase_date: "TEXT",
+    target_price: "REAL",
+    target_source: "TEXT",
+    target_as_on: "TEXT",
+    week_52_low: "REAL",
+    week_52_high: "REAL",
+    market_data_source: "TEXT",
+    market_data_as_on: "TEXT",
+    allocation: "REAL",
+    lots_migrated: "INTEGER NOT NULL DEFAULT 0",
   });
   await execute(`UPDATE securities SET pricing_mode = CASE
     WHEN asset_type IN ('Stock','ETF') THEN 'auto'
@@ -149,11 +170,26 @@ export async function initDb() {
   await execute(`UPDATE securities SET price_as_on=(
     SELECT portfolios.date FROM portfolios WHERE portfolios.id=securities.portfolio_id)
     WHERE price_as_on IS NULL OR TRIM(price_as_on)=''`);
+  await execute(`INSERT INTO investment_lots (security_id,quantity,cost_price,purchase_date,fees,created_at)
+    SELECT id,quantity,cost_price,purchase_date,0,COALESCE(refreshed_at,datetime('now'))
+    FROM securities
+    WHERE lots_migrated=0 AND quantity IS NOT NULL AND quantity>0 AND cost_price IS NOT NULL AND cost_price>=0`);
+  await execute("UPDATE securities SET lots_migrated=1 WHERE lots_migrated=0");
   initialized = true;
 }
 
 function mapSecurity(row: Row): Security {
+  const lots: Lot[] = [];
+  const calculation = calculateAsset({
+    currentPrice: real(row.latest_price, null),
+    targetPrice: real(row.target_price, null),
+    week52Low: real(row.week_52_low, null),
+    week52High: real(row.week_52_high, null),
+    allocation: real(row.allocation, null),
+    lots,
+  });
   return {
+    ...calculation,
     id: Number(row.id),
     portfolioId: Number(row.portfolio_id),
     name: String(row.name || ""),
@@ -180,13 +216,63 @@ function mapSecurity(row: Row): Security {
     exchange: (row.exchange as string | null) || null,
     costPrice: row.cost_price === null ? null : Number(row.cost_price ?? NaN),
     purchaseDate: (row.purchase_date as string | null) || null,
+    targetPrice: real(row.target_price, null),
+    targetSource: (row.target_source as string | null) || null,
+    targetAsOn: (row.target_as_on as string | null) || null,
+    week52Low: real(row.week_52_low, null),
+    week52High: real(row.week_52_high, null),
+    marketDataSource: (row.market_data_source as string | null) || null,
+    marketDataAsOn: (row.market_data_as_on as string | null) || null,
+    allocation: real(row.allocation, null),
+    lots,
     source: String(row.source || "Investments"),
+  };
+}
+
+function mapLot(row: Row): Lot {
+  return {
+    id: Number(row.id),
+    securityId: Number(row.security_id),
+    quantity: real(row.quantity, 0),
+    costPrice: real(row.cost_price, 0),
+    purchaseDate: (row.purchase_date as string | null) || null,
+    fees: real(row.fees, 0),
+  };
+}
+
+function withCalculation(security: Security, lots: Lot[], fx?: Record<string, number>): Security {
+  const calculation = calculateAsset({
+    currentPrice: security.latestPrice,
+    targetPrice: security.targetPrice,
+    week52Low: security.week52Low,
+    week52High: security.week52High,
+    allocation: security.allocation,
+    lots,
+  });
+  return {
+    ...security,
+    ...calculation,
+    lots,
+    quantity: calculation.sharesHeld,
+    costPrice: calculation.averagePurchasePrice,
+    latestValue: calculation.marketValue,
+    value: calculation.marketValue ?? security.value,
+    latestValueInr: calculation.marketValue === null || !fx
+      ? security.latestValueInr
+      : toInr(calculation.marketValue, security.currency, fx),
+    valueInr: calculation.marketValue === null || !fx
+      ? security.valueInr
+      : toInr(calculation.marketValue, security.currency, fx),
+    returnPct: calculation.gainPct === null ? null : calculation.gainPct * 100,
   };
 }
 
 export async function getSecurities(userId: string) {
   await initDb();
-  if (!hasTurso()) return [...demo.securities].filter((s) => demo.portfolios.find((p) => p.id === s.portfolioId)?.userId === userId);
+  const fx = await getFx();
+  if (!hasTurso()) return [...demo.securities]
+    .filter((s) => demo.portfolios.find((p) => p.id === s.portfolioId)?.userId === userId)
+    .map((security) => withCalculation(security, security.lots || [], fx));
   const { rows } = await execute(
     `SELECT s.*, p.name as source, p.date as portfolio_date
      FROM securities s JOIN portfolios p ON s.portfolio_id=p.id
@@ -194,10 +280,25 @@ export async function getSecurities(userId: string) {
      ORDER BY p.date DESC, s.id DESC`,
     [userId],
   );
+  const { rows: lotRows } = await execute(
+    `SELECT l.* FROM investment_lots l
+     JOIN securities s ON s.id=l.security_id
+     JOIN portfolios p ON p.id=s.portfolio_id
+     WHERE p.user_id=? ORDER BY l.purchase_date ASC, l.id ASC`,
+    [userId],
+  );
+  const lotsBySecurity = new Map<number, Lot[]>();
+  for (const row of lotRows) {
+    const lot = mapLot(row);
+    const lots = lotsBySecurity.get(lot.securityId) || [];
+    lots.push(lot);
+    lotsBySecurity.set(lot.securityId, lots);
+  }
   const seen = new Set<string>();
   const securities: Security[] = [];
   for (const row of rows) {
-    const mapped = mapSecurity(row);
+    const raw = mapSecurity(row);
+    const mapped = withCalculation(raw, lotsBySecurity.get(raw.id) || [], fx);
     const key = `${mapped.name.trim().toLowerCase()}|${mapped.assetType.toLowerCase()}|${mapped.currency.toUpperCase()}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -252,7 +353,24 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       portfolio = { id: demo.nextPortfolioId++, name: "Investments", date: portfolioDate, userId };
       demo.portfolios.push(portfolio);
     }
+    const lot: Lot = {
+      id: demo.nextLotId++,
+      securityId: demo.nextSecurityId,
+      quantity,
+      costPrice,
+      purchaseDate: input.purchaseDate,
+      fees: 0,
+    };
+    const calculation = calculateAsset({
+      currentPrice,
+      targetPrice: null,
+      week52Low: null,
+      week52High: null,
+      allocation: input.allocation ?? null,
+      lots: [lot],
+    });
     demo.securities.push({
+      ...calculation,
       id: demo.nextSecurityId++,
       portfolioId: portfolio.id,
       name: input.name,
@@ -279,6 +397,15 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       exchange: input.exchange || null,
       costPrice,
       purchaseDate: input.purchaseDate,
+      targetPrice: null,
+      targetSource: null,
+      targetAsOn: null,
+      week52Low: null,
+      week52High: null,
+      marketDataSource: null,
+      marketDataAsOn: null,
+      allocation: input.allocation ?? null,
+      lots: [lot],
       source: "Investments",
     });
     return;
@@ -291,24 +418,33 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
   }
   const portfolioId = Number(portfolioRows.rows[0]?.id);
   if (!portfolioId) throw new Error("Could not create portfolio.");
-  await execute(
+  const inserted = await execute(
     `INSERT INTO securities (portfolio_id,name,asset_type,currency,value,value_inr,quantity,ticker,isin,price_source,
       price_symbol,latest_price,annual_income,return_pct,price_as_on,latest_value,latest_value_inr,refresh_status,
-      refresh_note,refreshed_at,country,pricing_mode,exchange,cost_price,purchase_date)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      refresh_note,refreshed_at,country,pricing_mode,exchange,cost_price,purchase_date,allocation,lots_migrated)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
     [
       portfolioId, input.name, input.assetType, input.currency, value, valueInr, quantity, input.priceSymbol || null,
       null, source, input.priceSymbol || null, currentPrice, null, null, today.toISOString().slice(0, 10),
       value, valueInr, input.pricingMode === "auto" ? "needs_refresh" : "manual_value",
       input.pricingMode === "auto" ? "Ready for online price refresh." : "Manual asset. User controls value.",
       today.toISOString(), input.country, input.pricingMode, input.exchange || null, costPrice, input.purchaseDate,
+      input.allocation ?? null, 1,
     ],
+  );
+  const securityId = Number(inserted.rows[0]?.id);
+  if (!securityId) throw new Error("Could not create asset record.");
+  await execute(
+    `INSERT INTO investment_lots (security_id,quantity,cost_price,purchase_date,fees,created_at)
+     VALUES (?,?,?,?,?,?)`,
+    [securityId, quantity, costPrice, input.purchaseDate || null, 0, today.toISOString()],
   );
 }
 
 type SecurityUpdateFields = Partial<Pick<Security,
   "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate" |
-  "priceAsOn" | "priceSource" | "priceSymbol" | "refreshStatus" | "refreshNote"
+  "priceAsOn" | "priceSource" | "priceSymbol" | "refreshStatus" | "refreshNote" |
+  "targetPrice" | "targetSource" | "targetAsOn" | "allocation"
 >>;
 
 export async function updateSecurity(userId: string, id: number, fields: SecurityUpdateFields) {
@@ -335,21 +471,116 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
       refreshStatus: fields.refreshStatus ?? security.refreshStatus,
       refreshNote: fields.refreshNote ?? security.refreshNote,
       purchaseDate: fields.purchaseDate ?? security.purchaseDate,
+      targetPrice: fields.targetPrice ?? security.targetPrice,
+      targetSource: fields.targetSource ?? security.targetSource,
+      targetAsOn: fields.targetAsOn ?? security.targetAsOn,
+      allocation: fields.allocation ?? security.allocation,
       refreshedAt,
     });
     return;
   }
   await execute(
     `UPDATE securities SET quantity=?, cost_price=?, latest_price=?, price_as_on=?, latest_value=?, latest_value_inr=?,
-      purchase_date=?, refreshed_at=?, price_source=?, price_symbol=?, refresh_status=?, refresh_note=?
+      purchase_date=?, refreshed_at=?, price_source=?, price_symbol=?, refresh_status=?, refresh_note=?,
+      target_price=?, target_source=?, target_as_on=?, allocation=?
      WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
     [
       quantity, costPrice, latestPrice, fields.priceAsOn ?? security.priceAsOn,
       nextValue, nextValueInr, fields.purchaseDate ?? security.purchaseDate, refreshedAt,
       fields.priceSource ?? security.priceSource, fields.priceSymbol ?? security.priceSymbol,
       fields.refreshStatus ?? security.refreshStatus, fields.refreshNote ?? security.refreshNote,
+      fields.targetPrice ?? security.targetPrice, fields.targetSource ?? security.targetSource,
+      fields.targetAsOn ?? security.targetAsOn, fields.allocation ?? security.allocation,
       id, userId,
     ],
+  );
+}
+
+type LotInput = Pick<Lot, "quantity" | "costPrice"> & Partial<Pick<Lot, "purchaseDate" | "fees">>;
+
+export async function addLot(userId: string, securityId: number, input: LotInput) {
+  await initDb();
+  const quantity = real(input.quantity, 0);
+  const costPrice = real(input.costPrice, 0);
+  const fees = real(input.fees, 0);
+  if (quantity <= 0 || costPrice < 0 || fees < 0) throw new Error("Enter a positive quantity and valid cost values.");
+  if (!hasTurso()) {
+    const allowed = new Set(demo.portfolios.filter((portfolio) => portfolio.userId === userId).map((portfolio) => portfolio.id));
+    const security = demo.securities.find((item) => item.id === securityId && allowed.has(item.portfolioId));
+    if (!security) return null;
+    const lot: Lot = { id: demo.nextLotId++, securityId, quantity, costPrice, purchaseDate: input.purchaseDate || null, fees };
+    security.lots.push(lot);
+    Object.assign(security, withCalculation(security, security.lots));
+    return lot;
+  }
+  const security = await getSecurity(userId, securityId);
+  if (!security) return null;
+  const inserted = await execute(
+    `INSERT INTO investment_lots (security_id,quantity,cost_price,purchase_date,fees,created_at)
+     SELECT ?,?,?,?,?,? WHERE EXISTS (
+       SELECT 1 FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE s.id=? AND p.user_id=?
+     ) RETURNING id`,
+    [securityId, quantity, costPrice, input.purchaseDate || null, fees, new Date().toISOString(), securityId, userId],
+  );
+  return inserted.rows[0] ? Number(inserted.rows[0].id) : null;
+}
+
+export async function updateLot(userId: string, lotId: number, input: Partial<LotInput>) {
+  await initDb();
+  if (!hasTurso()) {
+    for (const security of demo.securities) {
+      if (!demo.portfolios.some((p) => p.id === security.portfolioId && p.userId === userId)) continue;
+      const lot = security.lots.find((item) => item.id === lotId);
+      if (!lot) continue;
+      if (input.quantity !== undefined) lot.quantity = real(input.quantity, 0);
+      if (input.costPrice !== undefined) lot.costPrice = real(input.costPrice, 0);
+      if (input.purchaseDate !== undefined) lot.purchaseDate = input.purchaseDate || null;
+      if (input.fees !== undefined) lot.fees = real(input.fees, 0);
+      Object.assign(security, withCalculation(security, security.lots));
+      return true;
+    }
+    return false;
+  }
+  const { rows } = await execute(
+    `SELECT l.* FROM investment_lots l
+     JOIN securities s ON s.id=l.security_id JOIN portfolios p ON p.id=s.portfolio_id
+     WHERE l.id=? AND p.user_id=? LIMIT 1`,
+    [lotId, userId],
+  );
+  if (!rows[0]) return false;
+  const existing = mapLot(rows[0]);
+  const quantity = input.quantity === undefined ? existing.quantity : real(input.quantity, 0);
+  const costPrice = input.costPrice === undefined ? existing.costPrice : real(input.costPrice, 0);
+  const fees = input.fees === undefined ? existing.fees : real(input.fees, 0);
+  if (quantity <= 0 || costPrice < 0 || fees < 0) throw new Error("Enter a positive quantity and valid cost values.");
+  await execute(
+    `UPDATE investment_lots SET quantity=?,cost_price=?,purchase_date=?,fees=?
+     WHERE id=? AND security_id IN (
+       SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
+     )`,
+    [quantity, costPrice, input.purchaseDate === undefined ? existing.purchaseDate : input.purchaseDate || null, fees, lotId, userId],
+  );
+  return true;
+}
+
+export async function deleteLot(userId: string, lotId: number) {
+  await initDb();
+  if (!hasTurso()) {
+    for (const security of demo.securities) {
+      if (!demo.portfolios.some((p) => p.id === security.portfolioId && p.userId === userId)) continue;
+      const index = security.lots.findIndex((item) => item.id === lotId);
+      if (index < 0) continue;
+      security.lots.splice(index, 1);
+      Object.assign(security, withCalculation(security, security.lots));
+      return;
+    }
+    return;
+  }
+  await execute(
+    `DELETE FROM investment_lots WHERE id=? AND security_id IN (
+       SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
+     )`,
+    [lotId, userId],
   );
 }
 
@@ -361,6 +592,12 @@ export async function deleteSecurity(userId: string, id: number) {
     if (idx >= 0) demo.securities.splice(idx, 1);
     return;
   }
+  await execute(
+    `DELETE FROM investment_lots WHERE security_id=? AND security_id IN (
+       SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
+     )`,
+    [id, userId],
+  );
   await execute("DELETE FROM securities WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)", [id, userId]);
 }
 
