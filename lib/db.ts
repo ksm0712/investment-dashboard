@@ -1,7 +1,8 @@
-import type { AddInvestmentInput, Lot, Portfolio, Security } from "./types";
+import type { ActionHistoryEntry, AddInvestmentInput, Lot, Portfolio, Security } from "./types";
 import { toInr } from "./format";
 import { getFx } from "./fx";
 import { calculateAsset } from "./portfolio-engine";
+import { buildActionHistoryEntry } from "./action-history";
 
 type Row = Record<string, unknown>;
 
@@ -9,8 +10,10 @@ const demo = {
   nextPortfolioId: 1,
   nextSecurityId: 1,
   nextLotId: 1,
+  nextActionHistoryId: 1,
   portfolios: [] as Portfolio[],
   securities: [] as Security[],
+  actionHistory: [] as ActionHistoryEntry[],
 };
 
 function hasTurso() {
@@ -122,6 +125,20 @@ export async function initDb() {
     created_at TEXT NOT NULL,
     FOREIGN KEY(security_id) REFERENCES securities(id)
   )`);
+  await execute(`CREATE TABLE IF NOT EXISTS action_history (
+    id INTEGER PRIMARY KEY,
+    security_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    previous_action TEXT,
+    current_price REAL,
+    target_price REAL,
+    source TEXT,
+    reasons TEXT,
+    recorded_at TEXT NOT NULL,
+    FOREIGN KEY(security_id) REFERENCES securities(id)
+  )`);
+  await execute(`CREATE INDEX IF NOT EXISTS idx_action_history_security_recorded
+    ON action_history(security_id, recorded_at DESC)`);
   await addMissingColumns("portfolios", {
     user_id: "TEXT",
   });
@@ -267,6 +284,11 @@ function withCalculation(security: Security, lots: Lot[], fx?: Record<string, nu
   };
 }
 
+function demoSecurityForUser(userId: string, securityId: number) {
+  const portfolioIds = new Set(demo.portfolios.filter((portfolio) => portfolio.userId === userId).map((portfolio) => portfolio.id));
+  return demo.securities.find((security) => security.id === securityId && portfolioIds.has(security.portfolioId)) || null;
+}
+
 export async function getSecurities(userId: string) {
   await initDb();
   const fx = await getFx();
@@ -331,6 +353,102 @@ export async function getPortfolios(userId: string) {
     date: String(row.date),
     userId: String(row.user_id || userId),
   }));
+}
+
+function mapActionHistory(row: Row): ActionHistoryEntry {
+  let reasons: string[] = [];
+  try {
+    const parsed = JSON.parse(String(row.reasons || "[]"));
+    if (Array.isArray(parsed)) reasons = parsed.map(String);
+  } catch {
+    reasons = [];
+  }
+  return {
+    id: Number(row.id),
+    securityId: Number(row.security_id),
+    securityName: String(row.security_name || ""),
+    action: String(row.action) as ActionHistoryEntry["action"],
+    previousAction: row.previous_action ? String(row.previous_action) as ActionHistoryEntry["previousAction"] : null,
+    currentPrice: real(row.current_price, null),
+    targetPrice: real(row.target_price, null),
+    source: (row.source as string | null) || null,
+    reasons,
+    recordedAt: String(row.recorded_at || ""),
+  };
+}
+
+export async function getActionHistory(userId: string, limit = 100) {
+  await initDb();
+  if (!hasTurso()) {
+    const allowed = new Set(demo.portfolios.filter((portfolio) => portfolio.userId === userId).map((portfolio) => portfolio.id));
+    const names = new Map(demo.securities.filter((security) => allowed.has(security.portfolioId)).map((security) => [security.id, security.name]));
+    return demo.actionHistory
+      .filter((entry) => names.has(entry.securityId))
+      .map((entry) => ({ ...entry, securityName: names.get(entry.securityId) || entry.securityName }))
+      .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt) || b.id - a.id)
+      .slice(0, limit);
+  }
+  const { rows } = await execute(
+    `SELECT h.*, s.name AS security_name
+     FROM action_history h
+     JOIN securities s ON s.id=h.security_id
+     JOIN portfolios p ON p.id=s.portfolio_id
+     WHERE p.user_id=?
+     ORDER BY h.recorded_at DESC, h.id DESC
+     LIMIT ?`,
+    [userId, limit],
+  );
+  return rows.map(mapActionHistory);
+}
+
+export async function syncActionHistory(userId: string, securities?: Security[]) {
+  const holdings = securities || await getSecurities(userId);
+  const history = await getActionHistory(userId, Math.max(holdings.length * 20, 100));
+  const latestBySecurity = new Map<number, ActionHistoryEntry>();
+  for (const entry of history) {
+    if (!latestBySecurity.has(entry.securityId)) latestBySecurity.set(entry.securityId, entry);
+  }
+  let recorded = 0;
+  for (const security of holdings) {
+    const previous = latestBySecurity.get(security.id);
+    const entry = buildActionHistoryEntry(security, previous);
+    if (!entry) continue;
+    if (!hasTurso()) {
+      demo.actionHistory.push({ id: demo.nextActionHistoryId++, ...entry });
+    } else {
+      await execute(
+        `INSERT INTO action_history
+          (security_id,action,previous_action,current_price,target_price,source,reasons,recorded_at)
+         SELECT ?,?,?,?,?,?,?,?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM action_history
+           WHERE security_id=? AND action=?
+             AND id=(SELECT MAX(id) FROM action_history WHERE security_id=?)
+         )`,
+        [
+          security.id, security.action, previous?.action || null, security.latestPrice,
+          security.targetPrice, entry.source, JSON.stringify(security.actionReasons), entry.recordedAt,
+          security.id, security.action, security.id,
+        ],
+      );
+    }
+    recorded += 1;
+  }
+  return recorded;
+}
+
+export async function getRefreshUserIds() {
+  await initDb();
+  if (!hasTurso()) {
+    const portfolioIds = new Set(demo.securities.filter((security) => security.pricingMode === "auto").map((security) => security.portfolioId));
+    return [...new Set(demo.portfolios.filter((portfolio) => portfolioIds.has(portfolio.id)).map((portfolio) => portfolio.userId))];
+  }
+  const { rows } = await execute(
+    `SELECT DISTINCT p.user_id
+     FROM portfolios p JOIN securities s ON s.portfolio_id=p.id
+     WHERE p.user_id IS NOT NULL AND TRIM(p.user_id)<>'' AND s.pricing_mode='auto'`,
+  );
+  return rows.map((row) => String(row.user_id));
 }
 
 export async function addInvestment(userId: string, input: AddInvestmentInput) {
@@ -464,7 +582,9 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
   const nextValueInr = toInr(nextValue, security.currency, fx);
   const refreshedAt = new Date().toISOString();
   if (!hasTurso()) {
-    Object.assign(security, {
+    const storedSecurity = demoSecurityForUser(userId, id);
+    if (!storedSecurity) return;
+    const updates = {
       quantity,
       costPrice,
       latestPrice,
@@ -481,7 +601,9 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
       targetAsOn: fields.targetAsOn ?? security.targetAsOn,
       allocation: fields.allocation ?? security.allocation,
       refreshedAt,
-    });
+    };
+    Object.assign(storedSecurity, updates);
+    Object.assign(security, updates);
     return;
   }
   await execute(
@@ -594,9 +716,18 @@ export async function deleteSecurity(userId: string, id: number) {
   if (!hasTurso()) {
     const allowed = new Set(demo.portfolios.filter((p) => p.userId === userId).map((p) => p.id));
     const idx = demo.securities.findIndex((s) => s.id === id && allowed.has(s.portfolioId));
-    if (idx >= 0) demo.securities.splice(idx, 1);
+    if (idx >= 0) {
+      demo.securities.splice(idx, 1);
+      demo.actionHistory = demo.actionHistory.filter((entry) => entry.securityId !== id);
+    }
     return;
   }
+  await execute(
+    `DELETE FROM action_history WHERE security_id=? AND security_id IN (
+       SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
+     )`,
+    [id, userId],
+  );
   await execute(
     `DELETE FROM investment_lots WHERE security_id=? AND security_id IN (
        SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
@@ -621,7 +752,11 @@ export async function updateRefreshFieldsForSecurity(userId: string, security: S
       : toInr(real(updates.latestValue, 0), security.currency, await getFx())
   );
   if (!hasTurso()) {
-    Object.assign(security, updates, { latestPrice, latestValue, latestValueInr, refreshedAt: new Date().toISOString() });
+    const storedSecurity = demoSecurityForUser(userId, security.id);
+    if (!storedSecurity) return;
+    const next = { ...updates, latestPrice, latestValue, latestValueInr, refreshedAt: new Date().toISOString() };
+    Object.assign(storedSecurity, next);
+    Object.assign(security, next);
     return;
   }
   const values = {

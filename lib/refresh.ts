@@ -1,4 +1,4 @@
-import { getSecurities, updateRefreshFieldsForSecurity } from "./db";
+import { getSecurities, syncActionHistory, updateRefreshFieldsForSecurity } from "./db";
 import { getFx } from "./fx";
 import type { Security } from "./types";
 import { calculateAsset } from "./portfolio-engine";
@@ -999,5 +999,6 @@ export async function refreshPrices(userId: string) {
       await mark(sec, "failed");
     }
   });
+  summary.actionChanges = await syncActionHistory(userId);
   return summary;
 }

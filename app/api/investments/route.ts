@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addInvestment } from "@/lib/db";
+import { addInvestment, syncActionHistory } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     await addInvestment(user.sub, body);
+    await syncActionHistory(user.sub);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Could not save investment", error);

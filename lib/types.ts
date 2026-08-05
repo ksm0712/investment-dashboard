@@ -56,6 +56,19 @@ export type Portfolio = {
   userId: string;
 };
 
+export type ActionHistoryEntry = {
+  id: number;
+  securityId: number;
+  securityName: string;
+  action: PortfolioAction;
+  previousAction: PortfolioAction | null;
+  currentPrice: number | null;
+  targetPrice: number | null;
+  source: string | null;
+  reasons: string[];
+  recordedAt: string;
+};
+
 export type User = {
   sub: string;
   email?: string;

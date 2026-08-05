@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addLot } from "@/lib/db";
+import { addLot, syncActionHistory } from "@/lib/db";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -9,6 +9,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const { id } = await context.params;
     const result = await addLot(user.sub, Number(id), await request.json());
     if (result === null) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
+    await syncActionHistory(user.sub);
     return NextResponse.json({ ok: true, lotId: typeof result === "number" ? result : result.id });
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Could not add lot.";
