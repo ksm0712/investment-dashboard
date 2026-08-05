@@ -521,6 +521,16 @@ async function twelveDataIntelligence(symbol: string, exchange?: string | null):
 
 async function marketIntelligence(symbol: string, assetType: string, exchange?: string | null, needsRange = true): Promise<Partial<PriceResult>> {
   const providers = [
+    { name: "yahoo-finance2", run: async () => {
+      const result = await yahooFinance2Price(symbol);
+      return {
+        targetPrice: result.targetPrice,
+        targetSource: result.targetSource,
+        targetAsOn: result.targetAsOn,
+        week52Low: result.week52Low,
+        week52High: result.week52High,
+      };
+    } },
     { name: "fmp", run: () => fmpIntelligence(symbol) },
     { name: "nasdaq", run: () => nasdaqIntelligence(symbol, assetType) },
     { name: "twelve-data", run: () => twelveDataIntelligence(symbol, exchange) },

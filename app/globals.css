@@ -4,7 +4,7 @@
 html, body { margin: 0; min-height: 100%; font-family: Inter, sans-serif; background: #f8fafc; color: #111827; }
 button, input, select { font: inherit; letter-spacing: 0; }
 button { cursor: pointer; }
-.page { min-height: 100vh; padding: 28px 48px 48px; max-width: 1400px; margin: 0 auto; }
+.page { min-height: 100vh; padding: 24px 28px 48px; max-width: 1900px; margin: 0 auto; }
 .topnav { display:flex; align-items:center; justify-content:space-between; padding-bottom:24px; border-bottom:1px solid #dfe7f1; margin-bottom:34px; }
 .brand { display:flex; align-items:center; gap:10px; color:#111827; }
 .brand-name { font-size:18px; font-weight:900; }
@@ -19,7 +19,7 @@ button { cursor: pointer; }
 .bad { color:#be123c !important; }
 .neutral { color:#b45309 !important; }
 .control-row { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
-.refresh-btn { width: 260px; min-height: 52px; background:#111827; color:#fff; border:none; border-radius:10px; font-size:18px; font-weight:800; box-shadow:0 16px 30px rgba(15,23,42,.12); }
+.refresh-btn { width:auto; min-height:38px; padding:0 16px; background:#111827; color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:850; box-shadow:0 8px 18px rgba(15,23,42,.1); }
 .refresh-results { font-size:14px; color:#047857; font-weight:800; }
 .tabs { display:flex; gap:4px; border-bottom:1px solid #dfe7f1; margin-bottom:20px; overflow:auto; }
 .tab { border:none; background:transparent; color:#64748b; padding:12px 16px; font-size:13px; font-weight:800; border-bottom:3px solid transparent; white-space:nowrap; }
@@ -53,6 +53,34 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .alloc-fill { height:100%; border-radius:999px; }
 .slabel { font-size:11px; font-weight:850; color:#667085; text-transform:uppercase; letter-spacing:.14em; margin:18px 0 10px; }
 .holdings { background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; box-shadow:0 8px 20px rgba(15,23,42,.035); }
+.portfolio-register { --asset-col:280px; margin-bottom:24px; background:#fff; border:1px solid #cfd8e6; border-radius:10px; overflow:hidden; box-shadow:0 10px 24px rgba(15,23,42,.05); }
+.register-scroll { overflow:auto; max-width:100%; scrollbar-color:#94a3b8 #e2e8f0; scrollbar-width:auto; }
+.register-table { width:max-content; min-width:100%; border-spacing:0; border-collapse:separate; color:#172033; font-size:11px; font-variant-numeric:tabular-nums; }
+.register-table th, .register-table td { min-width:118px; height:58px; padding:8px 10px; border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; background:#fff; text-align:center; white-space:nowrap; }
+.register-table th { position:sticky; top:0; z-index:4; height:50px; background:#f1f5f9; color:#334155; font-size:9px; font-weight:900; line-height:1.2; letter-spacing:.055em; text-transform:uppercase; white-space:normal; }
+.register-table th:first-child, .register-table td:first-child { position:sticky; left:0; z-index:3; width:var(--asset-col); min-width:var(--asset-col); max-width:var(--asset-col); text-align:left; }
+.register-table th:nth-child(2), .register-table td:nth-child(2) { position:sticky; left:var(--asset-col); z-index:3; width:142px; min-width:142px; max-width:142px; box-shadow:5px 0 10px rgba(15,23,42,.06); }
+.register-table th:first-child, .register-table th:nth-child(2) { z-index:6; background:#e8edf3; }
+.register-table th:nth-child(24), .register-table td:nth-child(24) { min-width:96px; }
+.register-table th:nth-child(25), .register-table td:nth-child(25) { min-width:104px; }
+.register-asset-row:hover td { background:#f8fafc; }
+.register-asset-row.open td { background:#f8fafc; }
+.register-asset-row:hover td:first-child, .register-asset-row:hover td:nth-child(2), .register-asset-row.open td:first-child, .register-asset-row.open td:nth-child(2) { background:#f1f5f9; }
+.register-asset-button { width:100%; min-width:0; display:flex; align-items:center; gap:7px; padding:0; border:0; background:transparent; text-align:left; }
+.register-asset-button > span { min-width:0; }
+.register-asset-button strong { display:block; overflow:hidden; color:#0f172a; font-size:12px; font-weight:900; text-overflow:ellipsis; }
+.register-asset-button small { display:block; overflow:hidden; margin-top:4px; color:#64748b; font-size:9px; text-overflow:ellipsis; }
+.register-strong { color:#0f172a; font-weight:900; }
+.register-date { display:block; margin-top:4px; color:#64748b; font-size:9px; }
+.register-actions { display:flex; align-items:center; justify-content:center; gap:6px; }
+.register-detail-row > td:first-child { position:static; width:auto; max-width:none; padding:0; background:#f8fafc; text-align:left; white-space:normal; }
+.asset-tools-panel { position:sticky; left:0; width:min(1500px,calc(100vw - 58px)); padding:20px 24px 24px; background:#f8fafc; box-shadow:inset 3px 0 0 #2563eb; }
+.register-hint { padding:8px 12px; border-top:1px solid #dbe4ef; background:#f8fafc; color:#64748b; font-size:9px; font-weight:750; text-align:right; }
+.threshold-danger { background:#fee2e2 !important; color:#b91c1c; font-weight:900; }
+.threshold-watch { background:#ffedd5 !important; color:#c2410c; font-weight:900; }
+.threshold-safe { background:#dcfce7 !important; color:#166534; font-weight:850; }
+.register-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.register-title-row > span:last-child { color:#2563eb; font-size:9px; letter-spacing:.04em; }
 .holding-head, .holding-row { display:grid; grid-template-columns:minmax(240px,2.4fr) 60px 84px 110px 110px 110px 110px 82px 102px 64px 76px; gap:0; align-items:center; }
 .intelligence-head, .intelligence-row { grid-template-columns:minmax(210px,2.2fr) minmax(108px,1fr) 88px 92px 96px 96px 96px 74px 88px 64px 42px; }
 .holding-head { background:#f8fafc; padding:10px; border-bottom:1px solid #e5e7eb; }
@@ -195,4 +223,6 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
   .holding-search { width:100%; flex-basis:auto; }
   .history-row { grid-template-columns:12px 1fr; }
   .history-meta { grid-column:2; text-align:left; }
+  .portfolio-register { --asset-col:210px; }
+  .asset-tools-panel { width:calc(100vw - 32px); padding:18px 14px 22px; }
 }

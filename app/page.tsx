@@ -106,7 +106,7 @@ function AllocationPanel({ title, securities, by, totalInr, fx, currency }: {
   fx: Record<string, number>;
   currency: string;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const rows = groupBy(securities, (s) => (by === "assetType" ? s.assetType : s.country))
     .map(([name, items]) => ({ name, valueInr: items.reduce((sum, item) => sum + (item.latestValueInr ?? item.valueInr), 0), count: items.length }))
     .sort((a, b) => b.valueInr - a.valueInr);
@@ -514,10 +514,16 @@ function Holdings({ securities, totalInr, actionHistory, reload }: {
 
   if (!rows.length) return <div className="alloc-meta">No holdings.</div>;
   return (
-    <div className="holdings">
-      <div className="holding-head intelligence-head">
-        <span>Security</span><span>Action</span><span>Market</span><span>Target</span><span>Value</span><span className="hide-mobile">Cost</span><span className="hide-mobile">Gain/Loss</span><span className="hide-mobile">Gain %</span><span className="hide-mobile">Updated</span><span /><span />
-      </div>
+    <div className="portfolio-register">
+      <div className="register-scroll">
+        <table className="register-table">
+          <thead><tr>
+            <th>Asset</th><th>Action</th><th>Market price</th><th>Analyst target</th><th>Price to target</th>
+            <th>52-week low</th><th>% above low</th><th>52-week high</th><th>% below high</th><th>Shares held</th>
+            <th>Average purchase</th><th>Lowest purchase</th><th>% above lowest</th><th>Allocation</th><th>To go</th>
+            <th>Sell trigger aggressive</th><th>% above trigger</th><th>Sell trigger conservative</th><th>% above trigger</th>
+            <th>Market value</th><th>Invested cost</th><th>Gain / loss</th><th>Gain %</th><th>Updated</th><th>Manage</th>
+          </tr></thead>
       {rows.map((item) => {
         const isOpen = expanded.has(item.id);
         const valueInr = item.latestValueInr ?? item.valueInr;
@@ -526,50 +532,32 @@ function Holdings({ securities, totalInr, actionHistory, reload }: {
         const actionClass = item.action.toLowerCase().replaceAll(" ", "-");
         const freshness = marketFreshness(item);
         const itemHistory = actionHistory.filter((entry) => entry.securityId === item.id).slice(0, 5);
-        const metrics = [
-          ["52-week low", fmtUnit(item.week52Low, item.currency)],
-          ["% above 52-week low", ratio(item.pctAbove52WeekLow, true)],
-          ["52-week high", fmtUnit(item.week52High, item.currency)],
-          ["% below 52-week high", ratio(item.pctBelow52WeekHigh)],
-          ["Price to target", ratio(item.priceToTarget, true)],
-          ["Average purchase", fmtUnit(item.averagePurchasePrice, item.currency)],
-          ["Lowest purchase", fmtUnit(item.lowestPurchasePrice, item.currency)],
-          ["Allocation", fmt(item.allocation, item.currency)],
-          ["Remaining allocation", fmt(item.allocationRemaining, item.currency)],
-          ["Aggressive sell trigger", fmtUnit(item.aggressiveSellTrigger, item.currency)],
-          ["% above aggressive", ratio(item.pctAboveAggressiveTrigger, true)],
-          ["Conservative sell trigger", fmtUnit(item.conservativeSellTrigger, item.currency)],
-          ["% above conservative", ratio(item.pctAboveConservativeTrigger, true)],
-        ];
+        const aggressiveTone = item.pctAboveAggressiveTrigger === null ? "" : item.pctAboveAggressiveTrigger >= -0.05 ? "threshold-danger" : item.pctAboveAggressiveTrigger >= -0.1 ? "threshold-watch" : "threshold-safe";
+        const conservativeTone = item.pctAboveConservativeTrigger === null ? "" : item.pctAboveConservativeTrigger >= 0 ? "threshold-danger" : item.pctAboveConservativeTrigger >= -0.1 ? "threshold-watch" : "threshold-safe";
         return (
-          <div key={item.id} className="asset-record">
-            <div className={`holding-row intelligence-row ${isOpen ? "open" : ""}`}>
-              <button className="asset-toggle" onClick={() => toggle(item.id)} aria-expanded={isOpen}>
-                <ChevronDown size={16} className={`asset-chevron ${isOpen ? "open" : ""}`} />
-                <span><span className="h-name">{item.name}</span><span className="h-sub">{item.assetType} · {item.priceSymbol || item.ticker || item.exchange || item.country} · {fmtPlain(item.sharesHeld, 2)} shares · {pct.toFixed(1)}%</span></span>
-              </button>
-              <div className="h-cell"><span className={`action-badge ${actionClass}`}>{item.action}</span></div>
-              <div className="h-cell h-num">{fmtUnit(item.latestPrice, item.currency)}</div>
-              <div className="h-cell h-num">{fmtUnit(item.targetPrice, item.currency)}</div>
-              <div className="h-cell h-num h-value">{fmt(item.marketValue, item.currency)}</div>
-              <div className="h-cell h-num hide-mobile">{fmt(item.investedCost, item.currency)}</div>
-              <div className={`h-cell h-num hide-mobile ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`}>{fmt(item.gainLoss, item.currency)}</div>
-              <div className={`h-cell h-num hide-mobile ${(item.gainPct || 0) >= 0 ? "good" : "bad"}`}>{ratio(item.gainPct, true)}</div>
-              <div className="h-cell h-updated hide-mobile"><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><small>{fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</small></div>
-              <button className="table-btn" onClick={() => toggle(item.id)}>{isOpen ? "Close" : "Details"}</button>
-              <button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={15} /></button>
-            </div>
-
-            {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
-
+          <tbody key={item.id}>
+            <tr className={`register-asset-row ${isOpen ? "open" : ""}`}>
+              <td><button className="register-asset-button" onClick={() => toggle(item.id)} aria-expanded={isOpen}><ChevronDown size={15} className={`asset-chevron ${isOpen ? "open" : ""}`} /><span><strong>{item.name}</strong><small>{item.assetType} · {item.priceSymbol || item.ticker || item.exchange || item.country} · {pct.toFixed(1)}% portfolio</small></span></button></td>
+              <td><span className={`action-badge ${actionClass}`} title={item.actionReasons.join(" ")}>{item.action}</span></td>
+              <td>{fmtUnit(item.latestPrice, item.currency)}</td><td>{fmtUnit(item.targetPrice, item.currency)}</td><td>{ratio(item.priceToTarget, true)}</td>
+              <td>{fmtUnit(item.week52Low, item.currency)}</td><td>{ratio(item.pctAbove52WeekLow, true)}</td><td>{fmtUnit(item.week52High, item.currency)}</td><td>{ratio(item.pctBelow52WeekHigh)}</td><td>{fmtPlain(item.sharesHeld, 4)}</td>
+              <td>{fmtUnit(item.averagePurchasePrice, item.currency)}</td><td>{fmtUnit(item.lowestPurchasePrice, item.currency)}</td><td>{ratio(item.pctAboveLowestPurchase, true)}</td>
+              <td>{fmt(item.allocation, item.currency)}</td><td>{fmt(item.allocationRemaining, item.currency)}</td>
+              <td>{fmtUnit(item.aggressiveSellTrigger, item.currency)}</td><td className={aggressiveTone}>{ratio(item.pctAboveAggressiveTrigger, true)}</td>
+              <td>{fmtUnit(item.conservativeSellTrigger, item.currency)}</td><td className={conservativeTone}>{ratio(item.pctAboveConservativeTrigger, true)}</td>
+              <td className="register-strong">{fmt(item.marketValue, item.currency)}</td><td>{fmt(item.investedCost, item.currency)}</td>
+              <td className={(item.gainLoss || 0) >= 0 ? "good" : "bad"}>{fmt(item.gainLoss, item.currency)}</td><td className={(item.gainPct || 0) >= 0 ? "good" : "bad"}>{ratio(item.gainPct, true)}</td>
+              <td><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><small className="register-date">{fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</small></td>
+              <td><div className="register-actions"><button className="table-btn" onClick={() => toggle(item.id)}>{isOpen ? "Close" : "Manage"}</button><button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={14} /></button></div></td>
+            </tr>
+            {deleting === item.id && <tr className="register-detail-row"><td colSpan={25}><div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div></td></tr>}
             {isOpen && (
-              <div className="intelligence-panel">
+              <tr className="register-detail-row"><td colSpan={25}><div className="asset-tools-panel">
                 <div className="intelligence-title-row">
-                  <div><div className="intelligence-title">Investment Intelligence</div><div className="intelligence-source">Market: {item.marketDataSource || item.priceSource || "—"} · Target: {item.targetSource || "not available"}{item.targetAsOn ? ` · ${fmtDate(item.targetAsOn)}` : ""}</div></div>
+                  <div><div className="intelligence-title">Manage {item.name}</div><div className="intelligence-source">Market source: {item.marketDataSource || item.priceSource || "—"} · Target source: {item.targetSource || "not available"}{item.targetAsOn ? ` · ${fmtDate(item.targetAsOn)}` : ""}</div></div>
                   <span className={`action-badge large ${actionClass}`}>{item.action}</span>
                 </div>
                 <div className="action-explanation">{item.actionReasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
-                <div className="metric-grid">{metrics.map(([label, value]) => <div className="metric-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
 
                 <div className="detail-section">
                   <div className="detail-section-head"><div><h3>Action history</h3><p>A new entry is saved only when the Excel-based recommendation changes.</p></div><span>{itemHistory.length ? `${itemHistory.length} recent` : "No changes yet"}</span></div>
@@ -612,11 +600,14 @@ function Holdings({ securities, totalInr, actionHistory, reload }: {
                   </div>
                 </div>
                 {message[item.id] && <div className="inline-message">{message[item.id]}</div>}
-              </div>
+              </div></td></tr>
             )}
-          </div>
+          </tbody>
         );
       })}
+        </table>
+      </div>
+      <div className="register-hint">Scroll horizontally to see every spreadsheet field · Asset and action stay pinned</div>
     </div>
   );
 }
@@ -632,6 +623,7 @@ export default function Page() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [actionFilter, setActionFilter] = useState<"All" | PortfolioAction>("All");
   const [holdingQuery, setHoldingQuery] = useState("");
+  const autoRefreshAttempted = useRef(false);
 
   async function load() {
     try {
@@ -706,8 +698,18 @@ export default function Page() {
   const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || countryVisible[0]?.currency || "USD");
   const actionOptions: Array<"All" | PortfolioAction> = ["All", "Sell", "Review to Sell", "Buy", "Review to Buy", "Continue to Monitor", "Insufficient Data"];
   const actionCounts = new Map(actionOptions.map((action) => [action, action === "All" ? countryVisible.length : countryVisible.filter((security) => security.action === action).length]));
-  const attentionCount = countryVisible.filter((security) => ["Sell", "Review to Sell", "Buy", "Review to Buy"].includes(security.action)).length;
-  const recentChanges = (data?.actionHistory || []).filter((entry) => entry.previousAction).slice(0, 3);
+
+  useEffect(() => {
+    if (!data || autoRefreshAttempted.current) return;
+    const needsIntelligence = data.securities.some((security) =>
+      ["Stock", "ETF"].includes(security.assetType)
+      && (!security.targetPrice || !security.week52Low || !security.week52High),
+    );
+    if (needsIntelligence) {
+      autoRefreshAttempted.current = true;
+      refresh();
+    }
+  }, [data]);
 
   useEffect(() => {
     if (tab !== "All" && !currency[tab]) setCurrency((prev) => ({ ...prev, [tab]: marketCurrency[tab] || countryVisible[0]?.currency || "USD" }));
@@ -759,18 +761,14 @@ export default function Page() {
             <div className="register-metric"><div className="register-metric-label">Annual Income</div><div className="register-metric-value">{stats.income ? fmt(fromInr(stats.income, currentCurrency, fx), currentCurrency) : "—"}</div></div>
             <div className="register-metric"><div className="register-metric-label">Yield</div><div className="register-metric-value">{fmtPct(stats.yieldPct)}</div></div>
           </section>
-          <section className="decision-center">
-            <div className="decision-copy"><span className="eyebrow">Decision center</span><h2>{attentionCount ? `${attentionCount} holding${attentionCount === 1 ? "" : "s"} need attention` : "Your portfolio is in monitoring mode"}</h2><p>Recommendations update from live price, 52-week range, analyst target, allocation, and every purchase lot.</p></div>
-            <div className="decision-status"><span>Automatic refresh</span><strong>Daily · 10:00 SGT</strong></div>
-          </section>
-          {recentChanges.length > 0 && <section className="change-strip"><div><span className="eyebrow">Recent changes</span>{recentChanges.map((entry) => <span className="change-item" key={entry.id}><strong>{entry.securityName}</strong> {entry.previousAction} → {entry.action}</span>)}</div></section>}
+          <div className="slabel register-title-row"><span>Portfolio register <span className="result-count">{visible.length} of {countryVisible.length}</span></span><span>All decision fields · live</span></div>
           <section className="action-toolbar">
             <div className="action-filters">{actionOptions.map((action) => <button key={action} className={`action-filter ${actionFilter === action ? "on" : ""}`} onClick={() => setActionFilter(action)}><span>{action}</span><strong>{actionCounts.get(action) || 0}</strong></button>)}</div>
             <input className="holding-search" aria-label="Search holdings" placeholder="Search holdings" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} />
           </section>
-          <section className="panel-grid"><AllocationPanel title="Asset Allocation" securities={countryVisible} by="assetType" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />{tab === "All" && <AllocationPanel title="By Country" securities={countryVisible} by="country" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />}</section>
-          <div className="slabel">Holdings <span className="result-count">{visible.length} of {countryVisible.length}</span></div>
           <Holdings securities={visible} totalInr={stats.totalInr} actionHistory={data.actionHistory || []} reload={load} />
+          <div className="slabel">Portfolio breakdown</div>
+          <section className="panel-grid"><AllocationPanel title="Asset Allocation" securities={countryVisible} by="assetType" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />{tab === "All" && <AllocationPanel title="By Country" securities={countryVisible} by="country" totalInr={stats.totalInr} fx={fx} currency={currentCurrency} />}</section>
         </>
       )}
       {modalOpen && <AddInvestmentModal fx={fx} onClose={() => setModalOpen(false)} onSaved={load} />}
