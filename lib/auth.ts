@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import type { User } from "./types";
+import { resolveAppUrl } from "./auth-url";
 
 const COOKIE_NAME = "investment_dashboard_user";
 
@@ -68,9 +69,7 @@ export async function clearSession() {
 }
 
 export function appUrl() {
-  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
-  const url = process.env.APP_URL || process.env.NEXTAUTH_URL || (vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000");
-  return url.replace(/\/$/, "");
+  return resolveAppUrl(process.env);
 }
 
 export function googleRedirectUri() {
