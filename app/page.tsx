@@ -6,6 +6,15 @@ import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, S
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr } from "@/lib/format";
 
+function useLockBodyScroll(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [active]);
+}
+
 type PortfolioPayload = {
   user: User;
   securities: Security[];
@@ -87,6 +96,7 @@ function metricStats(securities: Security[], fx: Record<string, number>) {
 }
 
 function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, number>; onClose: () => void; onSaved: () => void }) {
+  useLockBodyScroll(true);
   const [name, setName] = useState("");
   const [assetType, setAssetType] = useState<AssetType>("Stock");
   const [country, setCountry] = useState("India");
@@ -476,6 +486,7 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
   const [editingLot, setEditingLot] = useState<number | null>(null);
   const [allocationDraft, setAllocationDraft] = useState<Record<number, string>>({});
   const [message, setMessage] = useState<Record<number, string>>({});
+  useLockBodyScroll(editorAsset !== null);
   const rows = [...securities].sort((a, b) => {
     const rank = (ACTION_PRIORITY[a.action] ?? 9) - (ACTION_PRIORITY[b.action] ?? 9);
     if (rank !== 0) return rank;

@@ -114,7 +114,7 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .decision-details .insight-metric { padding:6px 8px; border-radius:7px; }
 
 .asset-editor-backdrop { position:fixed; inset:0; z-index:70; display:grid; place-items:center; padding:28px; background:rgba(15,23,42,.48); }
-.asset-editor { width:min(1120px,100%); max-height:calc(100vh - 56px); overflow:auto; padding:20px 22px 24px; border:1px solid #cbd5e1; border-radius:12px; background:#f8fafc; box-shadow:0 28px 80px rgba(15,23,42,.24); }
+.asset-editor { width:min(1120px,100%); max-height:calc(100vh - 56px); overflow:auto; overscroll-behavior:contain; padding:20px 22px 24px; border:1px solid #cbd5e1; border-radius:12px; background:#f8fafc; box-shadow:0 28px 80px rgba(15,23,42,.24); }
 .editor-title { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
 .editor-title h3 { margin:0; color:#0f172a; font-size:16px; font-weight:900; }
 .editor-title p { margin:4px 0 0; color:#64748b; font-size:11px; }
@@ -164,7 +164,7 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .alerts-bell { position:relative; }
 .alerts-badge { position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:#ef4444; color:#fff; font-size:9px; font-weight:900; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 2px #fff; }
 .alerts-backdrop { position:fixed; inset:0; z-index:60; background:transparent; }
-.alerts-panel { position:absolute; top:calc(100% + 10px); right:0; z-index:61; width:min(360px,88vw); max-height:420px; overflow:auto; background:#fff; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 20px 48px rgba(15,23,42,.16); }
+.alerts-panel { position:absolute; top:calc(100% + 10px); right:0; z-index:61; width:min(360px,88vw); max-height:420px; overflow:auto; overscroll-behavior:contain; background:#fff; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 20px 48px rgba(15,23,42,.16); }
 .alerts-panel-head { padding:14px 16px; border-bottom:1px solid #e2e8f0; color:#0f172a; font-size:12px; font-weight:850; text-transform:uppercase; letter-spacing:.06em; }
 .alerts-empty { padding:20px 16px; color:#64748b; font-size:12px; line-height:1.55; }
 .alerts-list { display:flex; flex-direction:column; }
@@ -190,7 +190,7 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .google-login-btn { display:flex; align-items:center; justify-content:center; gap:12px; background:#fff; border:1px solid #d1d5db; border-radius:10px; padding:13px 20px; box-shadow:0 2px 8px rgba(15,23,42,.06); font-size:15px; font-weight:700; color:#111827; text-decoration:none; }
 .login-note { margin-top:28px; font-size:12px; color:#94a3b8; line-height:1.6; }
 .modal-backdrop { position:fixed; inset:0; background:rgba(17,24,39,.48); display:flex; align-items:center; justify-content:center; padding:34px; z-index:50; }
-.modal { width:min(1180px,100%); max-height:calc(100vh - 68px); overflow:auto; background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:28px 30px 30px; box-shadow:0 30px 80px rgba(15,23,42,.22); }
+.modal { width:min(1180px,100%); max-height:calc(100vh - 68px); overflow:auto; overscroll-behavior:contain; background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:28px 30px 30px; box-shadow:0 30px 80px rgba(15,23,42,.22); }
 .modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:26px; }
 .modal-title { font-size:28px; font-weight:900; color:#111827; }
 .x-btn { border:none; background:transparent; color:#111827; font-size:28px; line-height:1; }
