@@ -10,15 +10,15 @@ button { cursor: pointer; }
 .brand-name { font-size:18px; font-weight:900; }
 .actions { display:flex; align-items:center; gap:14px; }
 .profile-chip { width:32px; height:32px; flex:0 0 auto; }
-.profile-pic { width:32px; height:32px; border-radius:999px; display:block; border:1px solid #e5e7eb; box-shadow:0 2px 8px rgba(15,23,42,.08); }
-.profile-fallback { width:32px; height:32px; border-radius:999px; display:grid; place-items:center; background:#111827; color:#fff; font-size:13px; font-weight:850; border:1px solid #e5e7eb; box-shadow:0 2px 8px rgba(15,23,42,.08); }
-.primary-btn { min-height:38px; border:none; border-radius:10px; background:#111827; color:#fff; font-size:12px; font-weight:850; text-transform:uppercase; letter-spacing:.08em; padding:0 18px; box-shadow:0 10px 20px rgba(15,23,42,.12); }
+.profile-pic { width:32px; height:32px; border-radius:999px; display:block; border:1px solid #e5e7eb; }
+.profile-fallback { width:32px; height:32px; border-radius:999px; display:grid; place-items:center; background:#111827; color:#fff; font-size:13px; font-weight:850; border:1px solid #e5e7eb; }
+.primary-btn { min-height:38px; border:none; border-radius:6px; background:#111827; color:#fff; font-size:12px; font-weight:850; text-transform:uppercase; letter-spacing:.08em; padding:0 18px; }
 .ghost-btn { min-height:32px; background:transparent; color:#94a3b8; border:none; box-shadow:none; font-size:12px; font-weight:600; padding:0; }
 .ghost-btn:hover { color:#be123c; }
 .good { color:#047857 !important; }
 .bad { color:#be123c !important; }
 .control-row { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
-.refresh-btn { width:auto; min-height:38px; padding:0 16px; background:#111827; color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:850; box-shadow:0 8px 18px rgba(15,23,42,.1); }
+.refresh-btn { width:auto; min-height:38px; padding:0 16px; background:#111827; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:850; }
 .refresh-results { font-size:14px; color:#047857; font-weight:800; }
 .tabs { display:flex; gap:4px; border-bottom:1px solid #dfe7f1; margin-bottom:20px; overflow:auto; }
 .tab { border:none; background:transparent; color:#64748b; padding:12px 16px; font-size:13px; font-weight:800; border-bottom:3px solid transparent; white-space:nowrap; }
@@ -29,7 +29,7 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 
 /* Overview stat strip */
 .register-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:20px; }
-.register-metric { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:15px 16px; box-shadow:0 8px 18px rgba(15,23,42,.03); min-width:0; }
+.register-metric { background:#fff; border:1px solid #e5e7eb; border-radius:4px; padding:15px 16px; min-width:0; }
 .register-metric-label { font-size:10px; font-weight:850; color:#667085; text-transform:uppercase; letter-spacing:.1em; margin-bottom:6px; }
 .register-metric-value { font-size:20px; font-weight:850; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
@@ -45,24 +45,29 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .portfolio-toolbar .tabs { min-width:0; }
 .portfolio-toolbar .select-wrap label { margin-bottom:3px; }
 .portfolio-toolbar .select-wrap select { min-height:36px; }
-.action-filter-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
-.action-filter-chip { display:flex; align-items:center; gap:7px; min-height:36px; padding:0 13px; border:1px solid #dbe3ee; border-radius:999px; background:#fff; color:#475569; font-size:12px; font-weight:800; }
-.action-filter-chip strong { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background:#f1f5f9; color:#334155; font-size:11px; font-weight:850; }
-.action-filter-chip:hover { border-color:#94a3b8; }
-.action-filter-chip.on { border-color:#0f172a; background:#0f172a; color:#fff; }
-.action-filter-chip.on strong { background:rgba(255,255,255,.18); color:#fff; }
-.action-filter-chip.sell.on { border-color:#be123c; background:#be123c; }
-.action-filter-chip.review-to-sell.on { border-color:#c2410c; background:#c2410c; }
-.action-filter-chip.buy.on { border-color:#047857; background:#047857; }
-.action-filter-chip.review-to-buy.on { border-color:#1d4ed8; background:#1d4ed8; }
-.action-filter-chip.insufficient-data.on { border-color:#b45309; background:#b45309; }
+.action-filter-row { display:flex; flex-wrap:wrap; gap:2px; margin-bottom:18px; border-bottom:1px solid #dfe7f1; }
+.action-filter-chip { display:flex; align-items:center; gap:6px; min-height:36px; padding:0 12px; border:none; border-bottom:3px solid transparent; border-radius:0; background:transparent; color:#64748b; font-size:12px; font-weight:800; }
+.action-filter-chip strong { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:3px; background:#eef2f7; color:#475569; font-size:10px; font-weight:850; }
+.action-filter-chip:hover { color:#111827; }
+.action-filter-chip.on { color:#111827; border-bottom-color:#111827; }
+.action-filter-chip.on strong { background:#111827; color:#fff; }
+.action-filter-chip.sell.on { color:#be123c; border-bottom-color:#be123c; }
+.action-filter-chip.sell.on strong { background:#be123c; }
+.action-filter-chip.review-to-sell.on { color:#c2410c; border-bottom-color:#c2410c; }
+.action-filter-chip.review-to-sell.on strong { background:#c2410c; }
+.action-filter-chip.buy.on { color:#047857; border-bottom-color:#047857; }
+.action-filter-chip.buy.on strong { background:#047857; }
+.action-filter-chip.review-to-buy.on { color:#1d4ed8; border-bottom-color:#1d4ed8; }
+.action-filter-chip.review-to-buy.on strong { background:#1d4ed8; }
+.action-filter-chip.insufficient-data.on { color:#b45309; border-bottom-color:#b45309; }
+.action-filter-chip.insufficient-data.on strong { background:#b45309; }
 .holdings-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 0 10px; }
 .holdings-toolbar .slabel { margin:0; }
 .holding-search { flex:0 0 190px; width:190px; min-height:34px; font-size:11px; }
 .empty-holdings-note { padding:22px; text-align:center; border:1px dashed #cbd5e1; border-radius:10px; background:#fff; }
 
 /* Holdings list */
-.asset-register { overflow:hidden; margin-bottom:26px; border:1px solid #dbe3ee; border-radius:12px; background:#fff; box-shadow:0 10px 28px rgba(15,23,42,.05); }
+.asset-register { overflow:hidden; margin-bottom:26px; border:1px solid #cfd8e6; border-radius:4px; background:#fff; }
 .asset-row-shell { border-left:4px solid #94a3b8; border-bottom:1px solid #e2e8f0; }
 .asset-row-shell:last-child { border-bottom:0; }
 .asset-row-shell.action-sell { border-left-color:#ef4444; }
@@ -71,10 +76,10 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .asset-row-shell.action-review-to-buy { border-left-color:#3b82f6; }
 .asset-row-shell.action-insufficient-data { border-left-color:#f59e0b; }
 
-.holding-row { width:100%; display:grid; grid-template-columns:minmax(200px,2.3fr) repeat(5,minmax(84px,1fr)) minmax(120px,.9fr); align-items:center; gap:6px 16px; padding:14px 20px; border:0; background:#fff; text-align:left; }
-.holding-row-head { padding:11px 20px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+.holding-row { width:100%; display:grid; grid-template-columns:minmax(200px,2fr) repeat(5,minmax(78px,1fr)) minmax(150px,1.15fr); align-items:stretch; gap:16px; padding:0 20px; min-height:52px; border:0; background:#fff; text-align:left; }
+.holding-row-head { padding:10px 20px; background:#f1f5f9; border-bottom:1px solid #cfd8e6; }
 .holding-row-head > span { color:#64748b; font-size:10px; font-weight:850; letter-spacing:.07em; text-transform:uppercase; }
-.holding-row-head .holding-num-cell, .holding-row-head .holding-action-cell { text-align:right; }
+.holding-row-head .holding-num-cell, .holding-row-head .holding-action-cell { text-align:right; border-left-color:#cfd8e6; }
 .holding-row:not(.holding-row-head):hover, .holding-row.open { background:#f8fafc; }
 
 .holding-name-cell { display:flex; align-items:center; gap:9px; min-width:0; }
@@ -84,11 +89,11 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .row-chevron { flex:0 0 auto; color:#94a3b8; font-size:18px; font-style:normal; line-height:1; transform:rotate(0); transition:transform .15s ease, color .15s ease; }
 .row-chevron.open { transform:rotate(90deg); color:#111827; }
 
-.holding-num-cell { min-width:0; text-align:right; color:#172033; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
+.holding-num-cell { display:flex; flex-direction:column; align-items:flex-end; justify-content:center; min-width:0; padding-left:16px; border-left:1px solid #edf1f6; text-align:right; color:#172033; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
 .holding-num-cell small { display:block; margin-top:2px; font-size:11px; font-weight:600; }
 .holding-num-cell.good { color:#047857; }
 .holding-num-cell.bad { color:#be123c; }
-.holding-action-cell { display:flex; justify-content:flex-end; }
+.holding-action-cell { display:flex; align-items:center; justify-content:flex-end; min-width:0; padding-left:16px; border-left:1px solid #edf1f6; }
 
 .asset-expanded { padding:14px 14px 16px; border-top:1px solid #dbe3ee; background:#f8fafc; }
 .expanded-summary-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:0 2px 8px; }
@@ -149,15 +154,22 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .icon-btn { width:32px; height:32px; padding:0; display:grid; place-items:center; border:1px solid #d1d5db; background:#fff; color:#64748b; border-radius:7px; justify-self:center; }
 .icon-btn.danger { color:#be123c; border-color:#fecdd3; background:#fff1f2; }
 
-.action-badge { display:inline-flex; align-items:center; gap:5px; justify-content:center; min-height:26px; max-width:150px; padding:5px 10px; border-radius:999px; font-size:11px; line-height:1.15; font-weight:800; text-transform:uppercase; letter-spacing:.03em; text-align:center; background:#f1f5f9; color:#475569; white-space:nowrap; }
+.action-badge { display:inline-block; max-width:100%; font-size:11px; line-height:1.25; font-weight:850; text-transform:uppercase; letter-spacing:.02em; text-align:right; white-space:normal; color:#475569; }
+.action-badge.large, .action-badge.small { display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:999px; text-align:center; background:#f1f5f9; }
 .action-badge.large { min-height:32px; max-width:none; padding:8px 14px; font-size:12px; }
-.action-badge.small { min-height:20px; padding:2px 8px; font-size:9px; gap:0; }
-.action-badge.sell { background:#fff1f2; color:#be123c; }
-.action-badge.review-to-sell { background:#fff7ed; color:#c2410c; }
-.action-badge.buy { background:#ecfdf5; color:#047857; }
-.action-badge.review-to-buy { background:#eff6ff; color:#1d4ed8; }
-.action-badge.continue-to-monitor { background:#f8fafc; color:#475569; border:1px solid #e2e8f0; }
-.action-badge.insufficient-data { background:#fffbeb; color:#b45309; }
+.action-badge.small { min-height:20px; padding:2px 8px; font-size:9px; }
+.action-badge.sell { color:#be123c; }
+.action-badge.review-to-sell { color:#c2410c; }
+.action-badge.buy { color:#047857; }
+.action-badge.review-to-buy { color:#1d4ed8; }
+.action-badge.continue-to-monitor { color:#64748b; }
+.action-badge.insufficient-data { color:#b45309; }
+.action-badge.large.sell, .action-badge.small.sell { background:#fff1f2; }
+.action-badge.large.review-to-sell, .action-badge.small.review-to-sell { background:#fff7ed; }
+.action-badge.large.buy, .action-badge.small.buy { background:#ecfdf5; }
+.action-badge.large.review-to-buy, .action-badge.small.review-to-buy { background:#eff6ff; }
+.action-badge.large.continue-to-monitor, .action-badge.small.continue-to-monitor { background:#f8fafc; border:1px solid #e2e8f0; }
+.action-badge.large.insufficient-data, .action-badge.small.insufficient-data { background:#fffbeb; }
 
 /* Alerts bell */
 .alerts-wrap { position:relative; }
