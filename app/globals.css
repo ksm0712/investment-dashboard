@@ -204,6 +204,7 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .search-btn, .save-btn { min-height:48px; border:none; border-radius:10px; background:#111827; color:#fff; font-weight:800; padding:0 18px; }
 .matches { margin-top:12px; width:100%; }
 .form-hint { color:#047857; font-size:13px; font-weight:700; margin-top:8px; }
+.form-hint.alloc-hint { color:#64748b; font-weight:600; }
 
 @media (max-width: 1050px) {
   .holding-row { gap:6px 14px; padding:14px 16px; grid-template-columns:minmax(180px,2fr) minmax(84px,1fr) minmax(90px,1fr) minmax(90px,1fr) minmax(110px,.9fr); }

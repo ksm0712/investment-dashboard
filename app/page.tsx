@@ -234,6 +234,8 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     if (!q || q <= 0) return setError("Add quantity bought.");
     if (!c || c <= 0) return setError("Add cost price.");
     if (!p || p <= 0) return setError("Add current price.");
+    const alloc = Number(allocation);
+    if (!alloc || alloc <= 0) return setError("Add an allocation limit. Buy and Review to Buy signals stay off for this asset until it has one, same as an empty ALLOT cell in the spreadsheet.");
     const currency = marketCurrency[country] || "USD";
     const input: AddInvestmentInput = {
       name: name.trim(),
@@ -337,11 +339,15 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
         </div>
         <div className="form-section-title">Decision inputs</div>
         <div className="form-grid grid-4">
-          <div className="field"><label>Allocation limit</label><input value={allocation} onChange={(e) => setAllocation(e.target.value)} placeholder="50000" /></div>
+          <div className="field">
+            <label>Allocation limit (required)</label>
+            <input value={allocation} onChange={(e) => setAllocation(e.target.value)} placeholder="50000" />
+          </div>
           <div className="field"><label>Analyst target</label><input value={targetPrice} onChange={(e) => { setTargetPrice(e.target.value); setTargetSource("manual"); setTargetAsOn(new Date().toISOString().slice(0, 10)); }} placeholder={quoteBusy ? "Fetching…" : "Auto-filled when available"} /></div>
           <div className="field"><label>52-week low</label><input value={week52Low} readOnly placeholder="Auto-filled" /></div>
           <div className="field"><label>52-week high</label><input value={week52High} readOnly placeholder="Auto-filled" /></div>
         </div>
+        <div className="form-hint alloc-hint">The most you're willing to invest in this asset. Buy and Review to Buy never trigger without it — same as an empty ALLOT cell in the spreadsheet.</div>
         {targetPrice && <div className="provider-note">Target source: {targetSource || "manual"}{targetAsOn ? ` · ${fmtDate(targetAsOn)}` : ""}</div>}
         {error && <div className="bad" style={{ marginTop: 14, fontWeight: 700 }}>{error}</div>}
         <button type="button" className="save-btn" style={{ marginTop: 20, width: 190 }} onClick={save}>Save Investment</button>
