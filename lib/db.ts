@@ -1,8 +1,8 @@
-import type { ActionHistoryEntry, AddInvestmentInput, Lot, Portfolio, Security } from "./types";
-import { toInr } from "./format";
-import { getFx } from "./fx";
-import { calculateAsset } from "./portfolio-engine";
-import { buildActionHistoryEntry } from "./action-history";
+import type { ActionHistoryEntry, AddInvestmentInput, Lot, Portfolio, Security } from "./types.ts";
+import { toInr } from "./format.ts";
+import { getFx } from "./fx.ts";
+import { calculateAsset } from "./portfolio-engine.ts";
+import { buildActionHistoryEntry } from "./action-history.ts";
 
 type Row = Record<string, unknown>;
 
@@ -567,7 +567,7 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
 type SecurityUpdateFields = Partial<Pick<Security,
   "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate" |
   "priceAsOn" | "priceSource" | "priceSymbol" | "refreshStatus" | "refreshNote" |
-  "targetPrice" | "targetSource" | "targetAsOn" | "allocation"
+  "targetPrice" | "targetSource" | "targetAsOn" | "allocation" | "week52Low" | "week52High"
 >>;
 
 export async function updateSecurity(userId: string, id: number, fields: SecurityUpdateFields) {
@@ -600,6 +600,8 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
       targetSource: fields.targetSource ?? security.targetSource,
       targetAsOn: fields.targetAsOn ?? security.targetAsOn,
       allocation: fields.allocation ?? security.allocation,
+      week52Low: fields.week52Low ?? security.week52Low,
+      week52High: fields.week52High ?? security.week52High,
       refreshedAt,
     };
     Object.assign(storedSecurity, updates);
@@ -609,7 +611,7 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
   await execute(
     `UPDATE securities SET quantity=?, cost_price=?, latest_price=?, price_as_on=?, latest_value=?, latest_value_inr=?,
       purchase_date=?, refreshed_at=?, price_source=?, price_symbol=?, refresh_status=?, refresh_note=?,
-      target_price=?, target_source=?, target_as_on=?, allocation=?
+      target_price=?, target_source=?, target_as_on=?, allocation=?, week_52_low=?, week_52_high=?
      WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
     [
       quantity, costPrice, latestPrice, fields.priceAsOn ?? security.priceAsOn,
@@ -618,6 +620,7 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
       fields.refreshStatus ?? security.refreshStatus, fields.refreshNote ?? security.refreshNote,
       fields.targetPrice ?? security.targetPrice, fields.targetSource ?? security.targetSource,
       fields.targetAsOn ?? security.targetAsOn, fields.allocation ?? security.allocation,
+      fields.week52Low ?? security.week52Low, fields.week52High ?? security.week52High,
       id, userId,
     ],
   );

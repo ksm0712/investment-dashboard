@@ -1,4 +1,4 @@
-import { fxFallback } from "./constants";
+import { fxFallback } from "./constants.ts";
 
 let fxCache: { at: number; data: Record<string, number> } | null = null;
 

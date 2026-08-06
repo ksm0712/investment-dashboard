@@ -1,4 +1,4 @@
-import { symbols } from "./constants";
+import { symbols } from "./constants.ts";
 
 export function toInr(value: number, currency: string, fx: Record<string, number>) {
   return value * (fx[currency] ?? 1);

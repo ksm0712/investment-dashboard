@@ -293,7 +293,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
       priceSymbol: ticker.trim(),
       priceSource: priceSource || null,
       priceAsOn: priceAsOn || null,
-      exchange,
+      exchange: ticker.trim() ? exchange : undefined,
       purchaseDate,
       allocation: allocation ? Number(allocation) : null,
       targetPrice: targetPrice ? Number(targetPrice) : null,
@@ -500,6 +500,7 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
   const [lotDraft, setLotDraft] = useState<Record<string, string>>({ purchaseDate: new Date().toISOString().slice(0, 10) });
   const [editingLot, setEditingLot] = useState<number | null>(null);
   const [allocationDraft, setAllocationDraft] = useState<Record<number, string>>({});
+  const [marketDraft, setMarketDraft] = useState<Record<number, { target?: string; low?: string; high?: string }>>({});
   const [message, setMessage] = useState<Record<number, string>>({});
   useLockBodyScroll(editorAsset !== null);
   const rows = [...securities].sort((a, b) => {
@@ -546,6 +547,32 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
       }),
     });
     setMessage((current) => ({ ...current, [item.id]: res.ok ? "Allocation saved." : "Could not save allocation." }));
+    if (res.ok) await reload();
+  }
+
+  async function saveMarketInputs(item: Security) {
+    const draft = marketDraft[item.id] || {};
+    const target = Number(draft.target ?? String(item.targetPrice ?? ""));
+    const low = Number(draft.low ?? String(item.week52Low ?? ""));
+    const high = Number(draft.high ?? String(item.week52High ?? ""));
+    const body: Record<string, unknown> = {};
+    if (Number.isFinite(target) && target > 0) {
+      body.targetPrice = target;
+      body.targetSource = "manual";
+      body.targetAsOn = new Date().toISOString().slice(0, 10);
+    }
+    if (Number.isFinite(low) && low > 0) body.week52Low = low;
+    if (Number.isFinite(high) && high > 0) body.week52High = high;
+    if (!Object.keys(body).length) {
+      setMessage((current) => ({ ...current, [item.id]: "Enter a target price or 52-week range first." }));
+      return;
+    }
+    const res = await fetch(`/api/investments/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setMessage((current) => ({ ...current, [item.id]: res.ok ? "Target and range saved." : "Could not save target and range." }));
     if (res.ok) await reload();
   }
 
@@ -696,11 +723,20 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
             {isEditorOpen && (
               <div className="asset-editor-backdrop" role="dialog" aria-modal="true" aria-label={`Lots and allocation for ${item.name}`}>
               <div className="asset-editor">
-                <div className="editor-title"><div><h3>Lots &amp; allocation</h3><p>{item.name} · purchases are combined into the asset totals.</p></div><button className="icon-btn" aria-label="Close lots and allocation" onClick={() => setEditorAsset(null)}><X size={16} /></button></div>
+                <div className="editor-title"><div><h3>Lots, allocation &amp; targets</h3><p>{item.name} · purchases are combined into the asset totals.</p></div><button className="icon-btn" aria-label="Close editor" onClick={() => setEditorAsset(null)}><X size={16} /></button></div>
                 <div className="editor-allocation">
                   <div className="compact-form">
                     <label>Allocation amount ({item.currency})<input value={allocation} onChange={(e) => setAllocationDraft((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="Not set" /></label>
                     <button className="table-btn save-inline" onClick={() => saveAllocation(item)}>Save allocation</button>
+                  </div>
+                </div>
+                <div className="editor-allocation">
+                  <div className="detail-section-head"><div><h3>Target &amp; 52-week range</h3><p>Set these manually when a live provider can&apos;t supply them (common for ETFs), so Buy/Sell signals can activate.</p></div></div>
+                  <div className="compact-form">
+                    <label>Analyst target ({item.currency})<input value={marketDraft[item.id]?.target ?? String(item.targetPrice ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], target: e.target.value } }))} placeholder="Not set" /></label>
+                    <label>52-week low ({item.currency})<input value={marketDraft[item.id]?.low ?? String(item.week52Low ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], low: e.target.value } }))} placeholder="Not set" /></label>
+                    <label>52-week high ({item.currency})<input value={marketDraft[item.id]?.high ?? String(item.week52High ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], high: e.target.value } }))} placeholder="Not set" /></label>
+                    <button className="table-btn save-inline" onClick={() => saveMarketInputs(item)}>Save target &amp; range</button>
                   </div>
                 </div>
                 <div className="editor-lots">
