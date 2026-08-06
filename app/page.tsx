@@ -114,12 +114,28 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   const localSearchCache = useRef<Record<string, SearchResult[]>>({});
   const quoteCache = useRef<Record<string, Record<string, unknown>>>({});
   const quoteRequestId = useRef(0);
+  const suppressNextSearch = useRef(false);
 
   const exchanges = marketExchanges[country] || ["Other"];
 
   useEffect(() => {
     if (!exchanges.includes(exchange)) setExchange(exchanges[0]);
   }, [country, exchanges, exchange]);
+
+  useEffect(() => {
+    if (suppressNextSearch.current) {
+      suppressNextSearch.current = false;
+      return;
+    }
+    if (name.trim().length < 2) {
+      setMatches([]);
+      setSearchNotice("");
+      return;
+    }
+    const timer = setTimeout(() => { search(); }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
 
   async function search() {
     const key = name.trim().toLowerCase();
@@ -204,10 +220,13 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   }
 
   function applyMatch(indexValue: string) {
-    setMatchIndex(indexValue);
     const match = matches[Number(indexValue)];
     if (!match) return;
+    setMatchIndex(indexValue);
+    suppressNextSearch.current = true;
     setName(match.name);
+    setMatches([]);
+    setSearchNotice("");
     setAssetType(match.assetType);
     setCountry(match.country);
     setTicker(match.ticker);
@@ -235,7 +254,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     if (!c || c <= 0) return setError("Add cost price.");
     if (!p || p <= 0) return setError("Add current price.");
     const alloc = Number(allocation);
-    if (!alloc || alloc <= 0) return setError("Add an allocation limit. Buy and Review to Buy signals stay off for this asset until it has one, same as an empty ALLOT cell in the spreadsheet.");
+    if (!alloc || alloc <= 0) return setError("Add an allocation limit. Buy and Review to Buy signals stay off for this asset until it has one.");
     const currency = marketCurrency[country] || "USD";
     const input: AddInvestmentInput = {
       name: name.trim(),
@@ -281,21 +300,27 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
         </div>
         <div className="slabel">Add Investment</div>
         <div className="form-section-title">Asset</div>
-        <div className="search-line">
-          <div className="field">
-            <label>Asset name</label>
-            <input value={name} onChange={(e) => { setName(e.target.value); setMatches([]); setMatchIndex(""); setSearchNotice(""); }} placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings" />
-          </div>
-          <button type="button" className="search-btn" onClick={search} disabled={busy}>{busy ? "Searching..." : "Search"}</button>
+        <div className="field autocomplete-field">
+          <label>Asset name</label>
+          <input
+            value={name}
+            onChange={(e) => { setName(e.target.value); setMatches([]); setMatchIndex(""); setSearchNotice(""); }}
+            placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings"
+            autoComplete="off"
+          />
+          {matches.length > 0 && (
+            <div className="autocomplete-dropdown" role="listbox">
+              {matches.map((match, index) => (
+                <button type="button" key={`${match.ticker}-${index}`} className="autocomplete-option" onClick={() => applyMatch(String(index))}>
+                  {match.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        {(busy || quoteBusy) && <div className="busy-note">{busy ? "Searching..." : "Fetching current price..."}</div>}
-        {searchNotice && <div className="search-note">{searchNotice}</div>}
-        {matches.length > 0 && (
-          <select className="matches" value={matchIndex} onChange={(e) => applyMatch(e.target.value)}>
-            <option value="">Select an asset to fill details</option>
-            {matches.map((match, index) => <option key={`${match.ticker}-${index}`} value={index}>{match.label}</option>)}
-          </select>
-        )}
+        {busy && <div className="busy-note">Searching...</div>}
+        {!busy && searchNotice && <div className="search-note">{searchNotice}</div>}
+        {quoteBusy && <div className="busy-note">Fetching current price...</div>}
         {matchIndex !== "" && <div className="form-hint">Autofilled — edit any field below if needed</div>}
         <div className="form-grid grid-3" style={{ marginTop: 18 }}>
           <div className="field">
@@ -347,7 +372,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
           <div className="field"><label>52-week low</label><input value={week52Low} readOnly placeholder="Auto-filled" /></div>
           <div className="field"><label>52-week high</label><input value={week52High} readOnly placeholder="Auto-filled" /></div>
         </div>
-        <div className="form-hint alloc-hint">The most you're willing to invest in this asset. Buy and Review to Buy never trigger without it — same as an empty ALLOT cell in the spreadsheet.</div>
+        <div className="form-hint alloc-hint">The most you're willing to invest in this asset. Buy and Review to Buy never trigger without it.</div>
         {targetPrice && <div className="provider-note">Target source: {targetSource || "manual"}{targetAsOn ? ` · ${fmtDate(targetAsOn)}` : ""}</div>}
         {error && <div className="bad" style={{ marginTop: 14, fontWeight: 700 }}>{error}</div>}
         <button type="button" className="save-btn" style={{ marginTop: 20, width: 190 }} onClick={save}>Save Investment</button>
