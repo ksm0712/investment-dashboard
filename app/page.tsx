@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, Bell, Minus, Plus, Trash2, TrendingDown, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, Plus, Trash2, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr } from "@/lib/format";
@@ -372,35 +372,6 @@ const ACTION_PRIORITY: Record<string, number> = {
 
 const ACTION_FILTERS = ["All", "Sell", "Review to Sell", "Buy", "Review to Buy", "Continue to Monitor", "Insufficient Data"];
 
-function actionIcon(action: string) {
-  if (action === "Buy" || action === "Review to Buy") return <TrendingUp size={12} />;
-  if (action === "Sell" || action === "Review to Sell") return <TrendingDown size={12} />;
-  if (action === "Insufficient Data") return <AlertTriangle size={12} />;
-  return <Minus size={12} />;
-}
-
-function clampPct(value: number) {
-  return Math.min(100, Math.max(0, value));
-}
-
-function RangeBar({ low, high, price, target, currency }: {
-  low: number | null; high: number | null; price: number | null; target: number | null; currency: string;
-}) {
-  if (low === null || high === null || !(high > low)) {
-    return <div className="holding-range holding-range-empty">52-week range not available</div>;
-  }
-  const pricePct = price === null ? null : clampPct(((price - low) / (high - low)) * 100);
-  const targetPct = target === null ? null : clampPct(((target - low) / (high - low)) * 100);
-  return (
-    <div className="holding-range">
-      <div className="holding-range-track">
-        {targetPct !== null && <i className="range-marker target" style={{ left: `${targetPct}%` }} title={`Analyst target ${fmtUnit(target, currency)}`} />}
-        {pricePct !== null && <i className="range-marker price" style={{ left: `${pricePct}%` }} title={`Current price ${fmtUnit(price, currency)}`} />}
-      </div>
-      <div className="holding-range-labels"><span>{fmtUnit(low, currency)}</span><span>{fmtUnit(high, currency)}</span></div>
-    </div>
-  );
-}
 
 const ALERTS_SEEN_KEY = "investment-dashboard:alerts:lastSeen";
 
@@ -569,9 +540,11 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
     <div className="asset-register">
       <div className="holding-row holding-row-head" aria-hidden="true">
         <span className="holding-name-cell">Asset</span>
-        <span className="holding-price-cell">Price &amp; 52-week range</span>
-        <span className="holding-position-cell">Your position</span>
-        <span className="holding-gain-cell">Gain / loss</span>
+        <span className="holding-num-cell">Price</span>
+        <span className="holding-num-cell">Shares</span>
+        <span className="holding-num-cell">Avg Cost</span>
+        <span className="holding-num-cell">Market Value</span>
+        <span className="holding-num-cell">Gain / Loss</span>
         <span className="holding-action-cell">Action</span>
       </div>
       {rows.map((item) => {
@@ -621,21 +594,15 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
                   <small>{item.priceSymbol || item.ticker || item.exchange || item.assetType} · {pct.toFixed(1)}% of portfolio</small>
                 </span>
               </span>
-              <span className="holding-price-cell">
-                <span className="holding-price-line"><strong>{fmtUnit(item.latestPrice, item.currency)}</strong><span className={`mini-freshness ${freshness.className}`} title={`Market data ${freshness.label.toLowerCase()} · ${fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}`} /></span>
-                <RangeBar low={item.week52Low} high={item.week52High} price={item.latestPrice} target={item.targetPrice} currency={item.currency} />
-              </span>
-              <span className="holding-position-cell">
-                <strong>{fmt(item.marketValue, item.currency)}</strong>
-                <small>{fmtPlain(item.sharesHeld, 2)} sh · avg {fmtUnit(item.averagePurchasePrice, item.currency)}</small>
-              </span>
-              <span className={`holding-gain-cell ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`}>
-                <strong>{fmt(item.gainLoss, item.currency)}</strong>
-                <small>{ratio(item.gainPct, true)}</small>
+              <span className="holding-num-cell" data-label="Price">{fmtUnit(item.latestPrice, item.currency)}</span>
+              <span className="holding-num-cell" data-label="Shares">{fmtPlain(item.sharesHeld, 2)}</span>
+              <span className="holding-num-cell" data-label="Avg Cost">{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
+              <span className="holding-num-cell" data-label="Market Value">{fmt(item.marketValue, item.currency)}</span>
+              <span className={`holding-num-cell ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`} data-label="Gain / Loss">
+                {fmt(item.gainLoss, item.currency)}<small>{ratio(item.gainPct, true)}</small>
               </span>
               <span className="holding-action-cell">
-                <span className={`action-badge ${actionClass}`}>{actionIcon(item.action)}{item.action}</span>
-                {item.actionReasons[0] && <small className="holding-action-reason">{item.actionReasons[0]}</small>}
+                <span className={`action-badge ${actionClass}`}>{item.action}</span>
               </span>
             </button>
 
