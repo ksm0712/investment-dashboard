@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Plus, Trash2, X } from "lucide-react";
+import { ArrowRight, Bell, Plus, RotateCw, Trash2, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr } from "@/lib/format";
@@ -909,7 +909,9 @@ export default function Page() {
         <>
           <section className="portfolio-toolbar">
             <div className="control-row">
-              <button className="refresh-btn" onClick={refresh} disabled={loading}>{loading ? "Refreshing..." : "Refresh now"}</button>
+              <button className="icon-btn refresh-icon-btn" onClick={refresh} disabled={loading} aria-label="Refresh prices now" title="Refresh prices now">
+                <RotateCw size={15} className={loading ? "spin" : ""} />
+              </button>
               <span className={`refresh-results ${refreshText ? "done" : ""}`}>{refreshText ? `${refreshText}${refreshDetails ? ` (${refreshDetails})` : ""}` : "Prices update automatically every 5 minutes"}</span>
             </div>
             <div className="tabs">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item}</button>)}</div>

@@ -420,6 +420,7 @@ async function nasdaqPrice(symbol: string, assetType: string) {
           date: parseDate(primary?.lastTradeTimestamp),
           source: "nasdaq",
           symbol: clean,
+          changePercent: parseSigned(String(primary?.percentageChange || "").replace(/[^0-9.+-]/g, "")) ?? undefined,
         };
       }
       errors.push(data.status?.bCodeMessage?.[0]?.errorMessage || `No Nasdaq ${assetClass} price`);
