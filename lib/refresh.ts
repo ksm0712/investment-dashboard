@@ -11,6 +11,7 @@ type PriceResult = {
   symbol?: string;
   week52Low?: number;
   week52High?: number;
+  changePercent?: number;
   targetPrice?: number;
   targetSource?: string;
   targetAsOn?: string;
@@ -139,6 +140,11 @@ function parsePrice(value?: string | number | null) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function parseSigned(value?: string | number | null) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function parseDate(value?: string | null) {
   const date = new Date(String(value || ""));
   return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
@@ -228,6 +234,8 @@ function parseYahooChart(data: any, symbol: string, source: string): PriceResult
   const marketDate = marketTime ? new Date(marketTime * 1000).toISOString().slice(0, 10) : "";
   const week52Low = parsePrice(result?.meta?.fiftyTwoWeekLow);
   const week52High = parsePrice(result?.meta?.fiftyTwoWeekHigh);
+  const previousClose = parsePrice(result?.meta?.chartPreviousClose ?? result?.meta?.previousClose);
+  const changeFor = (price: number) => (previousClose ? ((price - previousClose) / previousClose) * 100 : undefined);
 
   for (let i = closes.length - 1; i >= 0; i--) {
     if (Number.isFinite(Number(closes[i])) && Number(closes[i]) > 0) {
@@ -240,6 +248,7 @@ function parseYahooChart(data: any, symbol: string, source: string): PriceResult
           symbol,
           week52Low: week52Low ?? undefined,
           week52High: week52High ?? undefined,
+          changePercent: changeFor(marketPrice),
         };
       }
       return {
@@ -249,6 +258,7 @@ function parseYahooChart(data: any, symbol: string, source: string): PriceResult
         symbol,
         week52Low: week52Low ?? undefined,
         week52High: week52High ?? undefined,
+        changePercent: changeFor(Number(closes[i])),
       };
     }
   }
@@ -261,6 +271,7 @@ function parseYahooChart(data: any, symbol: string, source: string): PriceResult
       symbol,
       week52Low: week52Low ?? undefined,
       week52High: week52High ?? undefined,
+      changePercent: changeFor(marketPrice),
     };
   }
 
@@ -332,6 +343,10 @@ async function yahooFinance2Price(symbol: string): Promise<PriceResult> {
     symbol,
     week52Low: parsePrice(data.summaryDetail?.fiftyTwoWeekLow) ?? undefined,
     week52High: parsePrice(data.summaryDetail?.fiftyTwoWeekHigh) ?? undefined,
+    changePercent: (() => {
+      const fraction = parseSigned(data.price?.regularMarketChangePercent);
+      return fraction === null ? undefined : fraction * 100;
+    })(),
     targetPrice: targetPrice ?? undefined,
     targetSource: targetPrice ? "yahoo-analyst-consensus" : undefined,
     targetAsOn: targetPrice ? new Date().toISOString().slice(0, 10) : undefined,
@@ -878,6 +893,7 @@ export async function latestPriceForInput(input: {
     priceSource: null,
     priceSymbol: identifier || null,
     latestPrice: null,
+    changePercent: null,
     priceAsOn: null,
     latestValue: null,
     latestValueInr: null,
@@ -951,6 +967,7 @@ export async function refreshPrices(userId: string) {
       if (!sec.quantity) {
         await updateRefreshFieldsForSecurity(userId, sec, {
           latestPrice: latest.price,
+          changePercent: latest.changePercent ?? sec.changePercent,
           priceAsOn: latest.date,
           week52Low: latest.week52Low ?? sec.week52Low,
           week52High: latest.week52High ?? sec.week52High,
@@ -974,6 +991,7 @@ export async function refreshPrices(userId: string) {
       const targetMissing = ["Stock", "ETF"].includes(sec.assetType) && !effectiveTarget;
       await updateRefreshFieldsForSecurity(userId, sec, {
         latestPrice: latest.price,
+        changePercent: latest.changePercent ?? sec.changePercent,
         priceAsOn: latest.date,
         week52Low: latest.week52Low ?? sec.week52Low,
         week52High: latest.week52High ?? sec.week52High,

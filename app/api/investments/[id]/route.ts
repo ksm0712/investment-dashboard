@@ -12,6 +12,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (isRefreshSave) {
       await updateRefreshFields(user.sub, Number(id), {
         latestPrice: body.latestPrice,
+        changePercent: body.changePercent,
         priceAsOn: body.priceAsOn,
         latestValue: body.value ?? body.latestValue,
         latestValueInr: body.latestValueInr,

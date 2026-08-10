@@ -25,6 +25,7 @@ export type Security = AssetCalculation & {
   priceSource: string | null;
   priceSymbol: string | null;
   latestPrice: number | null;
+  changePercent: number | null;
   priceAsOn: string | null;
   latestValue: number | null;
   latestValueInr: number | null;

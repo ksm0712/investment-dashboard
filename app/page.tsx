@@ -624,10 +624,12 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
     <div className="asset-register">
       <div className="holding-row holding-row-head" aria-hidden="true">
         <span className="holding-name-cell">Asset</span>
+        <span className="holding-num-cell">Target</span>
         <span className="holding-num-cell">Price</span>
-        <span className="holding-num-cell">Shares</span>
-        <span className="holding-num-cell">Avg Cost</span>
-        <span className="holding-num-cell">Market Value</span>
+        <span className="holding-num-cell">Change</span>
+        <span className="holding-num-cell">Above 52W Low</span>
+        <span className="holding-num-cell">Below 52W High</span>
+        <span className="holding-num-cell">Purchase Price</span>
         <span className="holding-num-cell">Gain / Loss</span>
         <span className="holding-action-cell">Action</span>
       </div>
@@ -643,22 +645,15 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
         const conservativeTone = item.pctAboveConservativeTrigger === null ? "" : item.pctAboveConservativeTrigger >= 0 ? "threshold-danger" : item.pctAboveConservativeTrigger >= -0.1 ? "threshold-watch" : "threshold-safe";
         const positionMetrics = [
           ["Shares held", fmtPlain(item.sharesHeld, 4), ""],
-          ["Average purchase", fmtUnit(item.averagePurchasePrice, item.currency), ""],
           ["Lowest purchase", fmtUnit(item.lowestPurchasePrice, item.currency), ""],
           ["% above lowest", ratio(item.pctAboveLowestPurchase, true), ""],
           ["Market value", fmt(item.marketValue, item.currency), "strong"],
           ["Invested cost", fmt(item.investedCost, item.currency), ""],
-          ["Gain / loss", fmt(item.gainLoss, item.currency), (item.gainLoss || 0) >= 0 ? "good" : "bad"],
-          ["Gain %", ratio(item.gainPct, true), (item.gainPct || 0) >= 0 ? "good" : "bad"],
         ];
         const marketMetrics = [
-          ["Market price", fmtUnit(item.latestPrice, item.currency), "strong"],
-          ["Analyst target", fmtUnit(item.targetPrice, item.currency), ""],
           ["Price to target", ratio(item.priceToTarget, true), ""],
           ["52-week low", fmtUnit(item.week52Low, item.currency), ""],
-          ["% above low", ratio(item.pctAbove52WeekLow, true), ""],
           ["52-week high", fmtUnit(item.week52High, item.currency), ""],
-          ["% below high", ratio(item.pctBelow52WeekHigh), ""],
         ];
         const triggerMetrics = [
           ["Allocation", fmt(item.allocation, item.currency), ""],
@@ -678,10 +673,12 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
                   <small>{item.priceSymbol || item.ticker || item.exchange || item.assetType} · {pct.toFixed(1)}% of portfolio</small>
                 </span>
               </span>
+              <span className="holding-num-cell" data-label="Target">{fmtUnit(item.targetPrice, item.currency)}</span>
               <span className="holding-num-cell" data-label="Price">{fmtUnit(item.latestPrice, item.currency)}</span>
-              <span className="holding-num-cell" data-label="Shares">{fmtPlain(item.sharesHeld, 2)}</span>
-              <span className="holding-num-cell" data-label="Avg Cost">{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
-              <span className="holding-num-cell" data-label="Market Value">{fmt(item.marketValue, item.currency)}</span>
+              <span className={`holding-num-cell ${item.changePercent === null ? "" : item.changePercent >= 0 ? "good" : "bad"}`} data-label="Change">{item.changePercent === null ? "—" : fmtPct(item.changePercent, true)}</span>
+              <span className="holding-num-cell" data-label="Above 52W Low">{ratio(item.pctAbove52WeekLow, true)}</span>
+              <span className="holding-num-cell" data-label="Below 52W High">{ratio(item.pctBelow52WeekHigh)}</span>
+              <span className="holding-num-cell" data-label="Purchase Price">{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
               <span className={`holding-num-cell ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`} data-label="Gain / Loss">
                 {fmt(item.gainLoss, item.currency)}<small>{ratio(item.gainPct, true)}</small>
               </span>
@@ -702,8 +699,7 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
               <div className="asset-insight-layout" aria-label={`${item.name} portfolio details`}>
               <section className="insight-panel market-insight">
                 <div className="insight-heading">Market</div>
-                <div className="insight-hero-grid">{marketMetrics.slice(0, 3).map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-                <div className="insight-detail-grid market-details">{marketMetrics.slice(3).map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+                <div className="insight-detail-grid market-details">{marketMetrics.map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
               </section>
 
               <section className="insight-panel position-insight">
@@ -713,7 +709,6 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
 
               <section className="insight-panel decision-insight">
                 <div className="decision-topline"><div className="insight-heading">Decision</div><span className={`action-badge large ${actionClass}`}>{item.action}</span></div>
-                <p className="decision-reason">{item.actionReasons.join(" ")}</p>
                 <div className="insight-detail-grid decision-details">{triggerMetrics.map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
               </section>
               </div>

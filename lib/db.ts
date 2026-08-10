@@ -165,6 +165,7 @@ export async function initDb() {
     target_as_on: "TEXT",
     week_52_low: "REAL",
     week_52_high: "REAL",
+    change_percent: "REAL",
     market_data_source: "TEXT",
     market_data_as_on: "TEXT",
     allocation: "REAL",
@@ -222,6 +223,7 @@ function mapSecurity(row: Row): Security {
     priceSource: (row.price_source as string | null) || null,
     priceSymbol: (row.price_symbol as string | null) || null,
     latestPrice: row.latest_price === null ? null : Number(row.latest_price ?? NaN),
+    changePercent: real(row.change_percent, null),
     priceAsOn: (row.price_as_on as string | null) || null,
     latestValue: row.latest_value === null ? null : Number(row.latest_value ?? row.value ?? 0),
     latestValueInr: row.latest_value_inr === null ? null : Number(row.latest_value_inr ?? row.value_inr ?? 0),
@@ -506,6 +508,7 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       priceSource: source,
       priceSymbol: input.priceSymbol || null,
       latestPrice: currentPrice,
+      changePercent: null,
       priceAsOn,
       latestValue: value,
       latestValueInr: valueInr,
@@ -757,13 +760,32 @@ export async function updateRefreshFieldsForSecurity(userId: string, security: S
   if (!hasTurso()) {
     const storedSecurity = demoSecurityForUser(userId, security.id);
     if (!storedSecurity) return;
-    const next = { ...updates, latestPrice, latestValue, latestValueInr, refreshedAt: new Date().toISOString() };
+    const next = {
+      latestPrice,
+      changePercent: updates.changePercent ?? security.changePercent,
+      priceAsOn: updates.priceAsOn ?? security.priceAsOn,
+      latestValue,
+      latestValueInr,
+      refreshStatus: updates.refreshStatus ?? security.refreshStatus,
+      refreshNote: updates.refreshNote ?? security.refreshNote,
+      priceSource: updates.priceSource ?? security.priceSource,
+      priceSymbol: updates.priceSymbol ?? security.priceSymbol,
+      week52Low: updates.week52Low ?? security.week52Low,
+      week52High: updates.week52High ?? security.week52High,
+      marketDataSource: updates.marketDataSource ?? security.marketDataSource,
+      marketDataAsOn: updates.marketDataAsOn ?? security.marketDataAsOn,
+      targetPrice: updates.targetPrice ?? security.targetPrice,
+      targetSource: updates.targetSource ?? security.targetSource,
+      targetAsOn: updates.targetAsOn ?? security.targetAsOn,
+      refreshedAt: new Date().toISOString(),
+    };
     Object.assign(storedSecurity, next);
     Object.assign(security, next);
     return;
   }
   const values = {
     latest_price: latestPrice,
+    change_percent: updates.changePercent ?? security.changePercent,
     price_as_on: updates.priceAsOn ?? security.priceAsOn,
     latest_value: latestValue,
     latest_value_inr: latestValueInr,
@@ -781,13 +803,13 @@ export async function updateRefreshFieldsForSecurity(userId: string, security: S
     target_as_on: updates.targetAsOn ?? security.targetAsOn,
   };
   await execute(
-    `UPDATE securities SET latest_price=?, price_as_on=?, latest_value=?, latest_value_inr=?,
+    `UPDATE securities SET latest_price=?, change_percent=?, price_as_on=?, latest_value=?, latest_value_inr=?,
       refresh_status=?, refresh_note=?, refreshed_at=?, price_source=?, price_symbol=?,
       week_52_low=?,week_52_high=?,market_data_source=?,market_data_as_on=?,
       target_price=?,target_source=?,target_as_on=?
      WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
     [
-      values.latest_price, values.price_as_on, values.latest_value, values.latest_value_inr,
+      values.latest_price, values.change_percent, values.price_as_on, values.latest_value, values.latest_value_inr,
       values.refresh_status, values.refresh_note, values.refreshed_at, values.price_source,
       values.price_symbol, values.week_52_low, values.week_52_high, values.market_data_source,
       values.market_data_as_on, values.target_price, values.target_source, values.target_as_on,
