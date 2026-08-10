@@ -408,13 +408,9 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
 
 function marketFreshness(item: Security) {
   const raw = item.marketDataAsOn || item.priceAsOn || item.refreshedAt;
-  if (!raw) return { label: "No date", className: "missing" };
-  const timestamp = new Date(raw).getTime();
-  if (!Number.isFinite(timestamp)) return { label: "Unknown", className: "missing" };
-  const ageDays = Math.max(0, (Date.now() - timestamp) / 86_400_000);
-  if (ageDays <= 3) return { label: "Fresh", className: "fresh" };
-  if (ageDays <= 7) return { label: "Aging", className: "aging" };
-  return { label: "Stale", className: "stale" };
+  const timestamp = raw ? new Date(raw).getTime() : NaN;
+  const ageDays = Number.isFinite(timestamp) ? Math.max(0, (Date.now() - timestamp) / 86_400_000) : Infinity;
+  return { stale: ageDays > 7, date: raw };
 }
 
 const ACTION_PRIORITY: Record<string, number> = {
@@ -691,7 +687,10 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
               <div className="expanded-summary-head">
                 <div><strong>{item.action}</strong><p>{item.actionReasons.join(" ")}</p></div>
                 <div className="asset-card-actions">
-                  <div className="card-updated" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}><span className={`freshness-pill ${freshness.className}`}>{freshness.label}</span><span>{fmtDate(item.marketDataAsOn || item.refreshedAt || item.priceAsOn)}</span></div>
+                  <div className="card-updated" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}>
+                    {freshness.stale && <span className="freshness-warning">Price may be outdated</span>}
+                    <span>Updated {fmtDate(freshness.date)}</span>
+                  </div>
                   <button className="table-btn" onClick={() => openEditor(item.id)}>Lots &amp; allocation</button>
                   <button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={14} /></button>
                 </div>
@@ -861,7 +860,7 @@ export default function Page() {
     if (!data || autoRefreshAttempted.current) return;
     const needsIntelligence = data.securities.some((security) =>
       ["Stock", "ETF"].includes(security.assetType)
-      && (!security.targetPrice || !security.week52Low || !security.week52High),
+      && (!security.targetPrice || !security.week52Low || !security.week52High || security.changePercent === null),
     );
     if (needsIntelligence) {
       autoRefreshAttempted.current = true;
