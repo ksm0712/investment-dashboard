@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Bell, Plus, RotateCw, Trash2, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
-import { fmt, fmtDate, fmtPct, fmtPlain, fmtUnit, fromInr } from "@/lib/format";
+import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
 
 function useLockBodyScroll(active: boolean) {
   useEffect(() => {
@@ -468,7 +468,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
             <div className="alerts-list">
               {changes.slice(0, 25).map((entry) => (
                 <button key={entry.id} className="alert-item" onClick={() => { onSelect(entry.securityId); setOpen(false); }}>
-                  <div className="alert-item-top"><strong>{entry.securityName}</strong><span className="alert-time">{fmtDate(entry.recordedAt)}</span></div>
+                  <div className="alert-item-top"><strong>{entry.securityName}</strong><span className="alert-time" title={fmtDateTime(entry.recordedAt)}>{fmtRelativeTime(entry.recordedAt)}</span></div>
                   <div className="alert-item-transition">
                     <span className={`action-badge small ${(entry.previousAction || "").toLowerCase().replaceAll(" ", "-")}`}>{entry.previousAction}</span>
                     <ArrowRight size={11} />

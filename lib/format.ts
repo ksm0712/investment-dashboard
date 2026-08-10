@@ -52,3 +52,26 @@ export function fmtDate(value: string | null | undefined) {
   if (Number.isNaN(date.getTime())) return value;
   return `${date.getDate()} ${date.toLocaleString("en", { month: "short", year: "numeric" })}`;
 }
+
+export function fmtDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const datePart = `${date.getDate()} ${date.toLocaleString("en", { month: "short", year: "numeric" })}`;
+  const timePart = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `${datePart}, ${timePart}`;
+}
+
+export function fmtRelativeTime(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const diffMin = Math.round((Date.now() - date.getTime()) / 60_000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return fmtDate(value);
+}
