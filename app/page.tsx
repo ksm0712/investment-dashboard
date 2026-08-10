@@ -638,24 +638,17 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
         const allocation = allocationDraft[item.id] ?? String(item.allocation ?? "");
         const actionClass = item.action.toLowerCase().replaceAll(" ", "-");
         const freshness = marketFreshness(item);
-        const aggressiveTone = item.pctAboveAggressiveTrigger === null ? "" : item.pctAboveAggressiveTrigger >= -0.05 ? "tone-danger" : item.pctAboveAggressiveTrigger >= -0.1 ? "tone-watch" : "tone-safe";
-        const conservativeTone = item.pctAboveConservativeTrigger === null ? "" : item.pctAboveConservativeTrigger >= 0 ? "tone-danger" : item.pctAboveConservativeTrigger >= -0.1 ? "tone-watch" : "tone-safe";
-        const positionMetrics = [
+        const allocationPhrase = item.allocation === null
+          ? "Not set"
+          : (item.allocationRemaining ?? 0) >= 0
+            ? `${fmt(item.allocationRemaining, item.currency)} of ${fmt(item.allocation, item.currency)} still available`
+            : `${fmt(Math.abs(item.allocationRemaining ?? 0), item.currency)} over your ${fmt(item.allocation, item.currency)} limit`;
+        const detailFacts: Array<[string, string, string?]> = [
           ["Shares held", fmtPlain(item.sharesHeld, 4)],
           ["Market value", fmt(item.marketValue, item.currency)],
           ["Invested cost", fmt(item.investedCost, item.currency)],
-          ["Lowest purchase", item.lowestPurchasePrice === null ? "—" : `${fmtUnit(item.lowestPurchasePrice, item.currency)} · price is ${ratio(item.pctAboveLowestPurchase === null ? null : Math.abs(item.pctAboveLowestPurchase))} ${(item.pctAboveLowestPurchase || 0) >= 0 ? "above" : "below"} it`],
-        ];
-        const marketMetrics = [
-          ["Analyst target", item.targetPrice === null ? "—" : `${fmtUnit(item.targetPrice, item.currency)} · price is ${ratio(item.priceToTarget === null ? null : Math.abs(item.priceToTarget))} ${(item.priceToTarget || 0) >= 0 ? "below" : "above"} it`],
           ["52-week range", item.week52Low === null || item.week52High === null ? "—" : `${fmtUnit(item.week52Low, item.currency)} – ${fmtUnit(item.week52High, item.currency)}`],
-        ];
-        const allocationPhrase = item.allocation === null
-          ? "No allocation limit set"
-          : `${fmt(item.allocation, item.currency)} allocated, ${fmt(item.investedCost, item.currency)} invested — ${(item.allocationRemaining ?? 0) >= 0 ? `${fmt(item.allocationRemaining, item.currency)} of room left` : `${fmt(Math.abs(item.allocationRemaining ?? 0), item.currency)} over allocation`}`;
-        const triggerMetrics = [
-          ["Aggressive trigger", item.aggressiveSellTrigger === null ? "—" : `${fmtUnit(item.aggressiveSellTrigger, item.currency)} · ${ratio(item.pctAboveAggressiveTrigger === null ? null : Math.abs(item.pctAboveAggressiveTrigger))} ${(item.pctAboveAggressiveTrigger || 0) >= 0 ? "past it" : "below it"}`, aggressiveTone],
-          ["Conservative trigger", item.conservativeSellTrigger === null ? "—" : `${fmtUnit(item.conservativeSellTrigger, item.currency)} · ${ratio(item.pctAboveConservativeTrigger === null ? null : Math.abs(item.pctAboveConservativeTrigger))} ${(item.pctAboveConservativeTrigger || 0) >= 0 ? "past it" : "below it"}`, conservativeTone],
+          ["Allocation", allocationPhrase, (item.allocationRemaining ?? 0) < 0 ? "bad" : ""],
         ];
         return (
           <article className={`asset-row-shell action-${actionClass}`} key={item.id} id={`holding-${item.id}`}>
@@ -694,23 +687,7 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
                 </div>
               </div>
               <div className="asset-insight-layout" aria-label={`${item.name} portfolio details`}>
-              <section className="insight-panel position-insight">
-                <div className="insight-heading">Your position</div>
-                <div className="fact-list">{positionMetrics.map(([label, value]) => <div className="fact-row" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-              </section>
-
-              <section className="insight-panel market-insight">
-                <div className="insight-heading">Price &amp; target</div>
-                <div className="fact-list">{marketMetrics.map(([label, value]) => <div className="fact-row" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-              </section>
-
-              <section className="insight-panel decision-insight">
-                <div className="insight-heading">What would change this</div>
-                <div className="fact-list">
-                  <div className="fact-row"><span>Allocation</span><strong>{allocationPhrase}</strong></div>
-                  {triggerMetrics.map(([label, value, tone]) => <div className={`fact-row ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}
-                </div>
-              </section>
+                <div className="fact-list">{detailFacts.map(([label, value, tone]) => <div className="fact-row" key={label}><span>{label}</span><strong className={tone}>{value}</strong></div>)}</div>
               </div>
               {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
             </div>

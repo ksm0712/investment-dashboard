@@ -101,17 +101,11 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 .asset-card-actions { display:flex; align-items:center; gap:8px; }
 .card-updated { display:flex; align-items:center; gap:8px; color:#64748b; font-size:12px; font-weight:650; }
 .freshness-warning { color:#b45309; font-weight:800; }
-.asset-insight-layout { display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:16px; padding:8px 16px 16px; }
-.insight-panel { min-width:0; padding:16px; border-radius:10px; background:#f8fafc; }
-.insight-heading { color:#334155; font-size:13px; font-weight:800; }
-.fact-list { display:flex; flex-direction:column; gap:12px; margin-top:12px; }
-.fact-row { display:flex; flex-direction:column; gap:3px; min-width:0; padding-bottom:12px; border-bottom:1px solid #e2e8f0; }
-.fact-row:last-child { border-bottom:0; padding-bottom:0; }
+.asset-insight-layout { padding:8px 16px 20px; }
+.fact-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:18px 24px; }
+.fact-row { display:flex; flex-direction:column; gap:4px; min-width:0; }
 .fact-row span { color:#64748b; font-size:12px; font-weight:600; }
-.fact-row strong { color:#172033; font-size:14px; font-weight:700; line-height:1.45; font-variant-numeric:tabular-nums; }
-.fact-row.tone-danger strong { color:#b91c1c; }
-.fact-row.tone-watch strong { color:#c2410c; }
-.fact-row.tone-safe strong { color:#166534; }
+.fact-row strong { color:#172033; font-size:15px; font-weight:700; line-height:1.4; font-variant-numeric:tabular-nums; }
 
 .asset-editor-backdrop { position:fixed; inset:0; z-index:70; display:grid; place-items:center; padding:28px; background:rgba(15,23,42,.48); }
 .asset-editor { width:min(1120px,100%); max-height:calc(100vh - 56px); overflow:auto; overscroll-behavior:none; padding:20px 22px 24px; border:1px solid #cbd5e1; border-radius:12px; background:#f8fafc; box-shadow:0 28px 80px rgba(15,23,42,.24); }
@@ -245,12 +239,5 @@ select:focus, input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,9
 }
 
 @media (max-width: 560px) {
-  .asset-insight-layout { grid-template-columns:1fr; }
-  .decision-insight { grid-column:auto; }
   .register-strip { grid-template-columns:1fr 1fr; }
-}
-
-@media (min-width: 561px) and (max-width: 1100px) {
-  .asset-insight-layout { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .decision-insight { grid-column:1 / -1; }
 }
