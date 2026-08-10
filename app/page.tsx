@@ -426,6 +426,7 @@ const ACTION_FILTERS = ["All", "Sell", "Review to Sell", "Buy", "Review to Buy",
 
 
 const ALERTS_SEEN_KEY = "investment-dashboard:alerts:lastSeen";
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryEntry[]; onSelect: (id: number) => void }) {
   const [open, setOpen] = useState(false);
@@ -637,27 +638,24 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
         const allocation = allocationDraft[item.id] ?? String(item.allocation ?? "");
         const actionClass = item.action.toLowerCase().replaceAll(" ", "-");
         const freshness = marketFreshness(item);
-        const aggressiveTone = item.pctAboveAggressiveTrigger === null ? "" : item.pctAboveAggressiveTrigger >= -0.05 ? "threshold-danger" : item.pctAboveAggressiveTrigger >= -0.1 ? "threshold-watch" : "threshold-safe";
-        const conservativeTone = item.pctAboveConservativeTrigger === null ? "" : item.pctAboveConservativeTrigger >= 0 ? "threshold-danger" : item.pctAboveConservativeTrigger >= -0.1 ? "threshold-watch" : "threshold-safe";
+        const aggressiveTone = item.pctAboveAggressiveTrigger === null ? "" : item.pctAboveAggressiveTrigger >= -0.05 ? "tone-danger" : item.pctAboveAggressiveTrigger >= -0.1 ? "tone-watch" : "tone-safe";
+        const conservativeTone = item.pctAboveConservativeTrigger === null ? "" : item.pctAboveConservativeTrigger >= 0 ? "tone-danger" : item.pctAboveConservativeTrigger >= -0.1 ? "tone-watch" : "tone-safe";
         const positionMetrics = [
-          ["Shares held", fmtPlain(item.sharesHeld, 4), ""],
-          ["Lowest purchase", fmtUnit(item.lowestPurchasePrice, item.currency), ""],
-          ["% above lowest", ratio(item.pctAboveLowestPurchase, true), ""],
-          ["Market value", fmt(item.marketValue, item.currency), "strong"],
-          ["Invested cost", fmt(item.investedCost, item.currency), ""],
+          ["Shares held", fmtPlain(item.sharesHeld, 4)],
+          ["Market value", fmt(item.marketValue, item.currency)],
+          ["Invested cost", fmt(item.investedCost, item.currency)],
+          ["Lowest purchase", item.lowestPurchasePrice === null ? "—" : `${fmtUnit(item.lowestPurchasePrice, item.currency)} · price is ${ratio(item.pctAboveLowestPurchase === null ? null : Math.abs(item.pctAboveLowestPurchase))} ${(item.pctAboveLowestPurchase || 0) >= 0 ? "above" : "below"} it`],
         ];
         const marketMetrics = [
-          ["Price to target", ratio(item.priceToTarget, true), ""],
-          ["52-week low", fmtUnit(item.week52Low, item.currency), ""],
-          ["52-week high", fmtUnit(item.week52High, item.currency), ""],
+          ["Analyst target", item.targetPrice === null ? "—" : `${fmtUnit(item.targetPrice, item.currency)} · price is ${ratio(item.priceToTarget === null ? null : Math.abs(item.priceToTarget))} ${(item.priceToTarget || 0) >= 0 ? "below" : "above"} it`],
+          ["52-week range", item.week52Low === null || item.week52High === null ? "—" : `${fmtUnit(item.week52Low, item.currency)} – ${fmtUnit(item.week52High, item.currency)}`],
         ];
+        const allocationPhrase = item.allocation === null
+          ? "No allocation limit set"
+          : `${fmt(item.allocation, item.currency)} allocated, ${fmt(item.investedCost, item.currency)} invested — ${(item.allocationRemaining ?? 0) >= 0 ? `${fmt(item.allocationRemaining, item.currency)} of room left` : `${fmt(Math.abs(item.allocationRemaining ?? 0), item.currency)} over allocation`}`;
         const triggerMetrics = [
-          ["Allocation", fmt(item.allocation, item.currency), ""],
-          ["To go", fmt(item.allocationRemaining, item.currency), ""],
-          ["Aggressive sell trigger", fmtUnit(item.aggressiveSellTrigger, item.currency), ""],
-          ["% above aggressive", ratio(item.pctAboveAggressiveTrigger, true), aggressiveTone],
-          ["Conservative sell trigger", fmtUnit(item.conservativeSellTrigger, item.currency), ""],
-          ["% above conservative", ratio(item.pctAboveConservativeTrigger, true), conservativeTone],
+          ["Aggressive trigger", item.aggressiveSellTrigger === null ? "—" : `${fmtUnit(item.aggressiveSellTrigger, item.currency)} · ${ratio(item.pctAboveAggressiveTrigger === null ? null : Math.abs(item.pctAboveAggressiveTrigger))} ${(item.pctAboveAggressiveTrigger || 0) >= 0 ? "past it" : "below it"}`, aggressiveTone],
+          ["Conservative trigger", item.conservativeSellTrigger === null ? "—" : `${fmtUnit(item.conservativeSellTrigger, item.currency)} · ${ratio(item.pctAboveConservativeTrigger === null ? null : Math.abs(item.pctAboveConservativeTrigger))} ${(item.pctAboveConservativeTrigger || 0) >= 0 ? "past it" : "below it"}`, conservativeTone],
         ];
         return (
           <article className={`asset-row-shell action-${actionClass}`} key={item.id} id={`holding-${item.id}`}>
@@ -696,19 +694,22 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
                 </div>
               </div>
               <div className="asset-insight-layout" aria-label={`${item.name} portfolio details`}>
-              <section className="insight-panel market-insight">
-                <div className="insight-heading">Market</div>
-                <div className="insight-detail-grid market-details">{marketMetrics.map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-              </section>
-
               <section className="insight-panel position-insight">
                 <div className="insight-heading">Your position</div>
-                <div className="insight-detail-grid position-details">{positionMetrics.map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+                <div className="fact-list">{positionMetrics.map(([label, value]) => <div className="fact-row" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+              </section>
+
+              <section className="insight-panel market-insight">
+                <div className="insight-heading">Price &amp; target</div>
+                <div className="fact-list">{marketMetrics.map(([label, value]) => <div className="fact-row" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
               </section>
 
               <section className="insight-panel decision-insight">
-                <div className="decision-topline"><div className="insight-heading">Decision</div><span className={`action-badge large ${actionClass}`}>{item.action}</span></div>
-                <div className="insight-detail-grid decision-details">{triggerMetrics.map(([label, value, tone]) => <div className={`insight-metric ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+                <div className="insight-heading">What would change this</div>
+                <div className="fact-list">
+                  <div className="fact-row"><span>Allocation</span><strong>{allocationPhrase}</strong></div>
+                  {triggerMetrics.map(([label, value, tone]) => <div className={`fact-row ${tone}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}
+                </div>
               </section>
               </div>
               {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
@@ -872,6 +873,27 @@ export default function Page() {
     if (tab !== "All" && !currency[tab]) setCurrency((prev) => ({ ...prev, [tab]: marketCurrency[tab] || countryVisible[0]?.currency || "USD" }));
   }, [tab, currency, countryVisible]);
 
+  useEffect(() => {
+    if (!data) return;
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, AUTO_REFRESH_MS);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(data)]);
+
+  useEffect(() => {
+    if (!data) return;
+    function onVisibilityChange() {
+      if (document.visibilityState !== "visible") return;
+      const last = lastRefreshedAt ? new Date(lastRefreshedAt).getTime() : 0;
+      if (Date.now() - last > AUTO_REFRESH_MS) refresh();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(data), lastRefreshedAt]);
+
   if (!loginChecked) return <main className="login-page"><div className="login-card"><div className="login-title">Investments</div></div></main>;
   if (!data) return <Login />;
 
@@ -909,7 +931,10 @@ export default function Page() {
       ) : (
         <>
           <section className="portfolio-toolbar">
-            <div className="control-row"><button className="refresh-btn" onClick={refresh} disabled={loading}>{loading ? "Refreshing..." : "Refresh Prices"}</button>{refreshText && <span className="refresh-results">{refreshText}{refreshDetails ? ` (${refreshDetails})` : ""}</span>}</div>
+            <div className="control-row">
+              <button className="refresh-btn" onClick={refresh} disabled={loading}>{loading ? "Refreshing..." : "Refresh now"}</button>
+              <span className={`refresh-results ${refreshText ? "done" : ""}`}>{refreshText ? `${refreshText}${refreshDetails ? ` (${refreshDetails})` : ""}` : "Prices update automatically every 5 minutes"}</span>
+            </div>
             <div className="tabs">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item}</button>)}</div>
             <div className="select-wrap"><label>Currency</label><select value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>
           </section>
