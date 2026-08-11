@@ -25,6 +25,7 @@ test("updateSecurity persists target price and 52-week range", async () => {
 
   await updateSecurity(userId, created!.id, {
     targetPrice: 130,
+    secondaryTargetPrice: 125,
     targetSource: "manual",
     targetAsOn: "2026-08-06",
     week52Low: 90,
@@ -33,6 +34,7 @@ test("updateSecurity persists target price and 52-week range", async () => {
 
   const updated = (await getSecurities(userId)).find((s) => s.id === created!.id);
   assert.equal(updated!.targetPrice, 130);
+  assert.equal(updated!.secondaryTargetPrice, 125);
   assert.equal(updated!.week52Low, 90);
   assert.equal(updated!.week52High, 120);
   assert.notEqual(updated!.action, "Insufficient Data", "setting target and range should unblock a real recommendation");
@@ -54,6 +56,11 @@ test("updateRefreshFields on a partial payload preserves fields it doesn't menti
     targetSource: "manual",
     week52Low: 80,
     week52High: 200,
+    sector: "Technology",
+    industry: "Software",
+    trailingPe: 31.2,
+    forwardPe: 25.4,
+    pegRatio: 1.7,
   });
   const created = (await getSecurities(userId)).find((s) => s.name === "Partial Refresh Test Stock");
   assert.ok(created, "security should exist after creation");
@@ -73,4 +80,6 @@ test("updateRefreshFields on a partial payload preserves fields it doesn't menti
   assert.equal(updated!.targetPrice, 150, "target should survive an update that didn't mention it");
   assert.equal(updated!.week52Low, 80, "52-week low should survive an update that didn't mention it");
   assert.equal(updated!.week52High, 200, "52-week high should survive an update that didn't mention it");
+  assert.equal(updated!.sector, "Technology", "sector should survive a partial refresh");
+  assert.equal(updated!.trailingPe, 31.2, "valuation metrics should survive a partial refresh");
 });

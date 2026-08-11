@@ -26,6 +26,11 @@ export type Security = AssetCalculation & {
   priceSymbol: string | null;
   latestPrice: number | null;
   changePercent: number | null;
+  sector: string | null;
+  industry: string | null;
+  trailingPe: number | null;
+  forwardPe: number | null;
+  pegRatio: number | null;
   priceAsOn: string | null;
   latestValue: number | null;
   latestValueInr: number | null;
@@ -38,6 +43,7 @@ export type Security = AssetCalculation & {
   costPrice: number | null;
   purchaseDate: string | null;
   targetPrice: number | null;
+  secondaryTargetPrice: number | null;
   targetSource: string | null;
   targetAsOn: string | null;
   week52Low: number | null;
@@ -93,10 +99,16 @@ export type AddInvestmentInput = {
   purchaseDate: string;
   allocation?: number | null;
   targetPrice?: number | null;
+  secondaryTargetPrice?: number | null;
   targetSource?: string | null;
   targetAsOn?: string | null;
   week52Low?: number | null;
   week52High?: number | null;
+  sector?: string | null;
+  industry?: string | null;
+  trailingPe?: number | null;
+  forwardPe?: number | null;
+  pegRatio?: number | null;
 };
 
 export type SearchResult = {

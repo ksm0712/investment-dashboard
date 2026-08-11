@@ -12,6 +12,11 @@ type PriceResult = {
   week52Low?: number;
   week52High?: number;
   changePercent?: number;
+  sector?: string;
+  industry?: string;
+  trailingPe?: number;
+  forwardPe?: number;
+  pegRatio?: number;
   targetPrice?: number;
   targetSource?: string;
   targetAsOn?: string;
@@ -327,7 +332,7 @@ async function yahooPrice(symbol: string) {
 
 async function yahooFinance2Price(symbol: string): Promise<PriceResult> {
   const data = await yahooFinance.quoteSummary(symbol, {
-    modules: ["financialData", "summaryDetail", "price"],
+    modules: ["financialData", "summaryDetail", "defaultKeyStatistics", "summaryProfile", "price"],
   });
   const price = parsePrice(data.price?.regularMarketPrice);
   if (!price) throw new Error(`No Yahoo Finance quote for ${symbol}`);
@@ -347,6 +352,11 @@ async function yahooFinance2Price(symbol: string): Promise<PriceResult> {
       const fraction = parseSigned(data.price?.regularMarketChangePercent);
       return fraction === null ? undefined : fraction * 100;
     })(),
+    sector: data.summaryProfile?.sector || undefined,
+    industry: data.summaryProfile?.industry || undefined,
+    trailingPe: parsePrice(data.summaryDetail?.trailingPE) ?? undefined,
+    forwardPe: parsePrice(data.summaryDetail?.forwardPE ?? data.defaultKeyStatistics?.forwardPE) ?? undefined,
+    pegRatio: parsePrice(data.defaultKeyStatistics?.pegRatio) ?? undefined,
     targetPrice: targetPrice ?? undefined,
     targetSource: targetPrice ? "yahoo-analyst-consensus" : undefined,
     targetAsOn: targetPrice ? new Date().toISOString().slice(0, 10) : undefined,
@@ -545,6 +555,11 @@ async function marketIntelligence(symbol: string, assetType: string, exchange?: 
         targetAsOn: result.targetAsOn,
         week52Low: result.week52Low,
         week52High: result.week52High,
+        sector: result.sector,
+        industry: result.industry,
+        trailingPe: result.trailingPe,
+        forwardPe: result.forwardPe,
+        pegRatio: result.pegRatio,
       };
     } },
     { name: "fmp", run: () => fmpIntelligence(symbol) },
@@ -561,6 +576,11 @@ async function marketIntelligence(symbol: string, assetType: string, exchange?: 
       intelligence.targetAsOn ??= result.targetAsOn;
       intelligence.week52Low ??= result.week52Low;
       intelligence.week52High ??= result.week52High;
+      intelligence.sector ??= result.sector;
+      intelligence.industry ??= result.industry;
+      intelligence.trailingPe ??= result.trailingPe;
+      intelligence.forwardPe ??= result.forwardPe;
+      intelligence.pegRatio ??= result.pegRatio;
       const hasRequiredRange = !needsRange || Boolean(intelligence.week52Low && intelligence.week52High);
       if (intelligence.targetPrice && hasRequiredRange) break;
     } catch {
@@ -740,7 +760,9 @@ async function marketPriceForSecurity(sec: Security) {
   }
 
   async function enrich(result: PriceResult) {
-    if (!result.symbol || (result.targetPrice && result.week52Low && result.week52High)) return result;
+    const hasWorkbookData = result.targetPrice && result.week52Low && result.week52High
+      && (result.sector || result.industry || result.trailingPe || result.forwardPe || result.pegRatio);
+    if (!result.symbol || hasWorkbookData) return result;
     try {
       const intelligence = await marketIntelligence(
         result.symbol,
@@ -755,6 +777,11 @@ async function marketPriceForSecurity(sec: Security) {
         targetPrice: intelligence.targetPrice ?? result.targetPrice,
         targetSource: intelligence.targetSource ?? result.targetSource,
         targetAsOn: intelligence.targetAsOn ?? result.targetAsOn,
+        sector: intelligence.sector ?? result.sector,
+        industry: intelligence.industry ?? result.industry,
+        trailingPe: intelligence.trailingPe ?? result.trailingPe,
+        forwardPe: intelligence.forwardPe ?? result.forwardPe,
+        pegRatio: intelligence.pegRatio ?? result.pegRatio,
       };
     } catch {
       return result;
@@ -895,6 +922,11 @@ export async function latestPriceForInput(input: {
     priceSymbol: identifier || null,
     latestPrice: null,
     changePercent: null,
+    sector: null,
+    industry: null,
+    trailingPe: null,
+    forwardPe: null,
+    pegRatio: null,
     priceAsOn: null,
     latestValue: null,
     latestValueInr: null,
@@ -907,6 +939,7 @@ export async function latestPriceForInput(input: {
     costPrice: null,
     purchaseDate: null,
     targetPrice: null,
+    secondaryTargetPrice: null,
     targetSource: null,
     targetAsOn: null,
     week52Low: null,
@@ -977,6 +1010,11 @@ export async function refreshPrices(userId: string) {
           targetPrice: latest.targetPrice ?? sec.targetPrice,
           targetSource: latest.targetSource ?? sec.targetSource,
           targetAsOn: latest.targetAsOn ?? sec.targetAsOn,
+          sector: latest.sector ?? sec.sector,
+          industry: latest.industry ?? sec.industry,
+          trailingPe: latest.trailingPe ?? sec.trailingPe,
+          forwardPe: latest.forwardPe ?? sec.forwardPe,
+          pegRatio: latest.pegRatio ?? sec.pegRatio,
           refreshStatus: "needs_quantity",
           refreshNote: "Price found but quantity missing.",
           priceSymbol: latest.symbol,
@@ -1001,6 +1039,11 @@ export async function refreshPrices(userId: string) {
         targetPrice: effectiveTarget,
         targetSource: manualTarget ? "manual" : latest.targetSource ?? sec.targetSource,
         targetAsOn: manualTarget ? sec.targetAsOn : latest.targetAsOn ?? sec.targetAsOn,
+        sector: latest.sector ?? sec.sector,
+        industry: latest.industry ?? sec.industry,
+        trailingPe: latest.trailingPe ?? sec.trailingPe,
+        forwardPe: latest.forwardPe ?? sec.forwardPe,
+        pegRatio: latest.pegRatio ?? sec.pegRatio,
         latestValue,
         latestValueInr,
         refreshStatus: targetMissing ? "needs_target" : "updated",
@@ -1028,6 +1071,7 @@ export async function refreshPrices(userId: string) {
       await mark(sec, "failed");
     }
   });
-  summary.actionChanges = await syncActionHistory(userId);
-  return summary;
+  const sync = await syncActionHistory(userId);
+  summary.actionChanges = sync.recorded;
+  return { summary, history: sync.history };
 }

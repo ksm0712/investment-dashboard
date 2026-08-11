@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { getActionHistory, getSecurities } from "@/lib/db";
+import { getSecurities } from "@/lib/db";
 import { getFx } from "@/lib/fx";
 import { refreshPrices } from "@/lib/refresh";
 
@@ -11,10 +11,10 @@ export async function POST() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const summary = await refreshPrices(user.sub);
-    const [securities, fx, actionHistory] = await Promise.all([getSecurities(user.sub), getFx(), getActionHistory(user.sub)]);
+    const { summary, history } = await refreshPrices(user.sub);
+    const [securities, fx] = await Promise.all([getSecurities(user.sub), getFx()]);
     return NextResponse.json(
-      { summary, securities, fx, actionHistory },
+      { summary, securities, fx, actionHistory: history },
       { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } },
     );
   } catch (error) {

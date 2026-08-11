@@ -34,6 +34,7 @@ export type AssetCalculation = {
   pctAbove52WeekLow: number | null;
   pctBelow52WeekHigh: number | null;
   priceToTarget: number | null;
+  pctAboveAveragePurchase: number | null;
   pctAboveLowestPurchase: number | null;
   allocationRemaining: number | null;
   aggressiveSellTrigger: number | null;
@@ -81,8 +82,11 @@ export function calculateAsset(input: AssetCalculationInput): AssetCalculation {
   const priceToTarget = positive(input.currentPrice) && positive(input.targetPrice)
     ? (input.targetPrice - input.currentPrice) / input.targetPrice
     : null;
+  const pctAboveAveragePurchase = positive(input.currentPrice) && positive(averagePurchasePrice)
+    ? (input.currentPrice - averagePurchasePrice) / input.currentPrice
+    : null;
   const pctAboveLowestPurchase = positive(input.currentPrice) && positive(lowestPurchasePrice)
-    ? (input.currentPrice - lowestPurchasePrice) / lowestPurchasePrice
+    ? (input.currentPrice - lowestPurchasePrice) / input.currentPrice
     : null;
   const allocationRemaining = input.allocation === null || !Number.isFinite(input.allocation)
     ? null
@@ -153,6 +157,7 @@ export function calculateAsset(input: AssetCalculationInput): AssetCalculation {
     pctAbove52WeekLow,
     pctBelow52WeekHigh,
     priceToTarget,
+    pctAboveAveragePurchase,
     pctAboveLowestPurchase,
     allocationRemaining,
     aggressiveSellTrigger,

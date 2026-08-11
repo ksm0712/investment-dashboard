@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { deleteSecurity, syncActionHistory, updateRefreshFields, updateSecurity } from "@/lib/db";
+import { deleteSecurity, updateRefreshFields, updateSecurity } from "@/lib/db";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -27,11 +27,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         targetPrice: body.targetPrice,
         targetSource: body.targetSource,
         targetAsOn: body.targetAsOn,
+        sector: body.sector,
+        industry: body.industry,
+        trailingPe: body.trailingPe,
+        forwardPe: body.forwardPe,
+        pegRatio: body.pegRatio,
       });
     } else {
       await updateSecurity(user.sub, Number(id), body);
     }
-    await syncActionHistory(user.sub);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Could not update investment", error);

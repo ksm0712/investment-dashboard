@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { addInvestment, syncActionHistory } from "@/lib/db";
+import { addInvestment } from "@/lib/db";
 import { latestPriceForInput } from "@/lib/refresh";
 
 export async function POST(request: NextRequest) {
@@ -26,12 +26,16 @@ export async function POST(request: NextRequest) {
         body.targetPrice = quote.targetPrice ?? body.targetPrice ?? null;
         body.targetSource = quote.targetSource ?? body.targetSource ?? null;
         body.targetAsOn = quote.targetAsOn ?? body.targetAsOn ?? null;
+        body.sector = quote.sector ?? body.sector ?? null;
+        body.industry = quote.industry ?? body.industry ?? null;
+        body.trailingPe = quote.trailingPe ?? body.trailingPe ?? null;
+        body.forwardPe = quote.forwardPe ?? body.forwardPe ?? null;
+        body.pegRatio = quote.pegRatio ?? body.pegRatio ?? null;
       } catch {
         // Preserve valid user-entered values if a provider is temporarily unavailable.
       }
     }
     await addInvestment(user.sub, body);
-    await syncActionHistory(user.sub);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Could not save investment", error);

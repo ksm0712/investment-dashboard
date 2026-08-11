@@ -166,6 +166,12 @@ export async function initDb() {
     week_52_low: "REAL",
     week_52_high: "REAL",
     change_percent: "REAL",
+    sector: "TEXT",
+    industry: "TEXT",
+    trailing_pe: "REAL",
+    forward_pe: "REAL",
+    peg_ratio: "REAL",
+    secondary_target_price: "REAL",
     market_data_source: "TEXT",
     market_data_as_on: "TEXT",
     allocation: "REAL",
@@ -224,6 +230,11 @@ function mapSecurity(row: Row): Security {
     priceSymbol: (row.price_symbol as string | null) || null,
     latestPrice: row.latest_price === null ? null : Number(row.latest_price ?? NaN),
     changePercent: real(row.change_percent, null),
+    sector: (row.sector as string | null) || null,
+    industry: (row.industry as string | null) || null,
+    trailingPe: real(row.trailing_pe, null),
+    forwardPe: real(row.forward_pe, null),
+    pegRatio: real(row.peg_ratio, null),
     priceAsOn: (row.price_as_on as string | null) || null,
     latestValue: row.latest_value === null ? null : Number(row.latest_value ?? row.value ?? 0),
     latestValueInr: row.latest_value_inr === null ? null : Number(row.latest_value_inr ?? row.value_inr ?? 0),
@@ -236,6 +247,7 @@ function mapSecurity(row: Row): Security {
     costPrice: row.cost_price === null ? null : Number(row.cost_price ?? NaN),
     purchaseDate: (row.purchase_date as string | null) || null,
     targetPrice: real(row.target_price, null),
+    secondaryTargetPrice: real(row.secondary_target_price, null),
     targetSource: (row.target_source as string | null) || null,
     targetAsOn: (row.target_as_on as string | null) || null,
     week52Low: real(row.week_52_low, null),
@@ -297,20 +309,22 @@ export async function getSecurities(userId: string) {
   if (!hasTurso()) return [...demo.securities]
     .filter((s) => demo.portfolios.find((p) => p.id === s.portfolioId)?.userId === userId)
     .map((security) => withCalculation(security, security.lots || [], fx));
-  const { rows } = await execute(
-    `SELECT s.*, p.name as source, p.date as portfolio_date
-     FROM securities s JOIN portfolios p ON s.portfolio_id=p.id
-     WHERE p.user_id=?
-     ORDER BY p.date DESC, s.id DESC`,
-    [userId],
-  );
-  const { rows: lotRows } = await execute(
-    `SELECT l.* FROM investment_lots l
-     JOIN securities s ON s.id=l.security_id
-     JOIN portfolios p ON p.id=s.portfolio_id
-     WHERE p.user_id=? ORDER BY l.purchase_date ASC, l.id ASC`,
-    [userId],
-  );
+  const [{ rows }, { rows: lotRows }] = await Promise.all([
+    execute(
+      `SELECT s.*, p.name as source, p.date as portfolio_date
+       FROM securities s JOIN portfolios p ON s.portfolio_id=p.id
+       WHERE p.user_id=?
+       ORDER BY p.date DESC, s.id DESC`,
+      [userId],
+    ),
+    execute(
+      `SELECT l.* FROM investment_lots l
+       JOIN securities s ON s.id=l.security_id
+       JOIN portfolios p ON p.id=s.portfolio_id
+       WHERE p.user_id=? ORDER BY l.purchase_date ASC, l.id ASC`,
+      [userId],
+    ),
+  ]);
   const lotsBySecurity = new Map<number, Lot[]>();
   for (const row of lotRows) {
     const lot = mapLot(row);
@@ -436,7 +450,10 @@ export async function syncActionHistory(userId: string, securities?: Security[])
     }
     recorded += 1;
   }
-  return recorded;
+  // Nothing changed: the history list we already fetched above is still accurate,
+  // so callers can reuse it instead of paying for another round trip to re-fetch it.
+  const freshHistory = recorded === 0 ? history : await getActionHistory(userId, Math.max(holdings.length * 20, 100));
+  return { recorded, history: freshHistory };
 }
 
 export async function getRefreshUserIds() {
@@ -509,6 +526,11 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       priceSymbol: input.priceSymbol || null,
       latestPrice: currentPrice,
       changePercent: null,
+      sector: input.sector ?? null,
+      industry: input.industry ?? null,
+      trailingPe: input.trailingPe ?? null,
+      forwardPe: input.forwardPe ?? null,
+      pegRatio: input.pegRatio ?? null,
       priceAsOn,
       latestValue: value,
       latestValueInr: valueInr,
@@ -521,6 +543,7 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       costPrice,
       purchaseDate: input.purchaseDate,
       targetPrice: input.targetPrice ?? null,
+      secondaryTargetPrice: input.secondaryTargetPrice ?? null,
       targetSource: input.targetSource ?? null,
       targetAsOn: input.targetAsOn ?? null,
       week52Low: input.week52Low ?? null,
@@ -545,8 +568,9 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
     `INSERT INTO securities (portfolio_id,name,asset_type,currency,value,value_inr,quantity,ticker,isin,price_source,
       price_symbol,latest_price,annual_income,return_pct,price_as_on,latest_value,latest_value_inr,refresh_status,
       refresh_note,refreshed_at,country,pricing_mode,exchange,cost_price,purchase_date,allocation,lots_migrated,
-      target_price,target_source,target_as_on,week_52_low,week_52_high,market_data_source,market_data_as_on)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+      target_price,target_source,target_as_on,week_52_low,week_52_high,market_data_source,market_data_as_on,
+      sector,industry,trailing_pe,forward_pe,peg_ratio,secondary_target_price)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
     [
       portfolioId, input.name, input.assetType, input.currency, value, valueInr, quantity, input.priceSymbol || null,
       null, source, input.priceSymbol || null, currentPrice, null, null, priceAsOn,
@@ -556,6 +580,8 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       input.allocation ?? null, 1,
       input.targetPrice ?? null, input.targetSource ?? null, input.targetAsOn ?? null,
       input.week52Low ?? null, input.week52High ?? null, source, priceAsOn,
+      input.sector ?? null, input.industry ?? null, input.trailingPe ?? null, input.forwardPe ?? null,
+      input.pegRatio ?? null, input.secondaryTargetPrice ?? null,
     ],
   );
   const securityId = Number(inserted.rows[0]?.id);
@@ -570,7 +596,7 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
 type SecurityUpdateFields = Partial<Pick<Security,
   "quantity" | "costPrice" | "latestPrice" | "value" | "purchaseDate" |
   "priceAsOn" | "priceSource" | "priceSymbol" | "refreshStatus" | "refreshNote" |
-  "targetPrice" | "targetSource" | "targetAsOn" | "allocation" | "week52Low" | "week52High"
+  "targetPrice" | "secondaryTargetPrice" | "targetSource" | "targetAsOn" | "allocation" | "week52Low" | "week52High"
 >>;
 
 export async function updateSecurity(userId: string, id: number, fields: SecurityUpdateFields) {
@@ -600,6 +626,7 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
       refreshNote: fields.refreshNote ?? security.refreshNote,
       purchaseDate: fields.purchaseDate ?? security.purchaseDate,
       targetPrice: fields.targetPrice ?? security.targetPrice,
+      secondaryTargetPrice: fields.secondaryTargetPrice ?? security.secondaryTargetPrice,
       targetSource: fields.targetSource ?? security.targetSource,
       targetAsOn: fields.targetAsOn ?? security.targetAsOn,
       allocation: fields.allocation ?? security.allocation,
@@ -614,14 +641,15 @@ export async function updateSecurity(userId: string, id: number, fields: Securit
   await execute(
     `UPDATE securities SET quantity=?, cost_price=?, latest_price=?, price_as_on=?, latest_value=?, latest_value_inr=?,
       purchase_date=?, refreshed_at=?, price_source=?, price_symbol=?, refresh_status=?, refresh_note=?,
-      target_price=?, target_source=?, target_as_on=?, allocation=?, week_52_low=?, week_52_high=?
+      target_price=?, secondary_target_price=?, target_source=?, target_as_on=?, allocation=?, week_52_low=?, week_52_high=?
      WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
     [
       quantity, costPrice, latestPrice, fields.priceAsOn ?? security.priceAsOn,
       nextValue, nextValueInr, fields.purchaseDate ?? security.purchaseDate, refreshedAt,
       fields.priceSource ?? security.priceSource, fields.priceSymbol ?? security.priceSymbol,
       fields.refreshStatus ?? security.refreshStatus, fields.refreshNote ?? security.refreshNote,
-      fields.targetPrice ?? security.targetPrice, fields.targetSource ?? security.targetSource,
+      fields.targetPrice ?? security.targetPrice, fields.secondaryTargetPrice ?? security.secondaryTargetPrice,
+      fields.targetSource ?? security.targetSource,
       fields.targetAsOn ?? security.targetAsOn, fields.allocation ?? security.allocation,
       fields.week52Low ?? security.week52Low, fields.week52High ?? security.week52High,
       id, userId,
@@ -728,18 +756,20 @@ export async function deleteSecurity(userId: string, id: number) {
     }
     return;
   }
-  await execute(
-    `DELETE FROM action_history WHERE security_id=? AND security_id IN (
-       SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
-     )`,
-    [id, userId],
-  );
-  await execute(
-    `DELETE FROM investment_lots WHERE security_id=? AND security_id IN (
-       SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
-     )`,
-    [id, userId],
-  );
+  await Promise.all([
+    execute(
+      `DELETE FROM action_history WHERE security_id=? AND security_id IN (
+         SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
+       )`,
+      [id, userId],
+    ),
+    execute(
+      `DELETE FROM investment_lots WHERE security_id=? AND security_id IN (
+         SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
+       )`,
+      [id, userId],
+    ),
+  ]);
   await execute("DELETE FROM securities WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)", [id, userId]);
 }
 
@@ -777,6 +807,11 @@ export async function updateRefreshFieldsForSecurity(userId: string, security: S
       targetPrice: updates.targetPrice ?? security.targetPrice,
       targetSource: updates.targetSource ?? security.targetSource,
       targetAsOn: updates.targetAsOn ?? security.targetAsOn,
+      sector: updates.sector ?? security.sector,
+      industry: updates.industry ?? security.industry,
+      trailingPe: updates.trailingPe ?? security.trailingPe,
+      forwardPe: updates.forwardPe ?? security.forwardPe,
+      pegRatio: updates.pegRatio ?? security.pegRatio,
       refreshedAt: new Date().toISOString(),
     };
     Object.assign(storedSecurity, next);
@@ -801,18 +836,24 @@ export async function updateRefreshFieldsForSecurity(userId: string, security: S
     target_price: updates.targetPrice ?? security.targetPrice,
     target_source: updates.targetSource ?? security.targetSource,
     target_as_on: updates.targetAsOn ?? security.targetAsOn,
+    sector: updates.sector ?? security.sector,
+    industry: updates.industry ?? security.industry,
+    trailing_pe: updates.trailingPe ?? security.trailingPe,
+    forward_pe: updates.forwardPe ?? security.forwardPe,
+    peg_ratio: updates.pegRatio ?? security.pegRatio,
   };
   await execute(
     `UPDATE securities SET latest_price=?, change_percent=?, price_as_on=?, latest_value=?, latest_value_inr=?,
       refresh_status=?, refresh_note=?, refreshed_at=?, price_source=?, price_symbol=?,
       week_52_low=?,week_52_high=?,market_data_source=?,market_data_as_on=?,
-      target_price=?,target_source=?,target_as_on=?
+      target_price=?,target_source=?,target_as_on=?,sector=?,industry=?,trailing_pe=?,forward_pe=?,peg_ratio=?
      WHERE id=? AND portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)`,
     [
       values.latest_price, values.change_percent, values.price_as_on, values.latest_value, values.latest_value_inr,
       values.refresh_status, values.refresh_note, values.refreshed_at, values.price_source,
       values.price_symbol, values.week_52_low, values.week_52_high, values.market_data_source,
       values.market_data_as_on, values.target_price, values.target_source, values.target_as_on,
+      values.sector, values.industry, values.trailing_pe, values.forward_pe, values.peg_ratio,
       security.id, userId,
     ],
   );

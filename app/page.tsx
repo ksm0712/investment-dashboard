@@ -484,10 +484,13 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
   );
 }
 
-function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
+function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, focusId, emptyMessage }: {
   securities: Security[];
   totalInr: number;
+  fx: Record<string, number>;
+  displayCurrency: string;
   reload: () => void;
+  onDelete: (id: number) => void;
   focusId: number | null;
   emptyMessage: string;
 }) {
@@ -497,7 +500,7 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
   const [lotDraft, setLotDraft] = useState<Record<string, string>>({ purchaseDate: new Date().toISOString().slice(0, 10) });
   const [editingLot, setEditingLot] = useState<number | null>(null);
   const [allocationDraft, setAllocationDraft] = useState<Record<number, string>>({});
-  const [marketDraft, setMarketDraft] = useState<Record<number, { target?: string; low?: string; high?: string }>>({});
+  const [marketDraft, setMarketDraft] = useState<Record<number, { target?: string; secondaryTarget?: string; low?: string; high?: string }>>({});
   const [message, setMessage] = useState<Record<number, string>>({});
   useLockBodyScroll(editorAsset !== null);
   const rows = [...securities].sort((a, b) => {
@@ -527,10 +530,9 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
     setLotDraft({ purchaseDate: new Date().toISOString().slice(0, 10) });
   }
 
-  async function removeAsset(id: number) {
-    await fetch(`/api/investments/${id}`, { method: "DELETE" });
+  function removeAsset(id: number) {
     setDeleting(null);
-    await reload();
+    onDelete(id);
   }
 
   async function saveAllocation(item: Security) {
@@ -550,6 +552,7 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
   async function saveMarketInputs(item: Security) {
     const draft = marketDraft[item.id] || {};
     const target = Number(draft.target ?? String(item.targetPrice ?? ""));
+    const secondaryTarget = Number(draft.secondaryTarget ?? String(item.secondaryTargetPrice ?? ""));
     const low = Number(draft.low ?? String(item.week52Low ?? ""));
     const high = Number(draft.high ?? String(item.week52High ?? ""));
     const body: Record<string, unknown> = {};
@@ -558,6 +561,7 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
       body.targetSource = "manual";
       body.targetAsOn = new Date().toISOString().slice(0, 10);
     }
+    if (Number.isFinite(secondaryTarget) && secondaryTarget > 0) body.secondaryTargetPrice = secondaryTarget;
     if (Number.isFinite(low) && low > 0) body.week52Low = low;
     if (Number.isFinite(high) && high > 0) body.week52High = high;
     if (!Object.keys(body).length) {
@@ -626,7 +630,8 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
         <span className="holding-num-cell">Change</span>
         <span className="holding-num-cell">Above 52W Low</span>
         <span className="holding-num-cell">Below 52W High</span>
-        <span className="holding-num-cell">Purchase Price</span>
+        <span className="holding-num-cell">Average Price</span>
+        <span className="holding-num-cell">Lowest Price</span>
         <span className="holding-num-cell">Gain / Loss</span>
         <span className="holding-action-cell">Action</span>
       </div>
@@ -638,17 +643,57 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
         const allocation = allocationDraft[item.id] ?? String(item.allocation ?? "");
         const actionClass = item.action.toLowerCase().replaceAll(" ", "-");
         const freshness = marketFreshness(item);
-        const allocationPhrase = item.allocation === null
-          ? "Not set"
-          : (item.allocationRemaining ?? 0) >= 0
-            ? `${fmt(item.allocationRemaining, item.currency)} of ${fmt(item.allocation, item.currency)} still available`
-            : `${fmt(Math.abs(item.allocationRemaining ?? 0), item.currency)} over your ${fmt(item.allocation, item.currency)} limit`;
-        const detailFacts: Array<[string, string, string?]> = [
-          ["Shares held", fmtPlain(item.sharesHeld, 4)],
-          ["Market value", fmt(item.marketValue, item.currency)],
-          ["Invested cost", fmt(item.investedCost, item.currency)],
-          ["52-week range", item.week52Low === null || item.week52High === null ? "—" : `${fmtUnit(item.week52Low, item.currency)} – ${fmtUnit(item.week52High, item.currency)}`],
-          ["Allocation", allocationPhrase, (item.allocationRemaining ?? 0) < 0 ? "bad" : ""],
+        const convertedMarketValue = fromInr(valueInr, displayCurrency, fx);
+        const investedCostInr = item.investedCost * (fx[item.currency] || 1);
+        const detailGroups: Array<{ title: string; subtitle: string; facts: Array<[string, string, string?]> }> = [
+          {
+            title: "Market & valuation",
+            subtitle: "Live market data and the workbook valuation fields.",
+            facts: [
+              ["Market price", fmtUnit(item.latestPrice, item.currency)],
+              ["Daily change", item.changePercent === null ? "—" : fmtPct(item.changePercent, true), item.changePercent === null ? "" : item.changePercent >= 0 ? "good" : "bad"],
+              ["Analyst target", fmtUnit(item.targetPrice, item.currency)],
+              ["Secondary target", fmtUnit(item.secondaryTargetPrice, item.currency)],
+              ["Price to target", ratio(item.priceToTarget, true)],
+              ["52-week low", fmtUnit(item.week52Low, item.currency)],
+              ["Above 52-week low", ratio(item.pctAbove52WeekLow, true)],
+              ["52-week high", fmtUnit(item.week52High, item.currency)],
+              ["Below 52-week high", ratio(item.pctBelow52WeekHigh)],
+              ["P/E (TTM)", fmtPlain(item.trailingPe, 2)],
+              ["Forward P/E", fmtPlain(item.forwardPe, 2)],
+              ["PEG ratio", fmtPlain(item.pegRatio, 2)],
+            ],
+          },
+          {
+            title: "Your position",
+            subtitle: "Every purchase lot combined into one asset position.",
+            facts: [
+              ["Shares held", fmtPlain(item.sharesHeld, 4)],
+              ["Average purchase", fmtUnit(item.averagePurchasePrice, item.currency)],
+              ["Price to average", ratio(item.pctAboveAveragePurchase, true)],
+              ["Lowest purchase", fmtUnit(item.lowestPurchasePrice, item.currency)],
+              ["Above lowest purchase", ratio(item.pctAboveLowestPurchase, true)],
+              ["Market value", fmt(item.marketValue, item.currency)],
+              ["Invested cost", fmt(item.investedCost, item.currency)],
+              ["Gain / loss", fmt(item.gainLoss, item.currency), (item.gainLoss ?? 0) >= 0 ? "good" : "bad"],
+              ["Gain %", ratio(item.gainPct, true), (item.gainPct ?? 0) >= 0 ? "good" : "bad"],
+              [`Value in ${displayCurrency}`, fmt(convertedMarketValue, displayCurrency)],
+              [`Cost in ${displayCurrency}`, fmt(fromInr(investedCostInr, displayCurrency, fx), displayCurrency)],
+            ],
+          },
+          {
+            title: "Decision checks",
+            subtitle: "The same trigger calculations and action hierarchy as the workbook.",
+            facts: [
+              ["Allocation", item.allocation === null ? "—" : fmt(item.allocation, item.currency)],
+              ["To go", item.allocationRemaining === null ? "—" : fmt(item.allocationRemaining, item.currency), (item.allocationRemaining ?? 0) < 0 ? "bad" : ""],
+              ["Aggressive sell trigger", fmtUnit(item.aggressiveSellTrigger, item.currency)],
+              ["Above aggressive trigger", ratio(item.pctAboveAggressiveTrigger, true)],
+              ["Conservative sell trigger", fmtUnit(item.conservativeSellTrigger, item.currency)],
+              ["Above conservative trigger", ratio(item.pctAboveConservativeTrigger, true)],
+              ["Current action", item.action],
+            ],
+          },
         ];
         return (
           <article className={`asset-row-shell action-${actionClass}`} key={item.id} id={`holding-${item.id}`}>
@@ -665,7 +710,8 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
               <span className={`holding-num-cell ${item.changePercent === null ? "" : item.changePercent >= 0 ? "good" : "bad"}`} data-label="Change">{item.changePercent === null ? "—" : fmtPct(item.changePercent, true)}</span>
               <span className="holding-num-cell" data-label="Above 52W Low">{ratio(item.pctAbove52WeekLow, true)}</span>
               <span className="holding-num-cell" data-label="Below 52W High">{ratio(item.pctBelow52WeekHigh)}</span>
-              <span className="holding-num-cell" data-label="Purchase Price">{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
+              <span className="holding-num-cell" data-label="Average Price">{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
+              <span className="holding-num-cell" data-label="Lowest Price">{fmtUnit(item.lowestPurchasePrice, item.currency)}</span>
               <span className={`holding-num-cell ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`} data-label="Gain / Loss">
                 {fmt(item.gainLoss, item.currency)}<small>{ratio(item.gainPct, true)}</small>
               </span>
@@ -676,7 +722,7 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
 
             {isDetailsOpen && <div className="asset-expanded">
               <div className="expanded-summary-head">
-                <div><strong>{item.action}</strong><p>{item.actionReasons.join(" ")}</p></div>
+                <div><strong>{item.name}</strong><p>{[item.sector, item.industry, item.country].filter(Boolean).join(" · ") || item.assetType}</p><p>{item.actionReasons.join(" ")}</p></div>
                 <div className="asset-card-actions">
                   <div className="card-updated" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}>
                     {freshness.stale && <span className="freshness-warning">Price may be outdated</span>}
@@ -687,7 +733,16 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
                 </div>
               </div>
               <div className="asset-insight-layout" aria-label={`${item.name} portfolio details`}>
-                <div className="fact-list">{detailFacts.map(([label, value, tone]) => <div className="fact-row" key={label}><span>{label}</span><strong className={tone}>{value}</strong></div>)}</div>
+                {detailGroups.map((group) => <section className="detail-group" key={group.title}>
+                  <div className="detail-group-head"><h3>{group.title}</h3><p>{group.subtitle}</p></div>
+                  <div className="fact-list">{group.facts.map(([label, value, tone]) => <div className="fact-row" key={label}><span>{label}</span><strong className={tone}>{value}</strong></div>)}</div>
+                </section>)}
+                <div className="data-provenance">
+                  <span><b>Currency</b> {item.currency}</span>
+                  <span><b>Market source</b> {item.marketDataSource || item.priceSource || "—"}</span>
+                  <span><b>Target source</b> {item.targetSource || "—"}</span>
+                  <span><b>Data date</b> {fmtDate(item.marketDataAsOn || item.priceAsOn)}</span>
+                </div>
               </div>
               {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
             </div>
@@ -706,6 +761,7 @@ function Holdings({ securities, totalInr, reload, focusId, emptyMessage }: {
                   <div className="detail-section-head"><div><h3>Target &amp; 52-week range</h3><p>Set these manually when a live provider can&apos;t supply them (common for ETFs), so Buy/Sell signals can activate.</p></div></div>
                   <div className="compact-form">
                     <label>Analyst target ({item.currency})<input value={marketDraft[item.id]?.target ?? String(item.targetPrice ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], target: e.target.value } }))} placeholder="Not set" /></label>
+                    <label>Secondary target ({item.currency})<input value={marketDraft[item.id]?.secondaryTarget ?? String(item.secondaryTargetPrice ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], secondaryTarget: e.target.value } }))} placeholder="Optional" /></label>
                     <label>52-week low ({item.currency})<input value={marketDraft[item.id]?.low ?? String(item.week52Low ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], low: e.target.value } }))} placeholder="Not set" /></label>
                     <label>52-week high ({item.currency})<input value={marketDraft[item.id]?.high ?? String(item.week52High ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], high: e.target.value } }))} placeholder="Not set" /></label>
                     <button className="table-btn save-inline" onClick={() => saveMarketInputs(item)}>Save target &amp; range</button>
@@ -777,6 +833,18 @@ export default function Page() {
     }
     load();
   }, []);
+
+  async function removeAsset(id: number) {
+    const previous = data;
+    setData((prev) => (prev ? { ...prev, securities: prev.securities.filter((s) => s.id !== id) } : prev));
+    try {
+      const res = await fetch(`/api/investments/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed");
+      writePortfolioCache(previous ? { ...previous, securities: previous.securities.filter((s) => s.id !== id) } : previous);
+    } catch {
+      setData(previous);
+    }
+  }
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -942,7 +1010,10 @@ export default function Page() {
           <Holdings
             securities={visible}
             totalInr={stats.totalInr}
+            fx={fx}
+            displayCurrency={currentCurrency}
             reload={load}
+            onDelete={removeAsset}
             focusId={focusId}
             emptyMessage={actionFilter === "All" ? "No holdings match your search." : `Nothing is currently flagged ${actionFilter}.`}
           />

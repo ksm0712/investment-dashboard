@@ -19,7 +19,8 @@ test("consolidates lots into the weighted asset position", () => {
   assert.equal(result.investedCost, 3_600);
   assert.equal(result.averagePurchasePrice, 120);
   assert.equal(result.lowestPurchasePrice, 100);
-  assert.equal(result.pctAboveLowestPurchase, 0.5);
+  assert.equal(result.pctAboveAveragePurchase, 0.2);
+  assert.equal(result.pctAboveLowestPurchase, 1 / 3);
   assert.equal(result.marketValue, 4_500);
   assert.equal(result.gainLoss, 900);
   assert.equal(result.gainPct, 0.25);
