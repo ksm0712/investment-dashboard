@@ -525,7 +525,7 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       priceSource: source,
       priceSymbol: input.priceSymbol || null,
       latestPrice: currentPrice,
-      changePercent: null,
+      changePercent: input.changePercent ?? null,
       sector: input.sector ?? null,
       industry: input.industry ?? null,
       trailingPe: input.trailingPe ?? null,
@@ -569,8 +569,8 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       price_symbol,latest_price,annual_income,return_pct,price_as_on,latest_value,latest_value_inr,refresh_status,
       refresh_note,refreshed_at,country,pricing_mode,exchange,cost_price,purchase_date,allocation,lots_migrated,
       target_price,target_source,target_as_on,week_52_low,week_52_high,market_data_source,market_data_as_on,
-      sector,industry,trailing_pe,forward_pe,peg_ratio,secondary_target_price)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+      sector,industry,trailing_pe,forward_pe,peg_ratio,secondary_target_price,change_percent)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
     [
       portfolioId, input.name, input.assetType, input.currency, value, valueInr, quantity, input.priceSymbol || null,
       null, source, input.priceSymbol || null, currentPrice, null, null, priceAsOn,
@@ -581,7 +581,7 @@ export async function addInvestment(userId: string, input: AddInvestmentInput) {
       input.targetPrice ?? null, input.targetSource ?? null, input.targetAsOn ?? null,
       input.week52Low ?? null, input.week52High ?? null, source, priceAsOn,
       input.sector ?? null, input.industry ?? null, input.trailingPe ?? null, input.forwardPe ?? null,
-      input.pegRatio ?? null, input.secondaryTargetPrice ?? null,
+      input.pegRatio ?? null, input.secondaryTargetPrice ?? null, input.changePercent ?? null,
     ],
   );
   const securityId = Number(inserted.rows[0]?.id);

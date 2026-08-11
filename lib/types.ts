@@ -92,6 +92,7 @@ export type AddInvestmentInput = {
   quantity: number;
   costPrice: number;
   currentPrice: number;
+  changePercent?: number | null;
   priceSymbol?: string;
   priceSource?: string | null;
   priceAsOn?: string | null;

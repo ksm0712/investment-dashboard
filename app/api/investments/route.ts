@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
         body.currentPrice = quote.price;
         body.priceSource = quote.source;
         body.priceAsOn = quote.date;
+        body.changePercent = quote.changePercent ?? body.changePercent ?? null;
         body.week52Low = quote.week52Low ?? body.week52Low ?? null;
         body.week52High = quote.week52High ?? body.week52High ?? null;
         body.targetPrice = quote.targetPrice ?? body.targetPrice ?? null;
