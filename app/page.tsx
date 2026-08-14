@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Plus, RotateCw, Trash2, X } from "lucide-react";
+import { ArrowRight, Bell, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
@@ -73,6 +73,14 @@ function writePortfolioCache(payload: PortfolioPayload | null) {
 
 const assetTypes: AssetType[] = ["Stock", "ETF", "Mutual Fund", "Bond", "Savings", "Other"];
 
+function ProductMark({ small = false }: { small?: boolean }) {
+  return (
+    <span className={`product-mark ${small ? "small" : ""}`} aria-hidden="true">
+      <i /><i /><i />
+    </span>
+  );
+}
+
 function googleIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
@@ -87,17 +95,36 @@ function googleIcon() {
 function Login() {
   return (
     <main className="login-page">
-      <div className="login-card">
-        <div className="login-title">Investments</div>
-        <div className="login-subtitle">Portfolio Tracker</div>
-        <a className="google-login-btn" href="/api/auth/google">
-          {googleIcon()}
-          Continue with Google
-        </a>
-        <div className="login-note">
-          Your data is private to your account.<br />Sign in to access your portfolio.
+      <section className="login-story">
+        <div className="brand-lockup login-brand">
+          <ProductMark />
+          <div><strong>THESIS</strong><span>Portfolio intelligence</span></div>
         </div>
-      </div>
+        <div className="login-story-copy">
+          <div className="eyebrow light">Decision-grade portfolio tracking</div>
+          <h1>Know what changed.<br /><em>Know what to do.</em></h1>
+          <p>Live global market data, purchase-lot accounting, and a transparent decision engine—built into one calm portfolio register.</p>
+        </div>
+        <div className="login-capabilities">
+          <div><Globe2 size={17} /><span><b>Global coverage</b>US and international holdings</span></div>
+          <div><Database size={17} /><span><b>Lot-level accuracy</b>Every purchase stays auditable</span></div>
+          <div><TrendingUp size={17} /><span><b>Action signals</b>Excel logic, continuously updated</span></div>
+        </div>
+        <div className="login-gridlines" aria-hidden="true" />
+      </section>
+      <section className="login-access">
+        <div className="login-card">
+          <div className="access-seal"><ShieldCheck size={18} /></div>
+          <div className="eyebrow">Private workspace</div>
+          <h2>Welcome to Thesis</h2>
+          <p>Your portfolio, calculations, and recommendation history are isolated to your account.</p>
+          <a className="google-login-btn" href="/api/auth/google">
+            {googleIcon()}
+            Continue with Google
+          </a>
+          <div className="login-note">Secure Google authentication · No passwords stored</div>
+        </div>
+      </section>
     </main>
   );
 }
@@ -317,14 +344,13 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   }
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
+    <div className="modal-backdrop" role="presentation">
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="add-investment-title">
         <div className="modal-head">
-          <div className="modal-title">Add Investment</div>
+          <div><div className="eyebrow">Portfolio entry</div><div className="modal-title" id="add-investment-title">Add an investment</div><p>Search a security, confirm your purchase, and Thesis will build the live position.</p></div>
           <button className="x-btn" onClick={onClose} aria-label="Close"><X size={26} /></button>
         </div>
-        <div className="slabel">Add Investment</div>
-        <div className="form-section-title">Asset</div>
+        <div className="form-section-title"><span>01</span>Asset</div>
         <div className="field autocomplete-field">
           <label>Asset name</label>
           <input
@@ -361,7 +387,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
             <input value={marketCurrency[country] || "USD"} readOnly />
           </div>
         </div>
-        <div className="form-section-title">Identifier</div>
+        <div className="form-section-title"><span>02</span>Identifier</div>
         {["Stock", "ETF", "Mutual Fund", "Bond"].includes(assetType) ? (
           <div className="form-grid grid-3">
             <div className="field">
@@ -380,14 +406,14 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
             </div>
           </div>
         ) : <div className="alloc-meta">No ticker or scheme code needed for this asset type.</div>}
-        <div className="form-section-title">Position</div>
+        <div className="form-section-title"><span>03</span>Position</div>
         <div className="form-grid grid-4">
           <div className="field"><label>Quantity bought</label><input value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1.000000" /></div>
           <div className="field"><label>Cost price</label><input value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="100.00" /></div>
           <div className="field"><label>Date bought</label><input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} /></div>
           <div className="field"><label>Current price</label><input value={currentPrice} onChange={(e) => { setCurrentPrice(e.target.value); setPriceSource("manual"); setPriceAsOn(new Date().toISOString().slice(0, 10)); }} placeholder="150.00" /></div>
         </div>
-        <div className="form-section-title">Decision inputs</div>
+        <div className="form-section-title"><span>04</span>Decision inputs</div>
         <div className="form-grid grid-4">
           <div className="field">
             <label>Allocation limit (required)</label>
@@ -400,7 +426,10 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
         <div className="form-hint alloc-hint">The most you're willing to invest in this asset. Buy and Review to Buy never trigger without it.</div>
         {targetPrice && <div className="provider-note">Target source: {targetSource || "manual"}{targetAsOn ? ` · ${fmtDate(targetAsOn)}` : ""}</div>}
         {error && <div className="bad" style={{ marginTop: 14, fontWeight: 700 }}>{error}</div>}
-        <button type="button" className="save-btn" style={{ marginTop: 20, width: 190 }} onClick={save}>Save Investment</button>
+        <div className="modal-footer">
+          <span>Market data refreshes automatically after saving.</span>
+          <button type="button" className="save-btn" onClick={save} disabled={busy}>{busy ? "Saving…" : "Add to portfolio"}<ArrowRight size={16} /></button>
+        </div>
       </div>
     </div>
   );
@@ -627,11 +656,11 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
         <span className="holding-name-cell">Asset</span>
         <span className="holding-num-cell">Target</span>
         <span className="holding-num-cell">Price</span>
-        <span className="holding-num-cell">Change</span>
-        <span className="holding-num-cell">Above 52W Low</span>
-        <span className="holding-num-cell">Below 52W High</span>
-        <span className="holding-num-cell">Average Price</span>
-        <span className="holding-num-cell">Lowest Price</span>
+        <span className="holding-num-cell">Today</span>
+        <span className="holding-num-cell">From 52W low</span>
+        <span className="holding-num-cell">To 52W high</span>
+        <span className="holding-num-cell">Avg. price</span>
+        <span className="holding-num-cell">Lowest buy</span>
         <span className="holding-num-cell">Gain / Loss</span>
         <span className="holding-action-cell">Action</span>
       </div>
@@ -702,7 +731,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
                 <i className={`row-chevron ${isDetailsOpen ? "open" : ""}`}>›</i>
                 <span>
                   <strong>{item.name}</strong>
-                  <small>{item.priceSymbol || item.ticker || item.exchange || item.assetType} · {pct.toFixed(1)}% of portfolio</small>
+                  <small><b>{item.priceSymbol || item.ticker || item.exchange || item.assetType}</b><span>{item.assetType}</span><span>{pct.toFixed(1)}% weight</span></small>
                 </span>
               </span>
               <span className="holding-num-cell" data-label="Target">{fmtUnit(item.targetPrice, item.currency)}</span>
@@ -710,8 +739,8 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
               <span className={`holding-num-cell ${item.changePercent === null ? "" : item.changePercent >= 0 ? "good" : "bad"}`} data-label="Change">{item.changePercent === null ? "—" : fmtPct(item.changePercent, true)}</span>
               <span className="holding-num-cell" data-label="Above 52W Low">{ratio(item.pctAbove52WeekLow, true)}</span>
               <span className="holding-num-cell" data-label="Below 52W High">{ratio(item.pctBelow52WeekHigh)}</span>
-              <span className="holding-num-cell" data-label="Average Price">{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
-              <span className="holding-num-cell" data-label="Lowest Price">{fmtUnit(item.lowestPurchasePrice, item.currency)}</span>
+              <span className="holding-num-cell" data-label="Average price">{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
+              <span className="holding-num-cell" data-label="Lowest buy">{fmtUnit(item.lowestPurchasePrice, item.currency)}</span>
               <span className={`holding-num-cell ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`} data-label="Gain / Loss">
                 {fmt(item.gainLoss, item.currency)}<small>{ratio(item.gainPct, true)}</small>
               </span>
@@ -722,7 +751,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
 
             {isDetailsOpen && <div className="asset-expanded">
               <div className="expanded-summary-head">
-                <div><strong>{item.name}</strong><p>{[item.sector, item.industry, item.country].filter(Boolean).join(" · ") || item.assetType}</p><p>{item.actionReasons.join(" ")}</p></div>
+                <div><div className="eyebrow">Position intelligence</div><strong>{item.name}</strong><p>{[item.sector, item.industry, item.country].filter(Boolean).join(" · ") || item.assetType}</p><p className="decision-rationale">{item.actionReasons.join(" ")}</p></div>
                 <div className="asset-card-actions">
                   <div className="card-updated" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}>
                     {freshness.stale && <span className="freshness-warning">Price may be outdated</span>}
@@ -939,7 +968,7 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Boolean(data), lastRefreshedAt]);
 
-  if (!loginChecked) return <main className="login-page"><div className="login-card"><div className="login-title">Investments</div></div></main>;
+  if (!loginChecked) return <main className="loading-page"><ProductMark /><span>Preparing your portfolio</span></main>;
   if (!data) return <Login />;
 
   const refreshedAtText = lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
@@ -956,10 +985,13 @@ export default function Page() {
   return (
     <main className="page">
       <nav className="topnav">
-        <div className="brand"><div className="brand-name">Investments</div></div>
+        <div className="brand-lockup">
+          <ProductMark small />
+          <div><strong>THESIS</strong><span>Portfolio intelligence</span></div>
+        </div>
         <div className="actions">
           <AlertsBell actionHistory={data.actionHistory} onSelect={focusSecurity} />
-          <button className="primary-btn" onClick={() => setModalOpen(true)}>＋ Add Investment</button>
+          <button className="primary-btn" onClick={() => setModalOpen(true)}><Plus size={15} /> Add investment</button>
           <div className="profile-chip" title={data.user.email || data.user.name || "Signed in user"}>
             {data.user.picture ? (
               <img className="profile-pic" src={data.user.picture} alt={data.user.name || data.user.email || "Signed in user"} referrerPolicy="no-referrer" />
@@ -972,51 +1004,64 @@ export default function Page() {
       </nav>
 
       {securities.length === 0 ? (
-        <div className="empty"><div className="empty-icon">📂</div><div className="empty-title">No investments yet</div><div className="empty-sub">Click <b style={{ color: "#2563eb" }}>＋ Add Investment</b> above to get started</div></div>
+        <section className="empty">
+          <div className="empty-graphic" aria-hidden="true"><span /><span /><span /><i /></div>
+          <div className="eyebrow">Your register is ready</div>
+          <h1>Build your first live position.</h1>
+          <p>Add one holding and Thesis will connect its price, targets, 52-week range, purchase lots, and action signal.</p>
+          <button className="primary-btn" onClick={() => setModalOpen(true)}><Plus size={15} /> Add first investment</button>
+        </section>
       ) : (
         <>
-          <section className="portfolio-toolbar">
-            <div className="control-row">
-              <button className="icon-btn refresh-icon-btn" onClick={refresh} disabled={loading} aria-label="Refresh prices now" title="Refresh prices now">
-                <RotateCw size={15} className={loading ? "spin" : ""} />
-              </button>
-              <span className={`refresh-results ${refreshText ? "done" : ""}`}>{refreshText ? `${refreshText}${refreshDetails ? ` (${refreshDetails})` : ""}` : "Prices update automatically every 5 minutes"}</span>
+          <section className="portfolio-hero">
+            <div className="hero-main">
+              <div className="hero-kicker"><span className="live-dot" /> Consolidated portfolio · {countryVisible.length} position{countryVisible.length === 1 ? "" : "s"}</div>
+              <div className="hero-value-row"><h1>{fmt(fromInr(stats.totalInr, currentCurrency, fx), currentCurrency)}</h1><span>{currentCurrency}</span></div>
+              <div className="hero-caption">Current market value across {tab === "All" ? `${countries.length || 1} market${countries.length === 1 ? "" : "s"}` : tab}</div>
             </div>
-            <div className="tabs">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item}</button>)}</div>
-            <div className="select-wrap"><label>Currency</label><select value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>
+            <div className="hero-metrics">
+              <div><span>Invested capital</span><strong>{stats.costInr ? fmt(fromInr(stats.costInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
+              <div><span>Net gain / loss</span><strong className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
+              <div><span>Total return</span><strong className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{fmtPct(stats.gainPct, true)}</strong></div>
+            </div>
+            <div className="hero-orbit" aria-hidden="true"><i /><i /><i /></div>
           </section>
-          <section className="register-strip">
-            <div className="register-metric"><div className="register-metric-label">{tab === "All" ? "Total Portfolio" : "Market Value"}</div><div className="register-metric-value">{fmt(fromInr(stats.totalInr, currentCurrency, fx), currentCurrency)}</div></div>
-            <div className="register-metric"><div className="register-metric-label">Total Cost</div><div className="register-metric-value">{stats.costInr ? fmt(fromInr(stats.costInr, currentCurrency, fx), currentCurrency) : "—"}</div></div>
-            <div className="register-metric"><div className="register-metric-label">Gain / Loss</div><div className={`register-metric-value ${(stats.gainPct || 0) >= 0 ? "good" : "bad"}`}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</div></div>
-            <div className="register-metric"><div className="register-metric-label">Return</div><div className={`register-metric-value ${(stats.gainPct || 0) >= 0 ? "good" : "bad"}`}>{fmtPct(stats.gainPct)}</div></div>
+          <section className="workspace-toolbar">
+            <div className="tabs" aria-label="Filter by market">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item === "All" ? "All markets" : item}</button>)}</div>
+            <div className="workspace-status">
+              <button className="refresh-button" onClick={refresh} disabled={loading} aria-label="Refresh prices now" title="Refresh prices now"><RotateCw size={14} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh"}</button>
+              <span className={`refresh-results ${refreshText ? "done" : ""}`} title={refreshDetails}>{refreshText || "Auto-updates every 5 min"}</span>
+              <div className="select-wrap"><label htmlFor="portfolio-currency">View in</label><select id="portfolio-currency" value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>
+            </div>
           </section>
-          <section className="action-filter-row" aria-label="Filter holdings by recommended action">
-            {ACTION_FILTERS.map((action) => {
-              const count = action === "All" ? searchMatched.length : (actionCounts[action] || 0);
-              if (action !== "All" && count === 0 && actionFilter !== action) return null;
-              const cls = action === "All" ? "all" : action.toLowerCase().replaceAll(" ", "-");
-              return (
-                <button key={action} className={`action-filter-chip ${cls} ${actionFilter === action ? "on" : ""}`} onClick={() => setActionFilter(action)}>
-                  {action}<strong>{count}</strong>
-                </button>
-              );
-            })}
+          <section className="holdings-panel">
+            <header className="holdings-toolbar">
+              <div><div className="eyebrow">Portfolio register</div><h2>Holdings</h2><p>{visible.length} of {countryVisible.length} positions shown</p></div>
+              <label className="holding-search"><Search size={15} /><input aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} /></label>
+            </header>
+            <div className="action-filter-row" aria-label="Filter holdings by recommended action">
+              {ACTION_FILTERS.map((action) => {
+                const count = action === "All" ? searchMatched.length : (actionCounts[action] || 0);
+                if (action !== "All" && count === 0 && actionFilter !== action) return null;
+                const cls = action === "All" ? "all" : action.toLowerCase().replaceAll(" ", "-");
+                return (
+                  <button key={action} className={`action-filter-chip ${cls} ${actionFilter === action ? "on" : ""}`} onClick={() => setActionFilter(action)}>
+                    {action === "All" ? "All actions" : action}<strong>{count}</strong>
+                  </button>
+                );
+              })}
+            </div>
+            <Holdings
+              securities={visible}
+              totalInr={stats.totalInr}
+              fx={fx}
+              displayCurrency={currentCurrency}
+              reload={load}
+              onDelete={removeAsset}
+              focusId={focusId}
+              emptyMessage={actionFilter === "All" ? "No holdings match your search." : `Nothing is currently flagged ${actionFilter}.`}
+            />
           </section>
-          <section className="holdings-toolbar">
-            <div className="slabel register-title-row"><span>Holdings <span className="result-count">{visible.length} of {countryVisible.length}</span></span></div>
-            <input className="holding-search" aria-label="Search holdings" placeholder="Search holdings" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} />
-          </section>
-          <Holdings
-            securities={visible}
-            totalInr={stats.totalInr}
-            fx={fx}
-            displayCurrency={currentCurrency}
-            reload={load}
-            onDelete={removeAsset}
-            focusId={focusId}
-            emptyMessage={actionFilter === "All" ? "No holdings match your search." : `Nothing is currently flagged ${actionFilter}.`}
-          />
         </>
       )}
       {modalOpen && <AddInvestmentModal fx={fx} onClose={() => setModalOpen(false)} onSaved={load} />}
