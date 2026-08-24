@@ -9,6 +9,7 @@ try {
 
 import { execute, initDb, getSecurities, getActionHistory, syncActionHistory } from "../lib/db.ts";
 import { runWithMetrics, type CallRecord } from "../lib/instrumented-fetch.ts";
+import { getQuote, type CachedQuote } from "../lib/quote-cache.ts";
 import { BENCH_USER, seedBenchUser } from "./seed.ts";
 
 const REPEATS = 8;
@@ -23,11 +24,33 @@ function normalize(sql: string) {
   return sql.replace(/\s+/g, " ").trim();
 }
 
-async function rankSlowestQueries(): Promise<Map<string, { sql: string; params: unknown[]; calls: CallRecord[] }>> {
+function fakeQuote(symbol: string): CachedQuote {
+  return {
+    symbol, price: 100, changePercent: 1, week52High: 150, week52Low: 80, targetPrice: 130,
+    trailingPe: 20, forwardPe: 18, pegRatio: 1.5, currency: "USD", exchange: "NASDAQ",
+    priceDate: "2026-08-20", source: "db-bench-fixture", sector: "Technology", industry: "Software",
+    targetSource: "db-bench-fixture", targetAsOn: "2026-08-20", fetchedAt: new Date().toISOString(),
+  };
+}
+
+/** Warms quote_cache with real rows (no network) so the ranked workload below includes its
+ * reads — Phase 1-3 put quote_cache on the hot path that Phase 0's original three queries
+ * (getSecurities/getActionHistory/syncActionHistory) don't touch at all. Per spec §4.1: "run
+ * the Phase 0 db-bench again now that cache reads are on the hot path." */
+async function warmQuoteCache(symbols: string[]) {
+  for (const symbol of symbols) {
+    await getQuote(symbol, "NASDAQ", async () => fakeQuote(symbol));
+  }
+}
+
+async function rankSlowestQueries(symbols: string[]): Promise<Map<string, { sql: string; params: unknown[]; calls: CallRecord[] }>> {
   const { metrics } = await runWithMetrics(async () => {
     const securities = await getSecurities(BENCH_USER);
     await getActionHistory(BENCH_USER);
     await syncActionHistory(BENCH_USER, securities);
+    for (const symbol of symbols) {
+      await getQuote(symbol, "NASDAQ", async () => fakeQuote(symbol)); // cache hits — the steady-state read
+    }
   });
   const bySql = new Map<string, { sql: string; params: unknown[]; calls: CallRecord[] }>();
   for (const call of metrics.calls) {
@@ -68,9 +91,11 @@ async function explainAndTime(sql: string, params: unknown[]) {
 async function main() {
   const { section } = parseArgs();
   await initDb();
-  await seedBenchUser(20);
+  const fixture = await seedBenchUser(20);
+  const symbols = fixture.map((h) => String(h.priceSymbol || "")).filter(Boolean);
+  await warmQuoteCache(symbols);
 
-  const bySql = await rankSlowestQueries();
+  const bySql = await rankSlowestQueries(symbols);
   const ranked = [...bySql.values()].sort((a, b) => totalMs(b.calls) - totalMs(a.calls)).slice(0, 3);
 
   const sections: string[] = [];
@@ -105,7 +130,7 @@ async function main() {
   const body = sections.join("\n\n");
   console.log(body);
 
-  const entry = `\n## ${section} — DB query analysis\n\n_${new Date().toISOString()} — \`npm run db-bench -- --section="${section}"\`_\n\nTop ${ranked.length} slowest queries by total time during a full \`getSecurities\` + \`getActionHistory\` + \`syncActionHistory\` load, ranked by instrumenting \`lib/db.ts\`'s \`execute()\` (see \`lib/instrumented-fetch.ts\`).\n\n${body}\n`;
+  const entry = `\n## ${section} — DB query analysis\n\n_${new Date().toISOString()} — \`npm run db-bench -- --section="${section}"\`_\n\nTop ${ranked.length} slowest queries by total time during a full \`getSecurities\` + \`getActionHistory\` + \`syncActionHistory\` + warm \`quote_cache\` read load, ranked by instrumenting \`lib/db.ts\`'s \`execute()\` (see \`lib/instrumented-fetch.ts\`).\n\n${body}\n`;
   fs.appendFileSync(path.resolve("BENCHMARKS.md"), entry);
 }
 

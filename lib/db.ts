@@ -148,6 +148,25 @@ export async function initDb() {
   )`);
   await execute(`CREATE INDEX IF NOT EXISTS idx_action_history_security_recorded
     ON action_history(security_id, recorded_at DESC)`);
+  // Added after scripts/db-bench.ts measured `SELECT s.* FROM securities s JOIN portfolios p
+  // ON s.portfolio_id=p.id WHERE p.user_id=?` doing a full table scan on `securities`
+  // (EXPLAIN QUERY PLAN: "SCAN s", 98 rows read for a 20-holding portfolio). Adding this index
+  // alone changed the plan's label but not its cost (still 98 rows read) — the planner had no
+  // reason to flip the join order without an index on the column it actually filters on,
+  // portfolios.user_id, so that's added too. Together, the plan becomes
+  // "SEARCH p USING INDEX idx_portfolios_user_id" -> "SEARCH s USING INDEX
+  // idx_securities_portfolio_id", 98 -> 42 rows read. See BENCHMARKS.md / ENGINEERING_LOG.md
+  // Phase 4 for the full before/after, including the single-index dead end.
+  await execute(`CREATE INDEX IF NOT EXISTS idx_securities_portfolio_id
+    ON securities(portfolio_id)`);
+  await execute(`CREATE INDEX IF NOT EXISTS idx_portfolios_user_id
+    ON portfolios(user_id)`);
+  // Same finding as securities above, on the parallel query in getSecurities():
+  // `SELECT l.* FROM investment_lots l JOIN securities s ... JOIN portfolios p ...
+  // WHERE p.user_id=?` scanned all of investment_lots (137 rows read for a 20-lot portfolio)
+  // before this index existed.
+  await execute(`CREATE INDEX IF NOT EXISTS idx_lots_security_id
+    ON investment_lots(security_id)`);
   // Extends the spec's column list (price, change_pct, high_52w, low_52w, analyst_target, pe,
   // forward_pe, peg, currency, exchange, fetched_at) with price_date/source/sector/industry/
   // target_source/target_as_on: refreshPrices() writes those to `securities` on every refresh,

@@ -258,3 +258,203 @@ _2026-08-24T00:56:19.620Z — `npm run chaos-bench -- --section="Phase 3 after f
 | User-visible error rate (no usable price at all) | 0.00% |
 | Runs with >=1 user-visible error | 0 / 100 |
 | RETRY_MAX_ATTEMPTS | 5 |
+
+## Phase 4 — Database optimization
+
+`scripts/db-bench.ts` was re-run first (spec §4.1) — updated to also warm `quote_cache` and read from it, so the ranking reflects Phase 1-3's actual hot path, not just the original three functions. Indexes were added one at a time, each measured before adding the next (spec §4.2), using SQLite's `rows_read` (from Turso's `query_duration_ms`/`rows_read` per-statement stats) as the primary signal — it's an exact count of index-vs-scan efficiency, not a noisy wall-clock number:
+
+| Query | Before | After `idx_securities_portfolio_id` alone | After adding `idx_portfolios_user_id` too | After adding `idx_lots_security_id` |
+|---|---|---|---|---|
+| `getSecurities` securities↔portfolios join | `SCAN s`, **98** rows read | `SCAN s USING INDEX idx_securities_portfolio_id`, **98** rows read (unchanged) | `SEARCH p` → `SEARCH s`, **42** rows read | 42 (unaffected) |
+| `getSecurities` investment_lots↔securities↔portfolios join | `SCAN l`, **137** rows read | — | — | `SEARCH p` → `SEARCH s` → `SEARCH l`, **81** rows read |
+| `quote_cache` read | `SEARCH ... USING INDEX sqlite_autoindex_quote_cache_1`, 1 row read | (unaffected — `symbol` is already the primary key, already indexed) | | |
+
+**The single-index dead end, worth reading before copying this pattern elsewhere**: adding `idx_securities_portfolio_id` alone changed the query plan's *label* (`SCAN s` → `SCAN s USING INDEX ...`) but not its *cost* — `rows_read` stayed at 98. The query filters on `portfolios.user_id`, not `securities.portfolio_id` directly; without an index on the column actually being filtered, the planner had no reason to make `portfolios` the driving table of the join, so the new index just decorated the same full scan. Adding `idx_portfolios_user_id` alongside it — the column the `WHERE` clause actually touches — is what let the planner flip the join order to `SEARCH p` → `SEARCH s`, dropping rows read to 42. Measuring the first index in isolation is what caught this; assuming "added an index on the foreign key" was sufficient would have shipped a no-op.
+
+**Lot-level cost basis (spec §4.3)**: already a single batched query (`SELECT l.* FROM investment_lots ... WHERE p.user_id=?`, one round trip for all of a user's lots) reduced once per security in JS (`calculateAsset` in `lib/portfolio-engine.ts`) — not N+1, no per-security round trip to move into SQL. Confirmed by reading `lib/db.ts`'s `getSecurities`, not assumed. No change made here — per the spec's own rule ("do not add indexes/changes speculatively... measure before adding"), there's no query to fix, only the index above on the join column, which was added and measured.
+
+### Raw runs
+
+#### Before any index
+
+_2026-08-24T01:00:08.516Z — `npm run db-bench -- --section="Phase 4 before indexing"`_
+
+Top 3 slowest queries by total time during a full `getSecurities` + `getActionHistory` + `syncActionHistory` + warm `quote_cache` read load, ranked by instrumenting `lib/db.ts`'s `execute()` (see `lib/instrumented-fetch.ts`).
+
+### #1 — `INSERT INTO action_history...`
+```sql
+INSERT INTO action_history
+          (security_id,action,previous_action,current_price,target_price,source,reasons,recorded_at)
+         SELECT ?,?,?,?,?,?,?,?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM action_history
+           WHERE security_id=? AND action=?
+             AND id=(SELECT MAX(id) FROM action_history WHERE security_id=?)
+         )
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SCAN CONSTANT ROW | SCALAR SUBQUERY 2 | SEARCH action_history USING INTEGER PRIMARY KEY (rowid=?) | SCALAR SUBQUERY 1 | SEARCH action_history USING COVERING INDEX idx_action_history_security_recorded (security_id=?)
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.018 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 0.52 ms
+- Avg rows read per call: 2
+
+### #2 — `SELECT * FROM quote_cache WHERE symbol=?...`
+```sql
+SELECT * FROM quote_cache WHERE symbol=?
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SEARCH quote_cache USING INDEX sqlite_autoindex_quote_cache_1 (symbol=?)
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.014 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 0.49 ms
+- Avg rows read per call: 1
+
+### #3 — `SELECT s.*, p.name as source, p.date as portfolio_date...`
+```sql
+SELECT s.*, p.name as source, p.date as portfolio_date
+       FROM securities s JOIN portfolios p ON s.portfolio_id=p.id
+       WHERE p.user_id=?
+       ORDER BY p.date DESC, s.id DESC
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SCAN s | SEARCH p USING INTEGER PRIMARY KEY (rowid=?) | USE TEMP B-TREE FOR ORDER BY
+- Full table scan (no index used for that table): **YES — SCAN s**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.097 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 3.44 ms
+- Avg rows read per call: 98
+
+#### After idx_securities_portfolio_id alone (the dead end)
+
+_2026-08-24T01:00:46.864Z — `npm run db-bench -- --section="Phase 4 after idx_securities_portfolio_id"`_
+
+Top 3 slowest queries by total time during a full `getSecurities` + `getActionHistory` + `syncActionHistory` + warm `quote_cache` read load, ranked by instrumenting `lib/db.ts`'s `execute()` (see `lib/instrumented-fetch.ts`).
+
+### #1 — `INSERT INTO action_history...`
+```sql
+INSERT INTO action_history
+          (security_id,action,previous_action,current_price,target_price,source,reasons,recorded_at)
+         SELECT ?,?,?,?,?,?,?,?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM action_history
+           WHERE security_id=? AND action=?
+             AND id=(SELECT MAX(id) FROM action_history WHERE security_id=?)
+         )
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SCAN CONSTANT ROW | SCALAR SUBQUERY 2 | SEARCH action_history USING INTEGER PRIMARY KEY (rowid=?) | SCALAR SUBQUERY 1 | SEARCH action_history USING COVERING INDEX idx_action_history_security_recorded (security_id=?)
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.020 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 0.54 ms
+- Avg rows read per call: 2
+
+### #2 — `SELECT * FROM quote_cache WHERE symbol=?...`
+```sql
+SELECT * FROM quote_cache WHERE symbol=?
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SEARCH quote_cache USING INDEX sqlite_autoindex_quote_cache_1 (symbol=?)
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.014 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 0.54 ms
+- Avg rows read per call: 1
+
+### #3 — `SELECT s.*, p.name as source, p.date as portfolio_date...`
+```sql
+SELECT s.*, p.name as source, p.date as portfolio_date
+       FROM securities s JOIN portfolios p ON s.portfolio_id=p.id
+       WHERE p.user_id=?
+       ORDER BY p.date DESC, s.id DESC
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SCAN s USING INDEX idx_securities_portfolio_id | SEARCH p USING INTEGER PRIMARY KEY (rowid=?) | USE TEMP B-TREE FOR ORDER BY
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.092 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 2.23 ms
+- Avg rows read per call: 98
+
+#### After adding idx_portfolios_user_id too
+
+_2026-08-24T01:01:46.950Z — `npm run db-bench -- --section="Phase 4 after idx_securities_portfolio_id plus idx_portfolios_user_id"`_
+
+Top 3 slowest queries by total time during a full `getSecurities` + `getActionHistory` + `syncActionHistory` + warm `quote_cache` read load, ranked by instrumenting `lib/db.ts`'s `execute()` (see `lib/instrumented-fetch.ts`).
+
+### #1 — `INSERT INTO action_history...`
+```sql
+INSERT INTO action_history
+          (security_id,action,previous_action,current_price,target_price,source,reasons,recorded_at)
+         SELECT ?,?,?,?,?,?,?,?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM action_history
+           WHERE security_id=? AND action=?
+             AND id=(SELECT MAX(id) FROM action_history WHERE security_id=?)
+         )
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SCAN CONSTANT ROW | SCALAR SUBQUERY 2 | SEARCH action_history USING INTEGER PRIMARY KEY (rowid=?) | SCALAR SUBQUERY 1 | SEARCH action_history USING COVERING INDEX idx_action_history_security_recorded (security_id=?)
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.018 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 0.53 ms
+- Avg rows read per call: 2
+
+### #2 — `SELECT * FROM quote_cache WHERE symbol=?...`
+```sql
+SELECT * FROM quote_cache WHERE symbol=?
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SEARCH quote_cache USING INDEX sqlite_autoindex_quote_cache_1 (symbol=?)
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.014 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 0.54 ms
+- Avg rows read per call: 1
+
+### #3 — `SELECT s.*, p.name as source, p.date as portfolio_date...`
+```sql
+SELECT s.*, p.name as source, p.date as portfolio_date
+       FROM securities s JOIN portfolios p ON s.portfolio_id=p.id
+       WHERE p.user_id=?
+       ORDER BY p.date DESC, s.id DESC
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SEARCH p USING INDEX idx_portfolios_user_id (user_id=?) | SEARCH s USING INDEX idx_securities_portfolio_id (portfolio_id=?) | USE TEMP B-TREE FOR ORDER BY
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.099 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 2.29 ms
+- Avg rows read per call: 42
+
+#### After adding idx_lots_security_id too (final state)
+
+_2026-08-24T01:02:10.317Z — `npm run db-bench -- --section="Phase 4 after all three indexes"`_
+
+Top 3 slowest queries by total time during a full `getSecurities` + `getActionHistory` + `syncActionHistory` + warm `quote_cache` read load, ranked by instrumenting `lib/db.ts`'s `execute()` (see `lib/instrumented-fetch.ts`).
+
+### #1 — `INSERT INTO action_history...`
+```sql
+INSERT INTO action_history
+          (security_id,action,previous_action,current_price,target_price,source,reasons,recorded_at)
+         SELECT ?,?,?,?,?,?,?,?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM action_history
+           WHERE security_id=? AND action=?
+             AND id=(SELECT MAX(id) FROM action_history WHERE security_id=?)
+         )
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SCAN CONSTANT ROW | SCALAR SUBQUERY 2 | SEARCH action_history USING INTEGER PRIMARY KEY (rowid=?) | SCALAR SUBQUERY 1 | SEARCH action_history USING COVERING INDEX idx_action_history_security_recorded (security_id=?)
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.020 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 0.54 ms
+- Avg rows read per call: 2
+
+### #2 — `SELECT * FROM quote_cache WHERE symbol=?...`
+```sql
+SELECT * FROM quote_cache WHERE symbol=?
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SEARCH quote_cache USING INDEX sqlite_autoindex_quote_cache_1 (symbol=?)
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.014 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 0.52 ms
+- Avg rows read per call: 1
+
+### #3 — `SELECT s.*, p.name as source, p.date as portfolio_date...`
+```sql
+SELECT s.*, p.name as source, p.date as portfolio_date
+       FROM securities s JOIN portfolios p ON s.portfolio_id=p.id
+       WHERE p.user_id=?
+       ORDER BY p.date DESC, s.id DESC
+```
+- Query plan (`EXPLAIN QUERY PLAN`): SEARCH p USING INDEX idx_portfolios_user_id (user_id=?) | SEARCH s USING INDEX idx_securities_portfolio_id (portfolio_id=?) | USE TEMP B-TREE FOR ORDER BY
+- Full table scan (no index used for that table): **no**
+- Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.110 ms
+- Avg wall-clock time (includes HTTP round trip, from the live load above): 2.28 ms
+- Avg rows read per call: 42
