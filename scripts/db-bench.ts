@@ -93,44 +93,52 @@ async function main() {
   await initDb();
   const fixture = await seedBenchUser(20);
   const symbols = fixture.map((h) => String(h.priceSymbol || "")).filter(Boolean);
-  await warmQuoteCache(symbols);
-
-  const bySql = await rankSlowestQueries(symbols);
-  const ranked = [...bySql.values()].sort((a, b) => totalMs(b.calls) - totalMs(a.calls)).slice(0, 3);
 
   const sections: string[] = [];
-  let rank = 1;
-  for (const bucket of ranked) {
-    const { plan, usesScan, fullTableScans, avgServerMs, repeats } = await explainAndTime(bucket.sql, bucket.params);
-    const avgWallMs = bucket.calls.reduce((sum, c) => sum + c.ms, 0) / bucket.calls.length;
-    const avgRowsRead = bucket.calls.some((c) => c.rowsRead !== undefined)
-      ? bucket.calls.reduce((sum, c) => sum + (c.rowsRead || 0), 0) / bucket.calls.length
-      : null;
+  try {
+    await warmQuoteCache(symbols);
 
-    sections.push(
-      [
-        `### #${rank} — \`${bucket.sql.split("\n")[0].trim()}...\``,
-        "",
-        "```sql",
-        bucket.sql.trim(),
-        "```",
-        "",
-        `- Query plan (\`EXPLAIN QUERY PLAN\`): ${plan || "(no rows returned)"}`,
-        `- Full table scan (no index used for that table): **${usesScan ? `YES — ${fullTableScans.join(", ")}` : "no"}**`,
-        `- Avg server-side execution time (Turso \`query_duration_ms\`, ${repeats} repeats): ${avgServerMs === null ? "NOT MEASURED" : `${avgServerMs.toFixed(3)} ms`}`,
-        `- Avg wall-clock time (includes HTTP round trip, from the live load above): ${avgWallMs.toFixed(2)} ms`,
-        avgRowsRead === null ? "" : `- Avg rows read per call: ${avgRowsRead.toFixed(0)}`,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    );
-    rank += 1;
+    const bySql = await rankSlowestQueries(symbols);
+    const ranked = [...bySql.values()].sort((a, b) => totalMs(b.calls) - totalMs(a.calls)).slice(0, 3);
+
+    let rank = 1;
+    for (const bucket of ranked) {
+      const { plan, usesScan, fullTableScans, avgServerMs, repeats } = await explainAndTime(bucket.sql, bucket.params);
+      const avgWallMs = bucket.calls.reduce((sum, c) => sum + c.ms, 0) / bucket.calls.length;
+      const avgRowsRead = bucket.calls.some((c) => c.rowsRead !== undefined)
+        ? bucket.calls.reduce((sum, c) => sum + (c.rowsRead || 0), 0) / bucket.calls.length
+        : null;
+
+      sections.push(
+        [
+          `### #${rank} — \`${bucket.sql.split("\n")[0].trim()}...\``,
+          "",
+          "```sql",
+          bucket.sql.trim(),
+          "```",
+          "",
+          `- Query plan (\`EXPLAIN QUERY PLAN\`): ${plan || "(no rows returned)"}`,
+          `- Full table scan (no index used for that table): **${usesScan ? `YES — ${fullTableScans.join(", ")}` : "no"}**`,
+          `- Avg server-side execution time (Turso \`query_duration_ms\`, ${repeats} repeats): ${avgServerMs === null ? "NOT MEASURED" : `${avgServerMs.toFixed(3)} ms`}`,
+          `- Avg wall-clock time (includes HTTP round trip, from the live load above): ${avgWallMs.toFixed(2)} ms`,
+          avgRowsRead === null ? "" : `- Avg rows read per call: ${avgRowsRead.toFixed(0)}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      rank += 1;
+    }
+  } finally {
+    // fakeQuote() writes synthetic $100/$130 rows through the real getQuote()/writeCache()
+    // path into the same quote_cache the dev server and other scripts share (global-by-symbol,
+    // by design) — the same contamination class chaos-bench.ts hit and fixed. Always clean up.
+    await execute("DELETE FROM quote_cache").catch(() => {});
   }
 
   const body = sections.join("\n\n");
   console.log(body);
 
-  const entry = `\n## ${section} — DB query analysis\n\n_${new Date().toISOString()} — \`npm run db-bench -- --section="${section}"\`_\n\nTop ${ranked.length} slowest queries by total time during a full \`getSecurities\` + \`getActionHistory\` + \`syncActionHistory\` + warm \`quote_cache\` read load, ranked by instrumenting \`lib/db.ts\`'s \`execute()\` (see \`lib/instrumented-fetch.ts\`).\n\n${body}\n`;
+  const entry = `\n## ${section} — DB query analysis\n\n_${new Date().toISOString()} — \`npm run db-bench -- --section="${section}"\`_\n\nTop ${sections.length} slowest queries by total time during a full \`getSecurities\` + \`getActionHistory\` + \`syncActionHistory\` + warm \`quote_cache\` read load, ranked by instrumenting \`lib/db.ts\`'s \`execute()\` (see \`lib/instrumented-fetch.ts\`).\n\n${body}\n`;
   fs.appendFileSync(path.resolve("BENCHMARKS.md"), entry);
 }
 
