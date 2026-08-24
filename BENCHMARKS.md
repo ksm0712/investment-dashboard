@@ -213,3 +213,48 @@ _2026-08-24T00:49:06.124Z — `npm run bench -- --cold --holdings=50 --section="
 | Max latency | 1498 ms |
 | Avg external API calls / load | 251.0 |
 | Cache hit rate | 0.0% |
+
+## Phase 3 — Rate limit resilience
+
+`scripts/chaos-bench.ts` runs the full data-load path (`refreshPrices`, 20 holdings) 100 times against `scripts/mock-provider-harness.ts` — a fully mocked `fetch` that fails ~30% of provider requests with a 429 (spec §3.4), never touching real network/quota. `quote_cache` is truncated before every one of the 100 runs — the first version of this benchmark left it warm across runs and produced a 0% failure rate after run 1 for the wrong reason (Phase 1's cache, not Phase 3's resilience, was doing the work); see the "what broke" note in `ENGINEERING_LOG.md`. Compares `RETRY_MAX_ATTEMPTS=1` (no retry — the pre-Phase-3 shape) against the default `5` (retry + backoff + circuit breaker), same mock, same 30% failure rate, same 100 runs:
+
+| Metric | Before (no retry) | After (retry + circuit breaker) |
+|---|---|---|
+| Security-level refresh failure rate | 3.6% | **0.0%** |
+| User-visible error rate | 0.0% | 0.0% |
+| Runs with ≥1 user-visible error | 0 / 100 | 0 / 100 |
+| Total mock provider requests | 9,156 | 19,736 |
+
+Security-level refresh failures dropped from 3.6% to 0.0% under identical 30% upstream throttling — meeting the spec's 0% target, from a real measured (not assumed-zero) baseline. The cost is visible and expected: total provider requests roughly doubled (retries are, definitionally, more requests), which is the traded-off resource named in `ENGINEERING_LOG.md`. The user-visible error rate was already 0% in both runs — graceful degradation (serving the last known price when a refresh fails) predates Phase 3; what Phase 3 changed is how often a refresh has to fall back to that stale value at all.
+
+### Raw runs
+
+#### Before — RETRY_MAX_ATTEMPTS=1 (no retry)
+
+_2026-08-24T00:55:10.966Z — `npm run chaos-bench -- --section="Phase 3 before Phase 3 no retry single attempt" --runs=100 --failure-rate=0.3 --attempts=1`_
+
+| Metric | Value |
+|---|---|
+| Holdings | 20 |
+| Runs (full portfolio loads) | 100 |
+| Mock request failure rate (target ~30%) | 30.4% |
+| Total mock requests | 9156 |
+| Security-level refresh failure rate | 3.6% |
+| User-visible error rate (no usable price at all) | 0.00% |
+| Runs with >=1 user-visible error | 0 / 100 |
+| RETRY_MAX_ATTEMPTS | 1 |
+
+#### After — RETRY_MAX_ATTEMPTS=5 (default: retry + backoff + circuit breaker)
+
+_2026-08-24T00:56:19.620Z — `npm run chaos-bench -- --section="Phase 3 after full resilience" --runs=100 --failure-rate=0.3`_
+
+| Metric | Value |
+|---|---|
+| Holdings | 20 |
+| Runs (full portfolio loads) | 100 |
+| Mock request failure rate (target ~30%) | 36.3% |
+| Total mock requests | 19736 |
+| Security-level refresh failure rate | 0.0% |
+| User-visible error rate (no usable price at all) | 0.00% |
+| Runs with >=1 user-visible error | 0 / 100 |
+| RETRY_MAX_ATTEMPTS | 5 |

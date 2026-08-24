@@ -6,6 +6,7 @@ import YahooFinance from "yahoo-finance2";
 import { timed } from "./instrumented-fetch";
 import { getQuote, drainInFlightRefreshes, type CachedQuote } from "./quote-cache";
 import { withFmpBatch, getBatchedFmpPrice, type BatchedPrice } from "./fmp-batch";
+import { withResilience, ProviderHttpError, parseRetryAfter } from "./resilient-fetch";
 
 type PriceResult = {
   price: number;
@@ -216,7 +217,7 @@ async function fetchJsonWithAttempts(url: string, init: any = {}, attempts = 2, 
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       const res = await fetchWithTimeout(url, init, timeoutMs);
-      if (!res.ok) throw new Error(`${res.status}`);
+      if (!res.ok) throw new ProviderHttpError(res.status, `${res.status}`, parseRetryAfter(res.headers.get("retry-after")));
       return await res.json();
     } catch (error) {
       lastError = error;
@@ -330,7 +331,7 @@ async function yahooPrice(symbol: string) {
     },
     cache: "no-store",
   }, 4500);
-  if (!res.ok) throw new Error(`Yahoo ${symbol} returned ${res.status}`);
+  if (!res.ok) throw new ProviderHttpError(res.status, `Yahoo ${symbol} returned ${res.status}`, parseRetryAfter(res.headers.get("retry-after")));
   return parseYahooChart(await res.json(), symbol, "yahoo");
 }
 
@@ -376,7 +377,7 @@ async function yahooFallbackPrice(symbol: string) {
     },
     cache: "no-store",
   }, 4500);
-  if (!res.ok) throw new Error(`Yahoo fallback ${symbol} returned ${res.status}`);
+  if (!res.ok) throw new ProviderHttpError(res.status, `Yahoo fallback ${symbol} returned ${res.status}`, parseRetryAfter(res.headers.get("retry-after")));
   return parseYahooChart(parseJsonFromReader(await res.text()), symbol, "yahoo-fallback");
 }
 
@@ -599,7 +600,7 @@ async function twelveDataIntelligence(symbol: string, exchange?: string | null):
 
 async function marketIntelligence(symbol: string, assetType: string, exchange?: string | null, needsRange = true): Promise<Partial<PriceResult>> {
   const providers = [
-    { name: "yahoo-finance2", run: async () => {
+    { name: "yahoo-finance2", run: () => withResilience("yahoo-finance2", async () => {
       const result = await yahooFinance2Price(symbol);
       return {
         targetPrice: result.targetPrice,
@@ -613,11 +614,11 @@ async function marketIntelligence(symbol: string, assetType: string, exchange?: 
         forwardPe: result.forwardPe,
         pegRatio: result.pegRatio,
       };
-    } },
-    { name: "fmp", run: () => fmpIntelligence(symbol) },
-    { name: "nasdaq", run: () => nasdaqIntelligence(symbol, assetType) },
-    { name: "twelve-data", run: () => twelveDataIntelligence(symbol, exchange) },
-    { name: "alpha-vantage", run: () => alphaVantageIntelligence(symbol) },
+    }) },
+    { name: "fmp", run: () => withResilience("fmp", () => fmpIntelligence(symbol)) },
+    { name: "nasdaq", run: () => withResilience("nasdaq", () => nasdaqIntelligence(symbol, assetType)) },
+    { name: "twelve-data", run: () => withResilience("twelve-data", () => twelveDataIntelligence(symbol, exchange)) },
+    { name: "alpha-vantage", run: () => withResilience("alpha-vantage", () => alphaVantageIntelligence(symbol)) },
   ];
   const intelligence: Partial<PriceResult> = {};
   for (const provider of providers) {
@@ -670,11 +671,11 @@ async function marketPrice(symbol: string, assetType: string): Promise<PriceResu
   // symbol costs zero additional external calls for that provider.
   const batched = getBatchedFmpPrice(symbol);
   const providers = [
-    { name: "yahoo-finance2", run: () => yahooFinance2Price(symbol) },
-    ...(batched ? [] : [{ name: "fmp", run: () => fmpPrice(symbol) }]),
-    { name: "yahoo", run: () => yahooPrice(symbol) },
-    { name: "nasdaq", run: () => nasdaqPrice(symbol, assetType) },
-    { name: "yahoo-fallback", run: () => yahooFallbackPrice(symbol) },
+    { name: "yahoo-finance2", run: () => withResilience("yahoo-finance2", () => yahooFinance2Price(symbol)) },
+    ...(batched ? [] : [{ name: "fmp", run: () => withResilience("fmp", () => fmpPrice(symbol)) }]),
+    { name: "yahoo", run: () => withResilience("yahoo", () => yahooPrice(symbol)) },
+    { name: "nasdaq", run: () => withResilience("nasdaq", () => nasdaqPrice(symbol, assetType)) },
+    { name: "yahoo-fallback", run: () => withResilience("yahoo-fallback", () => yahooFallbackPrice(symbol)) },
   ];
   const results: PriceResult[] = batched ? [{ ...batched, source: "fmp-batch" }] : [];
   const errors: string[] = [];
