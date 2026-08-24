@@ -27,3 +27,6 @@ out/
 .DS_Store
 .session.json
 .amfi_cache.json
+
+# Benchmarking (local Lighthouse reports, not committed — regenerable, see BENCHMARKS.md)
+scratch-lighthouse/

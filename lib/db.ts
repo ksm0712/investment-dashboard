@@ -3,6 +3,7 @@ import { toInr } from "./format.ts";
 import { getFx } from "./fx.ts";
 import { calculateAsset } from "./portfolio-engine.ts";
 import { buildActionHistoryEntry } from "./action-history.ts";
+import { timedDb } from "./instrumented-fetch.ts";
 
 type Row = Record<string, unknown>;
 
@@ -53,6 +54,10 @@ function real(value: unknown, fallback: number | null) {
 
 export async function execute(sql: string, params: unknown[] = []) {
   if (!hasTurso()) return { rows: [] as Row[] };
+  return timedDb(sql, params, () => rawExecute(sql, params));
+}
+
+async function rawExecute(sql: string, params: unknown[] = []) {
   const stmt: any = { sql };
   if (params.length) stmt.args = params.map(arg);
   const res = await fetch(tursoUrl(), {
@@ -74,7 +79,11 @@ export async function execute(sql: string, params: unknown[] = []) {
   const rows = (result?.rows || []).map((row: any[]) =>
     Object.fromEntries(row.map((cell, index) => [columns[index], val(cell)])),
   );
-  return { rows: rows as Row[] };
+  return {
+    rows: rows as Row[],
+    serverMs: typeof result?.query_duration_ms === "number" ? result.query_duration_ms : undefined,
+    rowsRead: typeof result?.rows_read === "number" ? result.rows_read : undefined,
+  };
 }
 
 let initialized = false;

@@ -3,6 +3,7 @@ import { getFx } from "./fx";
 import type { Security } from "./types";
 import { calculateAsset } from "./portfolio-engine";
 import YahooFinance from "yahoo-finance2";
+import { timed } from "./instrumented-fetch";
 
 type PriceResult = {
   price: number;
@@ -570,7 +571,7 @@ async function marketIntelligence(symbol: string, assetType: string, exchange?: 
   const intelligence: Partial<PriceResult> = {};
   for (const provider of providers) {
     try {
-      const result = await provider.run();
+      const result = await timed(provider.name, symbol, () => provider.run());
       intelligence.targetPrice ??= result.targetPrice;
       intelligence.targetSource ??= result.targetSource;
       intelligence.targetAsOn ??= result.targetAsOn;
@@ -641,7 +642,7 @@ async function marketPrice(symbol: string, assetType: string): Promise<PriceResu
 
   const running = providers.map(async (provider) => {
     try {
-      results.push(await provider.run());
+      results.push(await timed(provider.name, symbol, () => provider.run()));
     } catch (error) {
       errors.push(`${provider.name}: ${error instanceof Error ? error.message : "failed"}`);
     }
@@ -880,12 +881,12 @@ async function resolveMfSchemeByName(sec: Security) {
 async function mfPriceForSecurity(sec: Security) {
   const code = await resolveMfScheme(sec);
   if (!code) throw new Error("No mfapi match found. Enter the MFAPI scheme code manually.");
-  const latest = await mfPrice(code);
+  const latest = await timed("mfapi", code, () => mfPrice(code));
   const navDate = parseFlexibleDate(latest.date);
   if (navDate && Date.now() - navDate.getTime() > 10 * 24 * 60 * 60 * 1000) {
     const fallbackCode = await resolveMfSchemeByName(sec);
     if (fallbackCode && fallbackCode !== code) {
-      const fallback = await mfPrice(fallbackCode);
+      const fallback = await timed("mfapi", fallbackCode, () => mfPrice(fallbackCode));
       const fallbackDate = parseFlexibleDate(fallback.date);
       if (!fallbackDate || Date.now() - fallbackDate.getTime() <= 10 * 24 * 60 * 60 * 1000) return fallback;
     }
