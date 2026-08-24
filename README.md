@@ -101,6 +101,22 @@ Key design choices:
 - Mutual fund refreshes use mfapi's latest NAV endpoint first to avoid downloading full history.
 - The UI updates from the refresh response immediately, so users do not need a full page reload.
 
+## Engineering
+
+A full measured performance/reliability pass — every number below comes from a real run of a script in `scripts/`, recorded in **[BENCHMARKS.md](BENCHMARKS.md)** with the exact command, raw output, and before/after comparison. The reasoning behind each decision (alternatives considered, tradeoffs, what broke and how it was diagnosed) is in **[ENGINEERING_LOG.md](ENGINEERING_LOG.md)**.
+
+**Cache strategy** — `lib/quote-cache.ts` implements stale-while-revalidate directly (no caching library) over a `quote_cache` table, keyed by symbol so multiple users holding the same stock share one fetch. TTL varies by market state via `lib/market-status.ts` (60s open / 15min closed / 12h weekend, all env-tunable): fresh reads never touch a provider; stale reads serve immediately and kick a deduplicated background refresh (an in-flight `Map` ensures concurrent stale reads for the same symbol trigger exactly one fetch); missing reads fetch synchronously. **Result: warm-cache portfolio load latency dropped 96% (473ms → 18ms) and external API calls per load dropped 100% (100 → 0)** on a 20-holding fixture.
+
+**Concurrency model** — `refreshPrices()` fans out over holdings with a bounded worker pool, now tunable via `REFRESH_CONCURRENCY` (default 5) instead of a hardcoded value. Each holding itself races 5 keyless market-data providers (Yahoo, FMP, Nasdaq, plus fallbacks) in parallel and takes the richest response. US-listed holdings' FMP quotes are prefetched in one batched request before the per-holding loop starts, so covered symbols skip that provider's leg of the race entirely.
+
+**Failure handling** — `lib/resilient-fetch.ts` wraps every provider call with retry (exponential backoff + jitter, capped attempts and a time ceiling, honoring `Retry-After`) and a circuit breaker that opens after repeated consecutive failures and serves cached/other-provider data instead of hammering a down upstream. **Result: security-level refresh failure rate under a 100-run chaos test (30% simulated provider throttling) dropped from 3.6% (no retry) to 0.0%** (retry + circuit breaker), with 0% user-visible errors in both — a failed refresh always falls back to the last known price with a visible "as of" timestamp, never a blank.
+
+**Database** — Turso/libSQL, with composite indexes added on the columns queries actually filter by (not just the joined foreign key — see `ENGINEERING_LOG.md` Phase 4 for a single-index dead end this caught). Reduced the slowest query's rows read from 98 to 42, and a parallel lot-accounting join from 137 to 81, on the same fixture.
+
+**Load test** — a local `next build && next start` comparison against the pre-optimization commit, ramping 1/10/50/100 concurrent users against the live-data path. At 50 concurrent users, the pre-optimization build completes **zero** of 150 attempted requests in 30 seconds; the optimized build completes 87.4% of its (degraded but real) requests. Neither build sustains sub-500ms p99 at real concurrency — this app's data-load path races 5 external providers per holding, and no amount of application-side work removes that ceiling — but Phases 1-3 turn what was a hard collapse under load into a degraded-but-serving one.
+
+Every environment-tunable knob (cache TTLs, concurrency cap, retry limits, circuit breaker thresholds, FMP batch size) is an env var with a sensible default — see `.env.example`.
+
 ## Performance Work
 
 Recent refresh optimizations:

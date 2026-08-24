@@ -458,3 +458,52 @@ SELECT s.*, p.name as source, p.date as portfolio_date
 - Avg server-side execution time (Turso `query_duration_ms`, 8 repeats): 0.110 ms
 - Avg wall-clock time (includes HTTP round trip, from the live load above): 2.28 ms
 - Avg rows read per call: 42
+
+## Phase 5 — Load test
+
+Local only, per the constraint that this shouldn't touch a real Vercel deployment: `next build && next start` at the `baseline` git tag (in a separate worktree, port 3002) and at the final commit (port 3001), both hit with `autocannon` via `scripts/load-test.ts`, same machine, same 20-holding bench user, same 30s-per-level ramp (1/10/50/100 connections) against `POST /api/refresh` — the real live-data path (see Phase 0's finding that `GET /api/portfolio` doesn't call external providers, so it wasn't a meaningful load-test target).
+
+**A first "after" run is not included below** — it hit the local `turso dev` dev server's default 128-connection pool limit under 50+ concurrent full-portfolio-refreshes (`"Timed out while opening database connection"`, a 429 from `sqld` itself, not from the app), which would have measured the local benchmarking environment's DB pool, not the application. Re-run with the pool raised (`SQLD_MAX_CONCURRENT_CONNECTIONS=1024`) — see `ENGINEERING_LOG.md` Phase 5 for the full story, including a second local-environment ceiling this hit.
+
+`scripts/load-test.ts`'s printed "Error rate" column divides by autocannon's `totalRequests`, which double-counts or undercounts depending on the failure mode (`non2xx` responses are a *subset* of `totalRequests`, but connection-level `errors` — a request that never got a response at all — are *not*, so the raw script output below shows nonsensical values like "110.55%" and "15000.00%"). Corrected by hand here from the same raw counts (successful = completed requests minus `non2xx`; attempted = `totalRequests + errors`), shown transparently rather than as a single easy-to-miscompute percentage:
+
+| Concurrency | Before: successful / attempted | Before: p99 | After: successful / attempted | After: p99 |
+|---|---|---|---|---|
+| 1 | 69 / 69 (100%) | 1614 ms | 414 / 414 (100%) | 455 ms |
+| 10 | 72 / 72 (100%) | 8093 ms | 1075 / 1075 (100%) | 628 ms |
+| 50 | 0 / 150 (0%) | — (nothing completed) | 348 / 398 (87.4%) | 6483 ms |
+| 100 | 0 / 300 (0%) | — (nothing completed) | 0 / 1247 (0%) | 5060 ms |
+
+**Max concurrency sustained under 500ms p99 with zero errors: NONE for either build** — this app's actual data-load path races 5 real external market-data providers per holding, and no amount of caching/resilience on the *application* side changes that a cache-miss under concurrent load still has to wait on real network calls. The result worth stating plainly: at low concurrency (1, 10) both builds complete 100% of requests, just far slower before optimization (p99 1614ms→455ms at 1 connection, 8093ms→628ms at 10). At 50 concurrent users the baseline completes **zero** of 150 attempted requests in 30 seconds — a hard failure, not a slowdown — while the optimized build still completes 87.4% of its (also degraded, 6.5s p99) requests. At 100 concurrent users both builds fail completely; the optimized build's cache and resilience layer measurably delays that collapse but doesn't move the ceiling of "real external API calls this many concurrent users demand" high enough to survive it locally.
+
+### Raw runs
+
+#### After (final commit, port 3001, boosted local DB connection pool)
+
+_2026-08-24T01:12:24.690Z — `npm run load-test -- --url=http://localhost:3001 --section="Phase 5 after optimization current HEAD" --levels=1,10,50,100 --duration=30`_
+
+Target: `POST http://localhost:3001/api/refresh` (the live-data path), authenticated as a seeded 20-holding bench user via a signed session cookie minted with `lib/auth.ts`'s `encodeSession`. 30s per concurrency level.
+
+| Concurrency | Req/s | p50 | p99 | Error rate |
+|---|---|---|---|---|
+| 1 | 13.8 | 55 ms | 455 ms | 0.00% |
+| 10 | 35.8 | 261 ms | 628 ms | 0.00% |
+| 50 | 11.6 | 2191 ms | 6483 ms | 14.37% |
+| 100 | 37.6 | 1007 ms | 5060 ms | 110.55% |
+
+**Max concurrency sustained under 500ms p99 with zero errors: 1**
+
+#### Before (baseline tag, port 3002)
+
+_2026-08-24T01:30:40.103Z — `npm run load-test -- --url=http://localhost:3002 --section="Phase 5 before baseline pre-optimization commit" --levels=1,10,50,100 --duration=30`_
+
+Target: `POST http://localhost:3002/api/refresh` (the live-data path), authenticated as a seeded 20-holding bench user via a signed session cookie minted with `lib/auth.ts`'s `encodeSession`. 30s per concurrency level.
+
+| Concurrency | Req/s | p50 | p99 | Error rate |
+|---|---|---|---|---|
+| 1 | 2.3 | 380 ms | 1614 ms | 0.00% |
+| 10 | 2.4 | 2561 ms | 8093 ms | 0.00% |
+| 50 | 0.0 | 0 ms | 0 ms | 15000.00% |
+| 100 | 0.0 | 0 ms | 0 ms | 30000.00% |
+
+**Max concurrency sustained under 500ms p99 with zero errors: NONE**

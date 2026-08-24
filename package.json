@@ -11,7 +11,8 @@
     "test": "node --env-file=.env.local --test lib/*.test.ts",
     "bench": "tsx scripts/benchmark.ts",
     "db-bench": "tsx scripts/db-bench.ts",
-    "chaos-bench": "tsx scripts/chaos-bench.ts"
+    "chaos-bench": "tsx scripts/chaos-bench.ts",
+    "load-test": "tsx scripts/load-test.ts"
   },
   "dependencies": {
     "lucide-react": "0.560.0",
