@@ -148,6 +148,30 @@ export async function initDb() {
   )`);
   await execute(`CREATE INDEX IF NOT EXISTS idx_action_history_security_recorded
     ON action_history(security_id, recorded_at DESC)`);
+  // Extends the spec's column list (price, change_pct, high_52w, low_52w, analyst_target, pe,
+  // forward_pe, peg, currency, exchange, fetched_at) with price_date/source/sector/industry/
+  // target_source/target_as_on: refreshPrices() writes those to `securities` on every refresh,
+  // so without them a cache hit would silently null them out. See ENGINEERING_LOG.md Phase 1.
+  await execute(`CREATE TABLE IF NOT EXISTS quote_cache (
+    symbol TEXT PRIMARY KEY,
+    price REAL,
+    change_pct REAL,
+    high_52w REAL,
+    low_52w REAL,
+    analyst_target REAL,
+    pe REAL,
+    forward_pe REAL,
+    peg REAL,
+    currency TEXT,
+    exchange TEXT,
+    price_date TEXT,
+    source TEXT,
+    sector TEXT,
+    industry TEXT,
+    target_source TEXT,
+    target_as_on TEXT,
+    fetched_at TEXT NOT NULL
+  )`);
   await addMissingColumns("portfolios", {
     user_id: "TEXT",
   });

@@ -86,3 +86,49 @@ Target: `https://investment-dashboard-ox99.vercel.app/` (the public/landing rout
 | JS transferred | 150,814 bytes |
 
 Full JSON/HTML reports saved locally at `scratch-lighthouse/baseline.report.{json,html}` (not committed — regenerable from the command above).
+
+## Phase 1 — Quote cache
+
+Two runs, same 20-holding fixture as the baseline:
+- **`--cold`**: `quote_cache` is truncated before *every* one of the 20 iterations, so every run is forced to miss. This intentionally reproduces the baseline's no-cache behavior — it exists to give Phase 2 a clean cold-cache comparison point, not to show Phase 1's benefit (a cache that's wiped before every read can't show one).
+- **warm (normal usage)**: cache persists across the 20 iterations, as it would across real repeat page loads inside the TTL window — this is the number that shows Phase 1's actual effect.
+
+| Metric | Baseline (no cache) | `--cold` (forced miss every run) | Warm (normal usage) |
+|---|---|---|---|
+| Mean latency | 473 ms | 562 ms | **18 ms** |
+| p50 latency | 421 ms | 572 ms | **14 ms** |
+| p95 latency | 1271 ms | 820 ms | **31 ms** |
+| Avg external API calls / load | 100.0 | 100.0 | **0.0** |
+| Cache hit rate | 0.0% | 0.0% | **100.0%** |
+
+Warm-cache mean latency dropped 96% (473ms → 18ms) and external API calls per load dropped 100% (100 → 0) within the TTL window — beyond the spec's 80–95% target, because the cache also removes the `marketIntelligence` race (target/sector/PE — up to 5 more provider calls per holding) that used to run on every load whenever the price response alone didn't already carry that data, not just the price race.
+
+### `--cold` (forced miss every run)
+
+_2026-08-24T00:40:50.385Z — `npm run bench -- --cold --holdings=20 --section="Phase 1 — Quote cache"`_
+
+| Metric | Value |
+|---|---|
+| Holdings | 20 |
+| Runs measured (after warmup) | 17 |
+| Mean latency | 562 ms |
+| p50 latency | 572 ms |
+| p95 latency | 820 ms |
+| Max latency | 820 ms |
+| Avg external API calls / load | 100.0 |
+| Cache hit rate | 0.0% |
+
+## Phase 1 — Quote cache (warm, normal usage)
+
+_2026-08-24T00:40:58.516Z — `npm run bench -- --holdings=20 --section="Phase 1 — Quote cache (warm, normal usage)"`_
+
+| Metric | Value |
+|---|---|
+| Holdings | 20 |
+| Runs measured (after warmup) | 17 |
+| Mean latency | 18 ms |
+| p50 latency | 14 ms |
+| p95 latency | 31 ms |
+| Max latency | 31 ms |
+| Avg external API calls / load | 0.0 |
+| Cache hit rate | 100.0% |

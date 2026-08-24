@@ -4,6 +4,7 @@ import type { Security } from "./types";
 import { calculateAsset } from "./portfolio-engine";
 import YahooFinance from "yahoo-finance2";
 import { timed } from "./instrumented-fetch";
+import { getQuote, drainInFlightRefreshes, type CachedQuote } from "./quote-cache";
 
 type PriceResult = {
   price: number;
@@ -21,6 +22,7 @@ type PriceResult = {
   targetPrice?: number;
   targetSource?: string;
   targetAsOn?: string;
+  stale?: boolean;
 };
 
 const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
@@ -743,6 +745,68 @@ async function searchedPriceSymbols(sec: Security) {
   return candidates;
 }
 
+function toCachedQuote(symbol: string, sec: Security, price: PriceResult, intelligence: Partial<PriceResult>): CachedQuote {
+  return {
+    symbol,
+    price: price.price,
+    changePercent: price.changePercent ?? null,
+    week52High: intelligence.week52High ?? price.week52High ?? null,
+    week52Low: intelligence.week52Low ?? price.week52Low ?? null,
+    targetPrice: intelligence.targetPrice ?? price.targetPrice ?? null,
+    trailingPe: intelligence.trailingPe ?? price.trailingPe ?? null,
+    forwardPe: intelligence.forwardPe ?? price.forwardPe ?? null,
+    pegRatio: intelligence.pegRatio ?? price.pegRatio ?? null,
+    currency: sec.currency,
+    exchange: sec.exchange,
+    priceDate: price.date,
+    source: price.source,
+    sector: intelligence.sector ?? price.sector ?? null,
+    industry: intelligence.industry ?? price.industry ?? null,
+    targetSource: intelligence.targetSource ?? price.targetSource ?? null,
+    targetAsOn: intelligence.targetAsOn ?? price.targetAsOn ?? null,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+function fromCachedQuote(quote: CachedQuote, stale: boolean): PriceResult {
+  return {
+    price: quote.price ?? 0,
+    date: quote.priceDate || new Date().toISOString().slice(0, 10),
+    source: quote.source || "quote-cache",
+    symbol: quote.symbol,
+    week52Low: quote.week52Low ?? undefined,
+    week52High: quote.week52High ?? undefined,
+    changePercent: quote.changePercent ?? undefined,
+    sector: quote.sector ?? undefined,
+    industry: quote.industry ?? undefined,
+    trailingPe: quote.trailingPe ?? undefined,
+    forwardPe: quote.forwardPe ?? undefined,
+    pegRatio: quote.pegRatio ?? undefined,
+    targetPrice: quote.targetPrice ?? undefined,
+    targetSource: quote.targetSource ?? undefined,
+    targetAsOn: quote.targetAsOn ?? undefined,
+    stale,
+  };
+}
+
+/**
+ * Fetches one candidate symbol's full quote (price + range + target + sector/PE), stale-while-
+ * revalidate cached via lib/quote-cache.ts. A miss/stale-refresh does the same price-then-
+ * intelligence sequence marketPriceForSecurity always did; a fresh hit skips both races entirely.
+ */
+async function cachedFullQuote(symbol: string, sec: Security): Promise<PriceResult> {
+  const { quote, stale } = await getQuote(symbol, sec.exchange, async () => {
+    const price = await marketPrice(symbol, sec.assetType);
+    const hasWorkbookData = price.targetPrice && price.week52Low && price.week52High
+      && (price.sector || price.industry || price.trailingPe || price.forwardPe || price.pegRatio);
+    const intelligence = hasWorkbookData
+      ? {}
+      : await marketIntelligence(price.symbol || symbol, sec.assetType, sec.exchange, !(price.week52Low && price.week52High));
+    return toCachedQuote(price.symbol || symbol, sec, price, intelligence);
+  });
+  return fromCachedQuote(quote, stale);
+}
+
 async function marketPriceForSecurity(sec: Security) {
   const errors: string[] = [];
   const seen = new Set<string>();
@@ -752,7 +816,7 @@ async function marketPriceForSecurity(sec: Security) {
       if (seen.has(symbol)) continue;
       seen.add(symbol);
       try {
-        return await marketPrice(symbol, sec.assetType);
+        return await cachedFullQuote(symbol, sec);
       } catch (error) {
         errors.push(`${symbol}: ${error instanceof Error ? error.message : "refresh failed"}`);
       }
@@ -760,45 +824,16 @@ async function marketPriceForSecurity(sec: Security) {
     return null;
   }
 
-  async function enrich(result: PriceResult) {
-    const hasWorkbookData = result.targetPrice && result.week52Low && result.week52High
-      && (result.sector || result.industry || result.trailingPe || result.forwardPe || result.pegRatio);
-    if (!result.symbol || hasWorkbookData) return result;
-    try {
-      const intelligence = await marketIntelligence(
-        result.symbol,
-        sec.assetType,
-        sec.exchange,
-        !(result.week52Low && result.week52High),
-      );
-      return {
-        ...result,
-        week52Low: intelligence.week52Low ?? result.week52Low,
-        week52High: intelligence.week52High ?? result.week52High,
-        targetPrice: intelligence.targetPrice ?? result.targetPrice,
-        targetSource: intelligence.targetSource ?? result.targetSource,
-        targetAsOn: intelligence.targetAsOn ?? result.targetAsOn,
-        sector: intelligence.sector ?? result.sector,
-        industry: intelligence.industry ?? result.industry,
-        trailingPe: intelligence.trailingPe ?? result.trailingPe,
-        forwardPe: intelligence.forwardPe ?? result.forwardPe,
-        pegRatio: intelligence.pegRatio ?? result.pegRatio,
-      };
-    } catch {
-      return result;
-    }
-  }
-
   const direct = await trySymbols(directPriceSymbols(sec));
-  if (direct) return enrich(direct);
+  if (direct) return direct;
 
   const searched = await trySymbols(await searchedPriceSymbols(sec));
-  if (searched) return enrich(searched);
+  if (searched) return searched;
 
   const firstWord = sec.name.trim().split(/\s+/)[0]?.toUpperCase();
   const fallbackSymbols = firstWord ? (currencySuffixes[sec.currency.toUpperCase()] || []).map((suffix) => `${firstWord}${suffix}`) : [];
   const suffixed = await trySymbols(fallbackSymbols);
-  if (suffixed) return enrich(suffixed);
+  if (suffixed) return suffixed;
 
   throw new Error(errors.join("; ") || "Missing identifier.");
 }
@@ -1050,7 +1085,9 @@ export async function refreshPrices(userId: string) {
         refreshStatus: targetMissing ? "needs_target" : "updated",
         refreshNote: targetMissing
           ? `Price updated via ${latest.source}; no analyst target was returned by the configured providers.`
-          : `Updated via ${latest.source} price ${latest.price} on ${latest.date}.`,
+          : latest.stale
+            ? `Showing cached ${latest.source} price ${latest.price} as of ${latest.date} while a background refresh runs.`
+            : `Updated via ${latest.source} price ${latest.price} on ${latest.date}.`,
         priceSource: latest.source,
         priceSymbol: latest.symbol,
       });
@@ -1072,6 +1109,9 @@ export async function refreshPrices(userId: string) {
       await mark(sec, "failed");
     }
   });
+  // Best-effort: let any background cache refreshes still in flight finish before this
+  // (possibly serverless) invocation returns, rather than abandoning them mid-fetch.
+  await drainInFlightRefreshes();
   const sync = await syncActionHistory(userId);
   summary.actionChanges = sync.recorded;
   return { summary, history: sync.history };
