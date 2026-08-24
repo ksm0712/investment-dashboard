@@ -132,3 +132,84 @@ _2026-08-24T00:40:58.516Z — `npm run bench -- --holdings=20 --section="Phase 1
 | Max latency | 31 ms |
 | Avg external API calls / load | 0.0 |
 | Cache hit rate | 100.0% |
+
+## Phase 2 — Concurrency and batching
+
+All runs below are `--cold` (quote_cache truncated before every iteration — isolates this phase from Phase 1's cache effect, per spec §2.4).
+
+**Caveat, stated plainly**: `FMP_API_KEY`'s free-tier quota was exhausted during this benchmarking session (confirmed independently via `curl` against FMP directly — both single-symbol and batch requests return `{"Error Message":"Limit Reach..."}`). Every run below has FMP failing regardless of whether batching is active, so the raw call counts can't isolate batching's live effect — that number is marked **NOT MEASURED**, not estimated. The batching *mechanism* (whether the AsyncLocalStorage-scoped batch map correctly gates the "fmp" provider leg) is verified independent of live FMP quota in `lib/fmp-batch.test.ts` (5 passing tests, no network).
+
+What *is* measured: `REFRESH_CONCURRENCY`'s real effect on wall-clock latency, at both fixture sizes, holding everything else constant:
+
+| Metric | 20 holdings, concurrency=6 | 20 holdings, concurrency=5 (new default) | 50 holdings, concurrency=6 | 50 holdings, concurrency=5 (new default) |
+|---|---|---|---|---|
+| Mean latency | 470 ms | 514 ms | 1161 ms | 1181 ms |
+| p50 latency | 436 ms | 470 ms | 1122 ms | 1150 ms |
+| p95 latency | 707 ms | 904 ms | 1498 ms | 1864 ms |
+| Avg external calls / load | 101.0 | 101.0 | 251.0 | 251.0 |
+
+Honest reading: lowering the cap from the old hardcoded `6` to the spec's suggested default of `5` is not a speedup here — with FMP timing out on every attempt rather than failing fast (quota exhausted), less parallelism costs slightly *more* wall-clock time, not less. What Phase 2 actually delivered is that the cap stopped being a hardcoded number in `lib/refresh.ts` and became `REFRESH_CONCURRENCY` — operable without a code change, including turning it down further if a provider starts rate-limiting harder (the scenario Phase 3 targets). Scaling 20→50 holdings (2.5×) produced 514ms→1181ms (2.3×, concurrency=5) and 101→251 calls (2.5×, exactly linear as expected) — the concurrency pool absorbs the larger fan-out close to linearly rather than blowing up, which is the property this phase needed to demonstrate.
+
+External call reduction from FMP batch prefetching: **NOT MEASURED** (FMP quota exhausted for the remainder of this session — see caveat above; mechanism verified in `lib/fmp-batch.test.ts`).
+
+### Raw runs
+
+#### 20 holdings, concurrency=5 (new default)
+
+_2026-08-24T00:46:58.938Z — `npm run bench -- --cold --holdings=20 --section="Phase 2 — Concurrency and batching"`_
+
+| Metric | Value |
+|---|---|
+| Holdings | 20 |
+| Runs measured (after warmup) | 17 |
+| Mean latency | 514 ms |
+| p50 latency | 470 ms |
+| p95 latency | 904 ms |
+| Max latency | 904 ms |
+| Avg external API calls / load | 101.0 |
+| Cache hit rate | 0.0% |
+
+#### 50 holdings, concurrency=5 (new default)
+
+_2026-08-24T00:48:10.810Z — `npm run bench -- --cold --holdings=50 --section="Phase 2 — Concurrency and batching"`_
+
+| Metric | Value |
+|---|---|
+| Holdings | 50 |
+| Runs measured (after warmup) | 17 |
+| Mean latency | 1181 ms |
+| p50 latency | 1150 ms |
+| p95 latency | 1864 ms |
+| Max latency | 1864 ms |
+| Avg external API calls / load | 251.0 |
+| Cache hit rate | 0.0% |
+
+#### 20 holdings, concurrency=6 (comparison run)
+
+_2026-08-24T00:48:33.706Z — `npm run bench -- --cold --holdings=20 --section="Phase 2 — concurrency"`_
+
+| Metric | Value |
+|---|---|
+| Holdings | 20 |
+| Runs measured (after warmup) | 17 |
+| Mean latency | 470 ms |
+| p50 latency | 436 ms |
+| p95 latency | 707 ms |
+| Max latency | 707 ms |
+| Avg external API calls / load | 101.0 |
+| Cache hit rate | 0.0% |
+
+#### 50 holdings, concurrency=6 (comparison run)
+
+_2026-08-24T00:49:06.124Z — `npm run bench -- --cold --holdings=50 --section="Phase 2 concurrency 6 old default"`_
+
+| Metric | Value |
+|---|---|
+| Holdings | 50 |
+| Runs measured (after warmup) | 17 |
+| Mean latency | 1161 ms |
+| p50 latency | 1122 ms |
+| p95 latency | 1498 ms |
+| Max latency | 1498 ms |
+| Avg external API calls / load | 251.0 |
+| Cache hit rate | 0.0% |

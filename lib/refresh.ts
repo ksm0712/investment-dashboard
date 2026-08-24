@@ -5,6 +5,7 @@ import { calculateAsset } from "./portfolio-engine";
 import YahooFinance from "yahoo-finance2";
 import { timed } from "./instrumented-fetch";
 import { getQuote, drainInFlightRefreshes, type CachedQuote } from "./quote-cache";
+import { withFmpBatch, getBatchedFmpPrice, type BatchedPrice } from "./fmp-batch";
 
 type PriceResult = {
   price: number;
@@ -403,6 +404,54 @@ async function fmpPrice(symbol: string): Promise<PriceResult> {
   };
 }
 
+/**
+ * FMP's /stable/quote accepts comma-separated symbols in one request. Used to prefetch
+ * US-listed holdings (see refreshPrices) in groups of FMP_BATCH_SIZE, so N holdings cost
+ * ceil(N / FMP_BATCH_SIZE) FMP calls instead of N. Scoped to USD/US-listed symbols only:
+ * non-US tickers often need a suffix (e.g. "HSBA" -> "HSBA.L") that only the per-symbol
+ * fallback-candidate loop in marketPriceForSecurity resolves, so a naive prefetch on the bare
+ * ticker could silently miss for them — see ENGINEERING_LOG.md Phase 2.
+ */
+async function fmpBatchPrices(symbols: string[]): Promise<Map<string, BatchedPrice>> {
+  const out = new Map<string, BatchedPrice>();
+  const apiKey = String(process.env.FMP_API_KEY || "").trim();
+  if (!apiKey || !symbols.length) return out;
+
+  const batchSize = Number(process.env.FMP_BATCH_SIZE || 20);
+  const batches: string[][] = [];
+  for (let i = 0; i < symbols.length; i += batchSize) batches.push(symbols.slice(i, i + batchSize));
+
+  await Promise.all(batches.map(async (batch) => {
+    try {
+      const data = await timed("fmp-batch", batch.join(","), () => fetchJsonWithAttempts(
+        `https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(batch.join(","))}`,
+        { headers: { "Accept": "application/json", "apikey": apiKey }, cache: "no-store" }, 1, 8000,
+      ));
+      const list = Array.isArray(data) ? data : [data];
+      for (const quote of list) {
+        const price = parsePrice(quote?.price);
+        const symbol = String(quote?.symbol || "").toUpperCase();
+        if (!price || !symbol) continue;
+        const timestamp = Number(quote?.timestamp);
+        const date = Number.isFinite(timestamp) && timestamp > 0
+          ? new Date(timestamp * 1000).toISOString().slice(0, 10)
+          : new Date().toISOString().slice(0, 10);
+        out.set(symbol, {
+          price,
+          date,
+          source: "fmp-batch",
+          symbol,
+          week52Low: parsePrice(quote?.yearLow ?? quote?.yearLowPrice) ?? undefined,
+          week52High: parsePrice(quote?.yearHigh ?? quote?.yearHighPrice) ?? undefined,
+        });
+      }
+    } catch {
+      // A failed batch just means those symbols fall through to the normal per-symbol race.
+    }
+  }));
+  return out;
+}
+
 async function nasdaqPrice(symbol: string, assetType: string) {
   const clean = symbol.trim().replace(/\.(US|U)$/i, "");
   if (!clean || clean.includes(".")) throw new Error(`Nasdaq unsupported symbol ${symbol}`);
@@ -616,14 +665,18 @@ async function yahooSearch(query: string) {
 }
 
 async function marketPrice(symbol: string, assetType: string): Promise<PriceResult> {
+  // A batch FMP quote already covers this symbol (see fmpBatchPrices/withFmpBatch in
+  // refreshPrices) — seed it directly and skip the "fmp" leg of the race entirely, so this
+  // symbol costs zero additional external calls for that provider.
+  const batched = getBatchedFmpPrice(symbol);
   const providers = [
     { name: "yahoo-finance2", run: () => yahooFinance2Price(symbol) },
-    { name: "fmp", run: () => fmpPrice(symbol) },
+    ...(batched ? [] : [{ name: "fmp", run: () => fmpPrice(symbol) }]),
     { name: "yahoo", run: () => yahooPrice(symbol) },
     { name: "nasdaq", run: () => nasdaqPrice(symbol, assetType) },
     { name: "yahoo-fallback", run: () => yahooFallbackPrice(symbol) },
   ];
-  const results: PriceResult[] = [];
+  const results: PriceResult[] = batched ? [{ ...batched, source: "fmp-batch" }] : [];
   const errors: string[] = [];
 
   function bestResult() {
@@ -631,7 +684,8 @@ async function marketPrice(symbol: string, assetType: string): Promise<PriceResu
       const aDate = parseFlexibleDate(a.date)?.getTime() || 0;
       const bDate = parseFlexibleDate(b.date)?.getTime() || 0;
       if (aDate !== bDate) return bDate - aDate;
-      return ["yahoo-finance2", "fmp", "yahoo", "yahoo-fallback", "nasdaq"].indexOf(a.source) - ["yahoo-finance2", "fmp", "yahoo", "yahoo-fallback", "nasdaq"].indexOf(b.source);
+      const priority = ["yahoo-finance2", "fmp", "fmp-batch", "yahoo", "yahoo-fallback", "nasdaq"];
+      return priority.indexOf(a.source) - priority.indexOf(b.source);
     });
     const primary = ordered[0];
     const richest = ordered.find((item) => item.week52Low || item.week52High) || primary;
@@ -1020,7 +1074,22 @@ export async function refreshPrices(userId: string) {
     summary.byType[sec.assetType][bucket] += 1;
   }
 
-  await mapWithConcurrency(securities, 6, async (sec) => {
+  // Prefetch a batch FMP quote for US-listed auto-priced holdings before the per-holding
+  // loop starts, so those symbols' "fmp" leg of the per-symbol race (see marketPrice) is
+  // already resolved and costs zero additional external calls.
+  const batchCandidates = [...new Set(
+    securities
+      .filter((sec) => sec.pricingMode === "auto"
+        && !["Savings", "Bond", "Other"].includes(sec.assetType)
+        && !(sec.assetType === "Mutual Fund" && sec.currency === "INR")
+        && sec.currency === "USD")
+      .map((sec) => directPriceSymbols(sec)[0])
+      .filter((symbol): symbol is string => Boolean(symbol)),
+  )];
+  const fmpBatch = await fmpBatchPrices(batchCandidates);
+
+  const refreshConcurrency = Number(process.env.REFRESH_CONCURRENCY || 5);
+  await withFmpBatch(fmpBatch, () => mapWithConcurrency(securities, refreshConcurrency, async (sec) => {
     try {
       if (["Savings", "Bond", "Other"].includes(sec.assetType) || sec.pricingMode === "manual") {
         await updateRefreshFieldsForSecurity(userId, sec, {
@@ -1108,7 +1177,7 @@ export async function refreshPrices(userId: string) {
       summary.details.push({ name: sec.name, status: "failed", note });
       await mark(sec, "failed");
     }
-  });
+  }));
   // Best-effort: let any background cache refreshes still in flight finish before this
   // (possibly serverless) invocation returns, rather than abandoning them mid-fetch.
   await drainInFlightRefreshes();
