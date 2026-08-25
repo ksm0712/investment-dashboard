@@ -45,7 +45,8 @@ function ollamaProvider(): AiProvider {
             model,
             stream: false,
             format: request.jsonSchema,
-            options: { temperature: 0.1, num_ctx: 8_192 },
+            keep_alive: "15m",
+            options: { temperature: 0, num_ctx: 8_192, num_predict: 1_000, repeat_penalty: 1.15 },
             messages: [
               { role: "system", content: request.system },
               { role: "user", content: request.prompt },
@@ -135,4 +136,3 @@ export function providerConfigured() {
   if (String(process.env.AI_PROVIDER || "").toLowerCase() === "ollama") return true;
   return process.env.NODE_ENV !== "production";
 }
-
