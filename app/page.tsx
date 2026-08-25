@@ -5,6 +5,7 @@ import { ArrowRight, Bell, Database, Globe2, Plus, RotateCw, Search, ShieldCheck
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
+import ResearchPanel from "./research-panel";
 
 function useLockBodyScroll(active: boolean) {
   useEffect(() => {
@@ -773,6 +774,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
                   <span><b>Data date</b> {fmtDate(item.marketDataAsOn || item.priceAsOn)}</span>
                 </div>
               </div>
+              <ResearchPanel security={item} />
               {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
             </div>
             }
