@@ -21,6 +21,10 @@ function hasTurso() {
   return Boolean(process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN);
 }
 
+export function hasPersistentDatabase() {
+  return hasTurso();
+}
+
 function tursoUrl() {
   const raw = process.env.TURSO_DATABASE_URL || "";
   const url = raw.startsWith("libsql://") ? `https://${raw.slice("libsql://".length)}` : raw;
@@ -148,6 +152,24 @@ export async function initDb() {
   )`);
   await execute(`CREATE INDEX IF NOT EXISTS idx_action_history_security_recorded
     ON action_history(security_id, recorded_at DESC)`);
+  await execute(`CREATE TABLE IF NOT EXISTS investment_research (
+    security_id INTEGER PRIMARY KEY,
+    thesis TEXT NOT NULL DEFAULT '',
+    analysis_json TEXT,
+    input_hash TEXT,
+    provider TEXT,
+    model TEXT,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(security_id) REFERENCES securities(id)
+  )`);
+  await execute(`CREATE TABLE IF NOT EXISTS ai_request_log (
+    id INTEGER PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    security_id INTEGER NOT NULL,
+    requested_at TEXT NOT NULL
+  )`);
+  await execute(`CREATE INDEX IF NOT EXISTS idx_ai_request_log_user_time
+    ON ai_request_log(user_id, requested_at DESC)`);
   // Added after scripts/db-bench.ts measured `SELECT s.* FROM securities s JOIN portfolios p
   // ON s.portfolio_id=p.id WHERE p.user_id=?` doing a full table scan on `securities`
   // (EXPLAIN QUERY PLAN: "SCAN s", 98 rows read for a 20-holding portfolio). Adding this index
@@ -817,6 +839,12 @@ export async function deleteSecurity(userId: string, id: number) {
     ),
     execute(
       `DELETE FROM investment_lots WHERE security_id=? AND security_id IN (
+         SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
+       )`,
+      [id, userId],
+    ),
+    execute(
+      `DELETE FROM investment_research WHERE security_id=? AND security_id IN (
          SELECT s.id FROM securities s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.user_id=?
        )`,
       [id, userId],
