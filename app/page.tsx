@@ -424,7 +424,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
           <div className="field"><label>52-week low</label><input value={week52Low} readOnly placeholder="Auto-filled" /></div>
           <div className="field"><label>52-week high</label><input value={week52High} readOnly placeholder="Auto-filled" /></div>
         </div>
-        <div className="form-hint alloc-hint">The most you're willing to invest in this asset. Buy and Review to Buy never trigger without it.</div>
+        <div className="form-hint alloc-hint">The most you&apos;re willing to invest in this asset. Buy and Review to Buy never trigger without it.</div>
         {targetPrice && <div className="provider-note">Target source: {targetSource || "manual"}{targetAsOn ? ` · ${fmtDate(targetAsOn)}` : ""}</div>}
         {error && <div className="bad" style={{ marginTop: 14, fontWeight: 700 }}>{error}</div>}
         <div className="modal-footer">
