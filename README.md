@@ -30,6 +30,9 @@ The app was rebuilt from an earlier Streamlit prototype into a responsive Next.j
 - Currency-aware views across markets, including USD and INR.
 - Editable strategy settings and purchase lots without duplicating the asset.
 - Clear refresh feedback showing when prices were refreshed and how many holdings updated.
+- A per-holding investment thesis and AI evidence signal that stays separate from the numerical Buy/Sell engine.
+- Automatic SEC 10-K/10-Q/20-F/40-F ingestion for U.S. stocks, with pasted-report support for other assets.
+- Hybrid BM25/embedding retrieval, schema-validated model output, source citations, content-hash caching, and daily request limits.
 - Cloud persistence through Turso/libSQL.
 
 ## Screens
@@ -100,6 +103,30 @@ Key design choices:
 - Stock and ETF refreshes race multiple quote providers, then choose the freshest result.
 - Mutual fund refreshes use mfapi's latest NAV endpoint first to avoid downloading full history.
 - The UI updates from the refresh response immediately, so users do not need a full page reload.
+- The language model never receives or changes the deterministic portfolio action. It reads retrieved report passages and independently labels the saved thesis as Supported, Unclear, or Contradicted.
+- Filing text is treated as untrusted data, citations are limited to retrieved passage IDs, and invalid structured output is rejected before persistence.
+
+## AI Evidence Research
+
+Expand a holding, save the reason you own it, and run **AI evidence research**. For U.S. stocks the server can download the latest supported SEC filing automatically; for other holdings, paste a filing, earnings release, or company report. The result appears beside the numerical engine so a cheap-looking asset can still surface a deteriorating business thesis without allowing a model to overwrite the tested formula.
+
+The zero-cost local path uses Ollama:
+
+```bash
+ollama pull llama3.2
+ollama pull nomic-embed-text
+AI_PROVIDER=ollama DEV_AUTH=1 npm run dev
+```
+
+The fixed 30-case synthetic evaluation set runs through the real local model and hybrid retriever:
+
+```bash
+AI_PROVIDER=ollama npm run ai-eval
+```
+
+Final measured results on `llama3.2`: **100% Recall@5, 100% schema validity, 100% evidence-signal accuracy, 100% risk-label accuracy, and 86.8% citation precision**. p50/p95 end-to-end inference latency was **10,941/15,123 ms** with an average **1,514 input + 322 output tokens**. Exact cases, command, and raw output are recorded in [BENCHMARKS.md](BENCHMARKS.md); design decisions and first-run failures are in [ENGINEERING_LOG.md](ENGINEERING_LOG.md).
+
+For a public Vercel demo, set `AI_PROVIDER=groq` and `GROQ_API_KEY` as server-only environment variables. The application limits uncached requests per user, caches identical analysis inputs, and returns a clear unavailable state when no provider is configured instead of presenting deterministic text as AI output.
 
 ## Engineering
 
@@ -167,6 +194,10 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 AUTH_COOKIE_SECRET=your_long_random_secret
 CRON_SECRET=your_long_random_cron_secret
 APP_URL=https://your-vercel-url.vercel.app
+AI_PROVIDER=groq
+GROQ_API_KEY=your_free_hosted_inference_key
+AI_DAILY_REQUEST_LIMIT=10
+SEC_USER_AGENT=Thesis portfolio research your-email@example.com
 ```
 
 Yahoo Finance is the no-key global source for prices, 52-week ranges, and analyst targets. FMP, Nasdaq, Twelve Data, and Alpha Vantage remain automatic fallbacks. The app records which provider supplied each target.

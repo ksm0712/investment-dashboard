@@ -507,3 +507,62 @@ Target: `POST http://localhost:3002/api/refresh` (the live-data path), authentic
 | 100 | 0.0 | 0 ms | 0 ms | 30000.00% |
 
 **Max concurrency sustained under 500ms p99 with zero errors: NONE**
+
+## Phase 6 — AI evidence research evaluation
+
+The benchmark uses the committed, fixed 30-case synthetic set in `scripts/fixtures/ai-eval-cases.ts`: 10 reports that support the thesis, 10 that materially contradict it, and 10 with insufficient/non-comparable disclosure. Labels were assigned before running the model. Every case passes through the production chunker, BM25 + `nomic-embed-text` hybrid retrieval, prompt construction, Ollama `llama3.2`, JSON-schema validation, citation validation, and grounded coherence guardrails. No paid API or mock model is used.
+
+Citation precision is intentionally stricter than citation-ID validity: a citation counts only when its passage overlaps the hand-labeled decisive evidence, so a valid citation to irrelevant administrative boilerplate lowers the score. `Recall@5` asks whether at least one decisive passage appears in the top five retrieved passages.
+
+_2026-08-26T15:25:12.666Z — `AI_PROVIDER=ollama npm run ai-eval`_
+
+```text
+support-01 supports/supports low/low hybrid 10750ms
+support-02 supports/supports low/low hybrid 11388ms
+support-03 supports/supports low/low hybrid 9837ms
+support-04 supports/supports low/low hybrid 11173ms
+support-05 supports/supports low/low hybrid 10941ms
+support-06 supports/supports low/low hybrid 10432ms
+support-07 supports/supports low/low hybrid 10736ms
+support-08 supports/supports low/low hybrid 13303ms
+support-09 supports/supports low/low hybrid 9833ms
+support-10 supports/supports low/low hybrid 11315ms
+contradict-01 contradicts/contradicts high/high hybrid 12149ms
+contradict-02 contradicts/contradicts high/high hybrid 10241ms
+contradict-03 contradicts/contradicts high/high hybrid 11779ms
+contradict-04 contradicts/contradicts high/high hybrid 16138ms
+contradict-05 contradicts/contradicts high/high hybrid 9520ms
+contradict-06 contradicts/contradicts high/high hybrid 13953ms
+contradict-07 contradicts/contradicts high/high hybrid 10903ms
+contradict-08 contradicts/contradicts high/high hybrid 9651ms
+contradict-09 contradicts/contradicts high/high hybrid 9478ms
+contradict-10 contradicts/contradicts high/high hybrid 9958ms
+unclear-01 unclear/unclear medium/medium hybrid 12435ms
+unclear-02 unclear/unclear medium/medium hybrid 11651ms
+unclear-03 unclear/unclear medium/medium hybrid 15051ms
+unclear-04 unclear/unclear medium/medium hybrid 13296ms
+unclear-05 unclear/unclear medium/medium hybrid 15123ms
+unclear-06 unclear/unclear medium/medium hybrid 12953ms
+unclear-07 unclear/unclear medium/medium hybrid 10442ms
+unclear-08 unclear/unclear medium/medium hybrid 9119ms
+unclear-09 unclear/unclear medium/medium hybrid 7922ms
+unclear-10 unclear/unclear medium/medium hybrid 12097ms
+{
+  "measuredAt": "2026-08-26T15:25:12.666Z",
+  "provider": "ollama",
+  "model": "llama3.2",
+  "cases": 30,
+  "retrievalRecallAt5Pct": 100,
+  "structuredOutputValidityPct": 100,
+  "evidenceSignalAccuracyPct": 100,
+  "riskLevelAccuracyPct": 100,
+  "citationPrecisionPct": 86.8,
+  "hybridRetrievalPct": 100,
+  "p50EndToEndLatencyMs": 10941,
+  "p95EndToEndLatencyMs": 15123,
+  "averageInputTokens": 1514,
+  "averageOutputTokens": 322
+}
+```
+
+These numbers characterize the committed synthetic evaluation set and local `llama3.2` runtime, not general financial accuracy. The model is never allowed to produce the portfolio action; the 100% signal score applies only to Supported/Unclear/Contradicted thesis evidence labels.

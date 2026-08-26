@@ -12,8 +12,8 @@ type ResearchPayload = ResearchRecord & {
 };
 
 function signalLabel(signal: ResearchRun["analysis"]["evidenceSignal"]) {
-  if (signal === "supports") return "Supports numerical signal";
-  if (signal === "contradicts") return "Contradicts numerical signal";
+  if (signal === "supports") return "Supports your thesis";
+  if (signal === "contradicts") return "Contradicts your thesis";
   return "Evidence is unclear";
 }
 
@@ -153,7 +153,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
   return (
     <section className="ai-research-panel" aria-label={`AI research for ${security.name}`}>
       <div className="research-panel-head">
-        <div><div className="eyebrow"><Sparkles size={13} /> AI evidence research</div><h3>Does the business evidence support the numbers?</h3><p>The numerical action stays unchanged. AI reads report text and checks it against your reason for owning this asset.</p></div>
+        <div><div className="eyebrow"><Sparkles size={13} /> AI evidence research</div><h3>Does the business evidence support your thesis?</h3><p>The numerical action stays unchanged. AI reads report text and checks it against your reason for owning this asset.</p></div>
         <span className="research-boundary">Research only · not financial advice</span>
       </div>
 
@@ -186,4 +186,3 @@ export default function ResearchPanel({ security }: { security: Security }) {
     </section>
   );
 }
-

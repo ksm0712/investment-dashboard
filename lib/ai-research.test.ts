@@ -31,8 +31,8 @@ test("analyzeResearch keeps the deterministic action separate and returns valida
     name: "test",
     model: "scripted",
     async generate(request) {
-      assert.match(request.prompt, /numericalAction/);
-      assert.match(request.prompt, /Do not recommend buying, selling/);
+      assert.doesNotMatch(request.prompt, /numericalAction/);
+      assert.match(request.prompt, /Do not make a buy, sell/);
       return {
         provider: "test", model: "scripted", inputTokens: 200, outputTokens: 80,
         content: JSON.stringify({
@@ -62,4 +62,40 @@ test("analyzeResearch keeps the deterministic action separate and returns valida
   assert.equal(result.analysis.evidenceSignal, "contradicts");
   assert.equal(result.citations[0].sourceUrl, "https://example.com/q2");
   assert.equal(result.provider, "test");
+});
+
+test("missing disclosure cannot be promoted into positive thesis evidence", async () => {
+  const provider: AiProvider = {
+    name: "test",
+    model: "scripted",
+    async generate() {
+      return {
+        provider: "test", model: "scripted", inputTokens: 100, outputTokens: 50,
+        content: JSON.stringify({
+          businessOutlook: "positive",
+          riskLevel: "low",
+          evidenceSignal: "supports",
+          summary: "The model claimed the thesis was supported.",
+          positiveEvidence: [{ claim: "Customer spending grew.", citationIds: ["C1"] }],
+          risks: [],
+          thesisChecks: [{ statement: "Existing-customer spending grew.", status: "supported", explanation: "Spending grew.", citationIds: ["C1"] }],
+          limitations: [],
+        }),
+      };
+    },
+  };
+  const result = await analyzeResearch({
+    security: security(),
+    thesis: "Existing-customer spending will grow.",
+    document: {
+      title: "Example Systems update",
+      text: "The company did not separate existing-customer spending from new-customer revenue, so comparable growth data was not disclosed. ".repeat(5),
+    },
+    provider,
+  });
+  assert.equal(result.analysis.evidenceSignal, "unclear");
+  assert.equal(result.analysis.riskLevel, "medium");
+  assert.equal(result.analysis.businessOutlook, "mixed");
+  assert.deepEqual(result.analysis.positiveEvidence, []);
+  assert.equal(result.analysis.thesisChecks[0].status, "unclear");
 });

@@ -26,7 +26,11 @@ function percentile(values: number[], percentileValue: number) {
 
 async function main() {
 const requestedLimit = Number(process.argv.find((argument) => argument.startsWith("--limit="))?.split("=")[1] || AI_EVAL_CASES.length);
-const cases = AI_EVAL_CASES.slice(0, Math.max(1, Math.min(requestedLimit, AI_EVAL_CASES.length)));
+const requestedCase = process.argv.find((argument) => argument.startsWith("--case="))?.split("=")[1];
+const cases = requestedCase
+  ? AI_EVAL_CASES.filter((testCase) => testCase.id === requestedCase)
+  : AI_EVAL_CASES.slice(0, Math.max(1, Math.min(requestedLimit, AI_EVAL_CASES.length)));
+if (!cases.length) throw new Error(`Unknown evaluation case: ${requestedCase}`);
 const provider = getAiProvider();
 const latencies: number[] = [];
 let retrievalHits = 0;
