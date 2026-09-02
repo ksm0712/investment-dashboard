@@ -1,8 +1,6 @@
 # Thesis
 
-(repo's still named `investment-dashboard`, never got around to renaming it after I picked a real name for the app)
-
-I track my stocks in an Excel sheet with a bunch of formulas — target price, 52-week high/low, how much I'm willing to put into each position — that tell me whether to buy, sell, or just hold. Updating it by hand got old, so I rebuilt it as a website that pulls live prices and runs the same rules automatically.
+I track my stocks in an Excel sheet with a bunch of formulas (target price, 52-week high/low, how much I'm willing to put into each position) that tell me whether to buy, sell, or just hold. Updating it by hand got old, so I rebuilt it as a website that pulls live prices and runs the same rules automatically.
 
 [Live app](https://investment-dashboard-ox99.vercel.app/)
 
@@ -31,12 +29,12 @@ npm install
 cp .env.example .env.local
 ```
 
-You need a Turso database (free tier works, [turso.tech](https://turso.tech)) and a Google OAuth client — put those in `.env.local`. Everything else in `.env.example` is optional.
+You need a Turso database (free tier works, [turso.tech](https://turso.tech)) and a Google OAuth client. Put those in `.env.local`. Everything else in `.env.example` is optional.
 
 ```bash
 npm run dev
 ```
 
-Don't want to set up Google OAuth just to poke around locally? Run `DEV_AUTH=1 npm run dev` instead — logs you in as a fake local user, no OAuth needed.
+Don't want to set up Google OAuth just to poke around locally? Run `DEV_AUTH=1 npm run dev` instead. It logs you in as a fake local user so you don't need OAuth.
 
-If you want to see how the buy/sell math actually maps to the spreadsheet, that's written up in [docs/portfolio-intelligence.md](docs/portfolio-intelligence.md). I also did a whole performance pass on this (caching, retries, load testing) — that's in [BENCHMARKS.md](BENCHMARKS.md) and [ENGINEERING_LOG.md](ENGINEERING_LOG.md) if that's your kind of thing.
+If you want to see how the buy/sell math actually maps to the spreadsheet, that's written up in [docs/portfolio-intelligence.md](docs/portfolio-intelligence.md). I also did a whole performance pass on this (caching, retries, load testing). That's in [BENCHMARKS.md](BENCHMARKS.md) and [ENGINEERING_LOG.md](ENGINEERING_LOG.md) if that's your kind of thing.
