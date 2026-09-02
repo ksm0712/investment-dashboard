@@ -2,20 +2,11 @@
 .env
 .env.local
 .env.*.local
-.streamlit/secrets.toml
 
 # Database (contains personal investment data)
 *.db
 *.sqlite
 *.sqlite3
-
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-venv/
-.venv/
-env/
 
 # Next.js
 node_modules/
@@ -27,6 +18,17 @@ out/
 .DS_Store
 .session.json
 .amfi_cache.json
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Local Claude Code tooling (machine-specific, not part of the app)
+.claude/
+
+# Personal data — never commit
+Global Stocks Portfolio.xlsx
 
 # Benchmarking (local Lighthouse reports, not committed — regenerable, see BENCHMARKS.md)
 scratch-lighthouse/

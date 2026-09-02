@@ -15,7 +15,7 @@ Deploy this branch to Vercel for the fast React version.
 Add these in Vercel project settings:
 
 ```text
-TURSO_DATABASE_URL=libsql://investment-dashboard-karansm.aws-ap-northeast-1.turso.io
+TURSO_DATABASE_URL=libsql://your-database.turso.io
 TURSO_AUTH_TOKEN=your_turso_token
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
