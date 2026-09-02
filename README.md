@@ -1,6 +1,6 @@
 # Thesis
 
-I track my stocks in an Excel sheet with a bunch of formulas (target price, 52-week high/low, how much I'm willing to put into each position) that tell me whether to buy, sell, or just hold. Updating it by hand got old, so I rebuilt it as a website that pulls live prices and runs the same rules automatically.
+I track my stocks in an Excel sheet with a bunch of formulas (target price, 52-week high/low, how much I'm willing to put into each position) that tell me whether to buy, sell, or just hold. Updating it by hand was too manual, so I rebuilt it as a website that pulls live prices and runs the same rules automatically.
 
 [Live app](https://investment-dashboard-ox99.vercel.app/)
 
