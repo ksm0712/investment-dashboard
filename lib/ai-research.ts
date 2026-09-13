@@ -133,7 +133,7 @@ function parseJson(text: string) {
   return JSON.parse(trimmed);
 }
 
-function researchPrompt(security: Security, thesis: string, evidence: Array<{ id: string; text: string }>) {
+function researchPrompt(security: Security, thesis: string, evidence: Array<{ id: string; text: string }>, schema: Record<string, unknown>) {
   const company = {
     name: security.name,
     ticker: security.priceSymbol || security.ticker,
@@ -147,7 +147,8 @@ function researchPrompt(security: Security, thesis: string, evidence: Array<{ id
     "Risk rubric: low means the supplied evidence supports the thesis and identifies no material business threat; high means it reports a major failure, loss, investigation, recall, financing threat, or severe deterioration; otherwise use medium.",
     "Routine administration, leases, governance, accounting presentation, employee training, and unquantified foreign-exchange changes are neutral. Never present neutral boilerplate as a positive, risk, limitation, or reason to change the business outlook.",
     "When the evidence directly supports the full thesis and contains no material adverse business fact, return businessOutlook=positive and riskLevel=low.",
-    "Return JSON matching the required schema. Keep claims concise and factual.",
+    "Return a single JSON object that validates against this JSON Schema exactly — every required property must be present, and array properties (positiveEvidence, risks, thesisChecks, limitations) must be JSON arrays, using [] when there is nothing to report. Do not omit any required property and do not wrap the object in another key.",
+    `\nJSON_SCHEMA\n${JSON.stringify(schema)}`,
     `\nCOMPANY\n${JSON.stringify(company)}`,
     `\nUSER_THESIS\n${thesis}`,
     `\nEVIDENCE_PASSAGES\n${evidence.map((chunk) => `[${chunk.id}] ${chunk.text}`).join("\n\n")}`,
@@ -238,11 +239,12 @@ export async function analyzeResearch(input: {
   const provider = input.provider || getAiProvider();
   const retrieval = input.retrievedEvidence || await retrieveResearchEvidence(input.document, thesis, provider, input.topK || 6);
   const selected = retrieval.chunks;
+  const schema = outputSchemaForCitations(selected.map((chunk) => chunk.id));
   const start = performance.now();
   const response = await provider.generate({
     system: "You are a financial evidence analyst. You never make investment recommendations. You return source-grounded JSON only.",
-    prompt: researchPrompt(input.security, thesis, selected),
-    jsonSchema: outputSchemaForCitations(selected.map((chunk) => chunk.id)),
+    prompt: researchPrompt(input.security, thesis, selected, schema),
+    jsonSchema: schema,
   });
   const analysis = enforceGroundedCoherence(
     validateResearchAnalysis(parseJson(response.content), selected.map((chunk) => chunk.id)),
