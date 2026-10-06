@@ -178,6 +178,9 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 .action-filter-chip.review-to-sell.on { color: var(--orange); }
 .action-filter-chip.review-to-buy.on { color: var(--blue); }
 .action-filter-chip.insufficient-data.on { color: var(--yellow); }
+.register-sort-row { display: flex; min-height: 39px; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--line); background: #f7f6f1; color: var(--muted); font-family: var(--font-mono), monospace; font-size: 8px; }
+.register-sort-row label { display: flex; align-items: center; gap: 8px; text-transform: uppercase; }
+.register-sort-row select { min-height: 27px; padding: 0 24px 0 8px; border-color: #d4d4cd; background-color: var(--white); font-family: var(--font-sans), sans-serif; font-size: 9px; text-transform: none; }
 
 .asset-register { overflow: hidden; }
 .asset-row-shell { position: relative; border-bottom: 1px solid var(--line); }

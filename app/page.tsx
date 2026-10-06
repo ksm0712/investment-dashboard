@@ -616,6 +616,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   focusId: number | null;
   emptyMessage: string;
 }) {
+  type SortKey = "priority" | "value" | "return" | "change" | "name";
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [editorAsset, setEditorAsset] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
@@ -624,9 +625,14 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   const [allocationDraft, setAllocationDraft] = useState<Record<number, string>>({});
   const [marketDraft, setMarketDraft] = useState<Record<number, { target?: string; secondaryTarget?: string; low?: string; high?: string }>>({});
   const [message, setMessage] = useState<Record<number, string>>({});
+  const [sortKey, setSortKey] = useState<SortKey>("priority");
   useLockBodyScroll(editorAsset !== null);
   useEscapeKey(editorAsset !== null, () => setEditorAsset(null));
   const rows = [...securities].sort((a, b) => {
+    if (sortKey === "name") return a.name.localeCompare(b.name);
+    if (sortKey === "value") return (b.latestValueInr ?? b.valueInr) - (a.latestValueInr ?? a.valueInr);
+    if (sortKey === "return") return (b.gainPct ?? -Infinity) - (a.gainPct ?? -Infinity);
+    if (sortKey === "change") return (b.changePercent ?? -Infinity) - (a.changePercent ?? -Infinity);
     const rank = (ACTION_PRIORITY[a.action] ?? 9) - (ACTION_PRIORITY[b.action] ?? 9);
     if (rank !== 0) return rank;
     return (b.latestValueInr ?? b.valueInr) - (a.latestValueInr ?? a.valueInr);
@@ -746,6 +752,16 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   if (!rows.length) return <div className="alloc-meta empty-holdings-note">{emptyMessage}</div>;
   return (
     <div className="asset-register">
+      <div className="register-sort-row">
+        <span>{rows.length} result{rows.length === 1 ? "" : "s"}</span>
+        <label>Sort by<select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
+          <option value="priority">Decision priority</option>
+          <option value="value">Position value</option>
+          <option value="return">Total return</option>
+          <option value="change">Today&apos;s move</option>
+          <option value="name">Name</option>
+        </select></label>
+      </div>
       <div className="holding-row holding-row-head" aria-hidden="true">
         <span className="holding-name-cell">Asset</span>
         <span className="holding-num-cell">Target</span>
