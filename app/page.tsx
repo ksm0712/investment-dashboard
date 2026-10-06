@@ -1091,6 +1091,25 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Boolean(data), lastRefreshedAt]);
 
+  useEffect(() => {
+    if (!data) return;
+    function handleShortcut(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const isEditing = target?.matches("input, textarea, select, [contenteditable='true']");
+      if (isEditing || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "/") {
+        event.preventDefault();
+        document.getElementById("holding-search")?.focus();
+      }
+      if (event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        setModalOpen(true);
+      }
+    }
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [Boolean(data)]);
+
   if (!loginChecked) return <main className="loading-page"><ProductMark /><span>Preparing your portfolio</span></main>;
   if (!data && portfolioError) return <main className="load-error-page"><div className="load-error-card"><CircleAlert size={22} /><div className="eyebrow">Connection issue</div><h1>Your portfolio is still safe.</h1><p>{portfolioError} Check your connection and try again.</p><button className="primary-btn" onClick={load}>Try again</button></div></main>;
   if (!data) return <Login />;
@@ -1115,7 +1134,7 @@ export default function Page() {
         </div>
         <div className="actions">
           <AlertsBell actionHistory={data.actionHistory} onSelect={focusSecurity} />
-          <button className="primary-btn" onClick={() => setModalOpen(true)}><Plus size={15} /> Add investment</button>
+          <button className="primary-btn" onClick={() => setModalOpen(true)}><Plus size={15} /> Add investment <kbd>N</kbd></button>
           <div className="profile-chip" title={data.user.email || data.user.name || "Signed in user"}>
             {data.user.picture ? (
               <img className="profile-pic" src={data.user.picture} alt={data.user.name || data.user.email || "Signed in user"} referrerPolicy="no-referrer" />
@@ -1158,7 +1177,7 @@ export default function Page() {
           <section className="holdings-panel">
             <header className="holdings-toolbar">
               <div><div className="eyebrow">Portfolio register</div><h2>Holdings</h2><p>{visible.length} of {countryVisible.length} positions shown</p></div>
-              <label className="holding-search"><Search size={15} /><input aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} /></label>
+              <label className="holding-search"><Search size={15} /><input id="holding-search" aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} /><kbd>/</kbd></label>
             </header>
             <div className="action-filter-row" aria-label="Filter holdings by recommended action">
               {ACTION_FILTERS.map((action) => {

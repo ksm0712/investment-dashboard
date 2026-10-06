@@ -54,6 +54,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 .primary-btn, .refresh-button, .table-btn, .google-login-btn, .icon-btn { transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease; }
 .primary-btn { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; padding: 0 17px; border: 1px solid var(--forest); border-radius: 3px; background: var(--forest); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .primary-btn:hover { transform: translateY(-1px); background: #081c17; }
+.primary-btn kbd { min-width: 18px; padding: 2px 4px; border: 1px solid rgba(255,255,255,.25); border-radius: 2px; color: #c5d1cc; font-family: var(--font-mono), monospace; font-size: 7px; font-weight: 500; }
 .ghost-btn { min-height: 32px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
 .ghost-btn:hover { color: var(--red); }
 .icon-btn { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 3px; background: var(--white); color: var(--muted); }
@@ -168,6 +169,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 .holdings-toolbar p { display: inline; margin: 0; color: var(--muted); font-family: var(--font-mono), monospace; font-size: 9px; }
 .holding-search { display: flex; width: 230px; height: 38px; align-items: center; gap: 8px; border-bottom: 1px solid #b9beb4; color: var(--muted); }
 .holding-search input { width: 100%; min-height: 36px; padding: 0; border: 0; background: transparent; box-shadow: none; font-size: 11px; }
+.holding-search kbd { display: grid; min-width: 20px; height: 20px; place-items: center; border: 1px solid #d4d4cc; border-radius: 2px; background: #f6f5f0; color: #77817c; font-family: var(--font-mono), monospace; font-size: 8px; }
 .action-filter-row { display: flex; gap: 2px; overflow-x: auto; padding: 0 20px 12px; border-bottom: 1px solid var(--line); }
 .action-filter-chip { display: inline-flex; min-height: 29px; flex: 0 0 auto; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid transparent; border-radius: 2px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 700; }
 .action-filter-chip strong { display: grid; min-width: 17px; height: 17px; place-items: center; padding: 0 4px; border-radius: 2px; background: #ebe9e1; font-family: var(--font-mono), monospace; font-size: 8px; }
