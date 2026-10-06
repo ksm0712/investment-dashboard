@@ -191,12 +191,13 @@ function PortfolioOverview({
           <div><span>Invested</span><strong>{stats.costInr ? fmt(fromInr(stats.costInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
           <div><span>Unrealized P&amp;L</span><strong className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
           <div><span>Needs a decision</span><strong>{attention.actionable.length}</strong></div>
-          <div><span>Data health</span><strong>{health}<small>/100</small></strong></div>
+          <div><span>Portfolio health</span><strong>{health}<small>/100</small></strong></div>
         </div>
-        <div className="health-track" aria-label={`Portfolio data health ${health} out of 100`}><span style={{ width: `${health}%` }} /></div>
+        <div className="health-track" aria-label={`Portfolio health ${health} out of 100`}><span style={{ width: `${health}%` }} /></div>
         <div className="summary-foot">
           <span>{setupCount ? `${setupCount} position${setupCount === 1 ? "" : "s"} need setup` : "Every position has decision inputs"}</span>
           <span>{staleCount ? `${staleCount} market price${staleCount === 1 ? " is" : "s are"} stale` : "Market data is current"}</span>
+          <span>Largest position {fmtPct(attention.largestWeight * 100)}</span>
         </div>
       </div>
 
