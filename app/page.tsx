@@ -661,6 +661,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   const [deleting, setDeleting] = useState<number | null>(null);
   const [lotDraft, setLotDraft] = useState<Record<string, string>>({ purchaseDate: new Date().toISOString().slice(0, 10) });
   const [editingLot, setEditingLot] = useState<number | null>(null);
+  const [deletingLot, setDeletingLot] = useState<number | null>(null);
   const [allocationDraft, setAllocationDraft] = useState<Record<number, string>>({});
   const [marketDraft, setMarketDraft] = useState<Record<number, { target?: string; secondaryTarget?: string; low?: string; high?: string }>>({});
   const [message, setMessage] = useState<Record<number, string>>({});
@@ -773,12 +774,16 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   async function removeLot(item: Security, lotId: number) {
     const res = await fetch(`/api/lots/${lotId}`, { method: "DELETE" });
     if (res.ok) {
+      setDeletingLot(null);
       setMessage((current) => ({ ...current, [item.id]: "Purchase lot deleted and totals recalculated." }));
       await reload();
+    } else {
+      setMessage((current) => ({ ...current, [item.id]: "Could not delete this purchase lot. Nothing was changed." }));
     }
   }
 
   function beginLotEdit(lot: Security["lots"][number]) {
+    setDeletingLot(null);
     setEditingLot(lot.id);
     setLotDraft({
       quantity: String(lot.quantity),
@@ -959,7 +964,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
                   <div className="detail-section-head"><div><h3>Purchase lots</h3></div><span>{item.lots.length} lot{item.lots.length === 1 ? "" : "s"}</span></div>
                   <div className="lots-table">
                     <div className="lot-row lot-head"><span>Date</span><span>Quantity</span><span>Cost price</span><span>Fees</span><span>Cost value</span><span /><span /></div>
-                    {item.lots.map((lot) => <div className="lot-row" key={lot.id}><span>{fmtDate(lot.purchaseDate)}</span><span>{fmtPlain(lot.quantity, 4)}</span><span>{fmtUnit(lot.costPrice, item.currency)}</span><span>{fmtUnit(lot.fees, item.currency)}</span><strong>{fmt(lot.quantity * lot.costPrice + lot.fees, item.currency)}</strong><button className="table-btn" onClick={() => beginLotEdit(lot)}>Edit</button><button className="icon-btn danger" aria-label="Delete purchase lot" onClick={() => removeLot(item, lot.id)}><Trash2 size={14} /></button></div>)}
+                    {item.lots.map((lot) => <div className={`lot-row ${deletingLot === lot.id ? "confirming-delete" : ""}`} key={lot.id}><span>{fmtDate(lot.purchaseDate)}</span><span>{fmtPlain(lot.quantity, 4)}</span><span>{fmtUnit(lot.costPrice, item.currency)}</span><span>{fmtUnit(lot.fees, item.currency)}</span><strong>{fmt(lot.quantity * lot.costPrice + lot.fees, item.currency)}</strong>{deletingLot === lot.id ? <><button className="table-btn danger" onClick={() => removeLot(item, lot.id)}>Confirm</button><button className="icon-btn" aria-label="Cancel purchase lot deletion" onClick={() => setDeletingLot(null)}><X size={14} /></button></> : <><button className="table-btn" onClick={() => beginLotEdit(lot)}>Edit</button><button className="icon-btn danger" aria-label="Delete purchase lot" onClick={() => setDeletingLot(lot.id)}><Trash2 size={14} /></button></>}</div>)}
                     {!item.lots.length && <div className="empty-lots">No purchase lots yet. Add the first purchase below.</div>}
                   </div>
                   <div className="compact-form lot-form">

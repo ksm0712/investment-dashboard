@@ -483,6 +483,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 .compact-form input { display: block; width: 100%; min-height: 37px; margin-top: 5px; font-size: 11px; }
 .lots-table { overflow: auto; border: 1px solid var(--line); background: var(--white); }
 .lot-row { display: grid; min-width: 720px; min-height: 42px; grid-template-columns: 120px 1fr 1fr 1fr 1.2fr 68px 42px; align-items: center; padding: 0 10px; border-bottom: 1px solid #ebe8e0; color: var(--ink-2); font-family: var(--font-mono), monospace; font-size: 9px; }
+.lot-row.confirming-delete { background: #fff4f2; }
 .lot-head { min-height: 34px; background: #edeae2; color: var(--muted); text-transform: uppercase; }
 .empty-lots { padding: 18px; color: var(--muted); font-size: 10px; }
 .lot-form { margin-top: 12px; }
