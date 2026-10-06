@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Check, CheckCircle2, ChevronRight, CircleAlert, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, SlidersHorizontal, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, Check, CheckCircle2, ChevronRight, CircleAlert, Database, Download, Globe2, Plus, RotateCw, Search, ShieldCheck, SlidersHorizontal, Trash2, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
 import { portfolioAttention, portfolioHealthScore } from "@/lib/portfolio-insights";
+import { portfolioCsv } from "@/lib/portfolio-export";
 import ResearchPanel from "./research-panel";
 
 function useLockBodyScroll(active: boolean) {
@@ -1132,6 +1133,17 @@ export default function Page() {
     window.requestAnimationFrame(() => setFocusId(id));
   }
 
+  function exportPortfolio() {
+    const csv = portfolioCsv(visible);
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `thesis-portfolio-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setToast({ message: `Exported ${visible.length} visible position${visible.length === 1 ? "" : "s"}.`, tone: "success" });
+  }
+
   useEffect(() => {
     if (!data || autoRefreshAttempted.current) return;
     const needsIntelligence = data.securities.some((security) =>
@@ -1251,6 +1263,7 @@ export default function Page() {
             <div className="tabs" aria-label="Filter by market">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item === "All" ? "All markets" : item}</button>)}</div>
             <div className="workspace-status">
               <button className="refresh-button" onClick={refresh} disabled={loading} aria-label="Refresh prices now" title="Refresh prices now"><RotateCw size={14} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh prices"}</button>
+              <button className="refresh-button export-button" onClick={exportPortfolio} aria-label="Export visible holdings as CSV" title="Export visible holdings as CSV"><Download size={14} />Export</button>
               <span className={`refresh-results ${refreshText ? "done" : ""}`} title={refreshDetails} aria-live="polite">{refreshText || "Auto-updates every 5 min"}</span>
               <div className="select-wrap"><label htmlFor="portfolio-currency">View in</label><select id="portfolio-currency" value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>
             </div>
