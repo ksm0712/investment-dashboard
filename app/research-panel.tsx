@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, CircleHelp, ExternalLink, FileCheck2, FileSearch, Save } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Check, CircleHelp, ExternalLink, FileCheck2, FileSearch, Save } from "lucide-react";
 import type { ResearchClaim, ResearchRecord, ResearchRun, ThesisCheck } from "@/lib/ai-research-types";
 import type { Security } from "@/lib/types";
 import { fmtDate } from "@/lib/format";
+import { thesisQuality } from "@/lib/thesis-quality";
 
 type ResearchPayload = ResearchRecord & {
   providerConfigured: boolean;
@@ -148,7 +149,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not analyze this report.");
       setPayload((current) => current ? { ...current, thesis, analysis: data.run } : current);
-      setMessage(data.run.cached ? "Loaded the matching cached analysis." : "AI research completed.");
+      setMessage(data.run.cached ? "Loaded the matching evidence review." : "Evidence review completed.");
     } catch (analyzeError) {
       setError(analyzeError instanceof Error ? analyzeError.message : "Could not analyze this report.");
     } finally {
@@ -161,6 +162,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
   const savedThesis = payload?.thesis.trim() || "";
   const thesisChanged = thesis.trim() !== savedThesis;
   const analysisIsCurrent = Boolean(payload?.analysis && payload.analysis.thesis.trim() === thesis.trim());
+  const quality = useMemo(() => thesisQuality(thesis), [thesis]);
   return (
     <section className="ai-research-panel" aria-label={`Thesis evidence for ${security.name}`}>
       <div className="research-panel-head">
@@ -170,9 +172,12 @@ export default function ResearchPanel({ security }: { security: Security }) {
 
       <div className="research-input-grid">
         <div className="research-thesis-editor">
-          <label htmlFor={`thesis-${security.id}`}>Your investment thesis</label>
+          <div className="thesis-editor-head"><label htmlFor={`thesis-${security.id}`}>Your investment thesis</label><span className={`thesis-score ${quality.score >= 75 ? "ready" : "needs-work"}`}>{quality.score}% ready</span></div>
           <textarea id={`thesis-${security.id}`} value={thesis} maxLength={2_000} onChange={(event) => { setThesis(event.target.value); setMessage(""); }} placeholder="Example: Recurring revenue should grow over the next year while gross margin remains above 60%. The main risk is customer concentration." />
-          <p className="research-thesis-tip">Best results name the metric, expected direction, time horizon, and main risk. Each claim is checked separately.</p>
+          <div className="thesis-quality-list">
+            {quality.checks.map((check) => <span className={check.passed ? "passed" : ""} key={check.id} title={check.guidance}><i>{check.passed ? <Check size={10} /> : "·"}</i>{check.label}</span>)}
+          </div>
+          {quality.score < 75 && thesis.trim().length >= 10 && <p className="research-thesis-tip">{quality.checks.find((check) => !check.passed)?.guidance}</p>}
           <div className="research-editor-actions"><span>{thesis.length}/2,000{thesisChanged ? " · Unsaved changes" : ""}</span><button className="table-btn" onClick={saveThesis} disabled={saving || !thesisChanged || thesis.trim().length < 10}><Save size={13} /> {saving ? "Saving…" : thesisChanged || !savedThesis ? "Save thesis" : "Saved"}</button></div>
         </div>
         <details className="research-source-editor">
@@ -189,7 +194,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
         <button className="research-run-button" onClick={analyze} disabled={analyzing || !payload?.providerConfigured || thesis.trim().length < 10 || !sourceReady}>
           <FileCheck2 size={15} /> {analyzing ? "Finding evidence and checking each claim…" : automatic ? "Run evidence check" : "Check supplied report"}
         </button>
-        {!payload?.providerConfigured && payload && <span className="research-config-note">AI provider is not configured on this deployment.</span>}
+        {!payload?.providerConfigured && payload && <span className="research-config-note">The research engine is not configured on this deployment.</span>}
         {automatic && <span className="research-config-note">Uses the latest available SEC 10-K, 10-Q, 20-F, or 40-F and cites only thesis-relevant passages.</span>}
         {payload && !payload.automaticSourceAvailable && documentText.trim().length < 100 && <span className="research-config-note">Paste at least 100 characters of first-party report evidence to run the check.</span>}
         {message && <span className="research-message">{message}</span>}

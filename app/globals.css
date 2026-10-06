@@ -243,9 +243,17 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 .research-input-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 14px; margin-top: 18px; }
 .research-thesis-editor, .research-source-editor { padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: #f8f6f0; }
 .research-thesis-editor label { display: block; margin-bottom: 7px; color: var(--ink-2); font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
+.thesis-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+.thesis-editor-head label { margin-bottom: 0; }
+.thesis-score { padding: 3px 6px; border: 1px solid #decaa7; border-radius: 2px; background: #fff8ea; color: #8b621e; font-family: var(--font-mono), monospace; font-size: 8px; }
+.thesis-score.ready { border-color: #b8d3c5; background: #eef7f2; color: var(--green); }
 .research-thesis-editor textarea, .research-source-fields textarea, .research-source-fields input { width: 100%; border: 1px solid #d7d2c7; border-radius: 8px; background: white; color: var(--ink); font: inherit; font-size: 12px; line-height: 1.5; outline: none; }
 .research-thesis-editor textarea { min-height: 112px; padding: 10px 11px; resize: vertical; }
 .research-thesis-tip { margin: 7px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.thesis-quality-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.thesis-quality-list span { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid #dedbd3; border-radius: 2px; background: #f5f3ed; color: #89918d; font-size: 8px; }
+.thesis-quality-list span.passed { border-color: #bfd4c9; background: #eff7f2; color: #2e7156; }
+.thesis-quality-list i { display: grid; width: 10px; height: 10px; place-items: center; font-style: normal; }
 .research-thesis-editor textarea:focus, .research-source-fields textarea:focus, .research-source-fields input:focus { border-color: #8875cf; box-shadow: 0 0 0 3px rgba(104, 83, 180, .11); }
 .research-editor-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .research-editor-actions > span { color: var(--muted); font-size: 10px; }
