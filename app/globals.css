@@ -289,6 +289,14 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 .citation-badges { display: inline-flex; gap: 3px; margin-left: 5px; vertical-align: middle; }
 .citation-badges b { padding: 1px 4px; border-radius: 4px; background: #eee9fc; color: #5d4cb3; font-size: 8px; }
 .thesis-checks, .research-citations { margin-top: 14px; }
+.research-citations { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.research-citations > summary { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px; cursor: pointer; list-style: none; color: var(--ink); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.research-citations > summary::-webkit-details-marker { display: none; }
+.research-citations > summary::before { margin-right: 7px; color: var(--green); content: "+"; font-family: var(--font-mono), monospace; }
+.research-citations[open] > summary::before { content: "−"; }
+.research-citations > summary span { margin-right: auto; }
+.research-citations > summary small { color: var(--muted); font-family: var(--font-mono), monospace; font-size: 8px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.citation-list { padding-bottom: 8px; }
 .thesis-check { display: grid; grid-template-columns: 88px 1fr; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line); }
 .check-status { padding: 4px 6px; border-radius: 5px; background: #eee; color: var(--muted); font-size: 8px; font-weight: 800; text-align: center; text-transform: uppercase; }
 .check-status.supported { background: #e8f6ee; color: #267249; }
@@ -375,6 +383,9 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 .research-citation:target { margin-right: -8px; margin-left: -8px; padding-right: 8px; padding-left: 8px; background: #f1f6ef; }
 .research-citation > b { border-radius: 3px; background: #e4eee7; color: #27664f; }
 .research-citation a { color: var(--green); }
+.research-run-details { margin-top: 10px; color: var(--muted); }
+.research-run-details > summary { width: fit-content; cursor: pointer; font-size: 8px; text-decoration: underline; text-underline-offset: 3px; }
+.research-run-details .research-run-meta { margin-top: 9px; }
 .asset-card-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .card-updated { display: flex; align-items: center; gap: 6px; color: var(--muted); font-family: var(--font-mono), monospace; font-size: 8px; }
 .freshness-warning { color: var(--orange); font-weight: 500; }

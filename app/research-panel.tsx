@@ -20,7 +20,11 @@ function signalLabel(signal: ResearchRun["analysis"]["evidenceSignal"]) {
 
 function CitationBadges({ ids }: { ids: string[] }) {
   if (!ids.length) return null;
-  return <span className="citation-badges">{ids.map((id) => <a key={id} href={`#research-source-${id}`} aria-label={`Jump to source ${id}`}>{id}</a>)}</span>;
+  return <span className="citation-badges">{ids.map((id) => <a key={id} href={`#research-source-${id}`} onClick={() => {
+    const source = document.getElementById(`research-source-${id}`);
+    const details = source?.closest("details");
+    if (details) details.open = true;
+  }} aria-label={`Jump to source ${id}`}>{id}</a>)}</span>;
 }
 
 function ClaimList({ title, claims, tone }: { title: string; claims: ResearchClaim[]; tone: "positive" | "risk" }) {
@@ -69,21 +73,24 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
         {monitoringQuestions.length > 0 && <ul>{monitoringQuestions.map((question, index) => <li key={`${question}-${index}`}>{question}</li>)}</ul>}
       </section>}
       {result.limitations.length > 0 && <div className="research-limitations"><AlertTriangle size={14} /><span><b>Limits:</b> {result.limitations.join(" ")}</span></div>}
-      <section className="research-citations">
-        <h4>Source evidence</h4>
-        {run.citations.map((citation) => <div className="research-citation" id={`research-source-${citation.chunkId}`} key={citation.chunkId}>
+      <details className="research-citations">
+        <summary><span>Source evidence</span><small>{run.citations.length} cited passage{run.citations.length === 1 ? "" : "s"}</small></summary>
+        <div className="citation-list">{run.citations.map((citation) => <div className="research-citation" id={`research-source-${citation.chunkId}`} key={citation.chunkId}>
           <b>{citation.chunkId}</b>
           <div><p>{citation.excerpt}{citation.excerpt.length >= 520 ? "…" : ""}</p><span>{citation.heading ? `${citation.heading} · ` : ""}{citation.sourceTitle}{citation.sourceDate ? ` · ${fmtDate(citation.sourceDate)}` : ""}</span></div>
           {citation.sourceUrl && <a href={citation.sourceUrl} target="_blank" rel="noreferrer" aria-label={`Open source for ${citation.chunkId}`}><ExternalLink size={14} /></a>}
-        </div>)}
-      </section>
-      <div className="research-run-meta">
-        <span>{run.provider} · {run.model}</span>
-        <span>{run.retrievalMethod} retrieval</span>
-        <span>{run.cached ? "cached response" : `${run.latencyMs} ms model latency`}</span>
-        {(run.inputTokens !== null || run.outputTokens !== null) && <span>{(run.inputTokens || 0) + (run.outputTokens || 0)} tokens</span>}
-        <span>{fmtDate(run.createdAt)}</span>
-      </div>
+        </div>)}</div>
+      </details>
+      <details className="research-run-details">
+        <summary>Review details</summary>
+        <div className="research-run-meta">
+          <span>{run.provider} · {run.model}</span>
+          <span>{run.retrievalMethod} retrieval</span>
+          <span>{run.cached ? "cached response" : `${run.latencyMs} ms processing`}</span>
+          {(run.inputTokens !== null || run.outputTokens !== null) && <span>{(run.inputTokens || 0) + (run.outputTokens || 0)} tokens</span>}
+          <span>{fmtDate(run.createdAt)}</span>
+        </div>
+      </details>
     </div>
   );
 }
