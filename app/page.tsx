@@ -643,7 +643,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
   );
 }
 
-function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, focusId, emptyMessage, density }: {
+function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, focusId, emptyMessage, density, actionHistory }: {
   securities: Security[];
   totalInr: number;
   fx: Record<string, number>;
@@ -653,6 +653,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   focusId: number | null;
   emptyMessage: string;
   density: "comfortable" | "compact";
+  actionHistory: ActionHistoryEntry[];
 }) {
   type SortKey = "priority" | "value" | "return" | "change" | "name";
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -822,6 +823,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
         const freshness = marketFreshness(item);
         const convertedMarketValue = fromInr(valueInr, displayCurrency, fx);
         const investedCostInr = item.investedCost * (fx[item.currency] || 1);
+        const itemHistory = actionHistory.filter((entry) => entry.securityId === item.id).slice(0, 6);
         const detailGroups: Array<{ title: string; subtitle: string; facts: Array<[string, string, string?]> }> = [
           {
             title: "Market & valuation",
@@ -921,6 +923,14 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
                   <span><b>Data date</b> {fmtDate(item.marketDataAsOn || item.priceAsOn)}</span>
                 </div>
               </div>
+              {itemHistory.length > 0 && <section className="signal-history" aria-label={`Signal history for ${item.name}`}>
+                <div className="signal-history-head"><div><span className="section-label">Decision history</span><h3>How the signal changed</h3></div><span>{itemHistory.length} recent update{itemHistory.length === 1 ? "" : "s"}</span></div>
+                <div className="signal-history-list">{itemHistory.map((entry) => <div className="signal-history-item" key={entry.id}>
+                  <span className="history-line"><i /></span>
+                  <div><strong>{entry.previousAction ? `${entry.previousAction} → ${entry.action}` : entry.action}</strong><p>{entry.reasons.join(" ") || "Signal recalculated from the latest portfolio inputs."}</p></div>
+                  <time title={fmtDateTime(entry.recordedAt)}>{fmtRelativeTime(entry.recordedAt)}</time>
+                </div>)}</div>
+              </section>}
               <ResearchPanel security={item} />
               {deleting === item.id && <div className="delete-panel"><div><b>Delete {item.name} and all its purchase lots?</b><span>This cannot be undone.</span></div><div><button className="table-btn danger" onClick={() => removeAsset(item.id)}>Delete investment</button><button className="table-btn" onClick={() => setDeleting(null)}>Cancel</button></div></div>}
             </div>
@@ -1265,6 +1275,7 @@ export default function Page() {
               focusId={focusId}
               emptyMessage={actionFilter === "All" ? "No holdings match your search." : `Nothing is currently flagged ${actionFilter}.`}
               density={density}
+              actionHistory={data.actionHistory || []}
             />
           </section>
         </>
