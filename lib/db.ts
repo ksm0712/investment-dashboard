@@ -15,6 +15,7 @@ const demo = {
   portfolios: [] as Portfolio[],
   securities: [] as Security[],
   actionHistory: [] as ActionHistoryEntry[],
+  quoteCache: new Map<string, Row>(),
 };
 
 function hasTurso() {
@@ -57,8 +58,31 @@ function real(value: unknown, fallback: number | null) {
 }
 
 export async function execute(sql: string, params: unknown[] = []) {
-  if (!hasTurso()) return { rows: [] as Row[] };
+  if (!hasTurso()) return executeDemo(sql, params);
   return timedDb(sql, params, () => rawExecute(sql, params));
+}
+
+function executeDemo(sql: string, params: unknown[]) {
+  const normalized = sql.replace(/\s+/g, " ").trim().toLowerCase();
+  if (normalized.startsWith("delete from quote_cache where symbol=")) {
+    demo.quoteCache.delete(String(params[0] || ""));
+    return { rows: [] as Row[] };
+  }
+  if (normalized.startsWith("select price from quote_cache where symbol=")) {
+    const row = demo.quoteCache.get(String(params[0] || ""));
+    return { rows: row ? [{ price: row.price }] : [] };
+  }
+  if (normalized.startsWith("select * from quote_cache where symbol=")) {
+    const row = demo.quoteCache.get(String(params[0] || ""));
+    return { rows: row ? [{ ...row }] : [] };
+  }
+  if (normalized.startsWith("insert into quote_cache")) {
+    const columns = ["symbol", "price", "change_pct", "high_52w", "low_52w", "analyst_target", "pe", "forward_pe", "peg", "currency", "exchange", "price_date", "source", "sector", "industry", "target_source", "target_as_on", "fetched_at"];
+    const row = Object.fromEntries(columns.map((column, index) => [column, params[index] ?? null]));
+    demo.quoteCache.set(String(row.symbol || ""), row);
+    return { rows: [] as Row[] };
+  }
+  return { rows: [] as Row[] };
 }
 
 async function rawExecute(sql: string, params: unknown[] = []) {
