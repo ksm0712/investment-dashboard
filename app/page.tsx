@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, CircleAlert, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, Check, ChevronRight, CircleAlert, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
+import { portfolioAttention, portfolioHealthScore } from "@/lib/portfolio-insights";
 import ResearchPanel from "./research-panel";
 
 function useLockBodyScroll(active: boolean) {
@@ -147,6 +148,78 @@ function metricStats(securities: Security[], fx: Record<string, number>) {
   const gainInr = totalInr - costInr;
   const gainPct = costInr ? (gainInr / costInr) * 100 : null;
   return { totalInr, costInr, gainInr, gainPct };
+}
+
+function PortfolioOverview({
+  securities,
+  stats,
+  currentCurrency,
+  fx,
+  marketLabel,
+  onSelect,
+}: {
+  securities: Security[];
+  stats: ReturnType<typeof metricStats>;
+  currentCurrency: string;
+  fx: Record<string, number>;
+  marketLabel: string;
+  onSelect: (id: number) => void;
+}) {
+  const attention = portfolioAttention(securities);
+  const health = portfolioHealthScore(securities);
+  const queue = attention.actionable.length ? attention.actionable : [...attention.incomplete, ...attention.stale.filter((item) => !attention.incomplete.some((entry) => entry.id === item.id))];
+  const setupCount = attention.incomplete.length;
+  const staleCount = attention.stale.length;
+
+  return (
+    <section className="overview-grid" aria-label="Portfolio overview">
+      <div className="portfolio-summary-card">
+        <div className="summary-card-head">
+          <div>
+            <span className="section-label">{marketLabel}</span>
+            <h1>{fmt(fromInr(stats.totalInr, currentCurrency, fx), currentCurrency)}</h1>
+            <p>Market value across {securities.length} position{securities.length === 1 ? "" : "s"}</p>
+          </div>
+          <div className={`return-pill ${(stats.gainPct || 0) >= 0 ? "positive" : "negative"}`}>
+            <span>Total return</span>
+            <strong>{fmtPct(stats.gainPct, true)}</strong>
+          </div>
+        </div>
+        <div className="summary-stat-row">
+          <div><span>Invested</span><strong>{stats.costInr ? fmt(fromInr(stats.costInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
+          <div><span>Unrealized P&amp;L</span><strong className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
+          <div><span>Needs a decision</span><strong>{attention.actionable.length}</strong></div>
+          <div><span>Data health</span><strong>{health}<small>/100</small></strong></div>
+        </div>
+        <div className="health-track" aria-label={`Portfolio data health ${health} out of 100`}><span style={{ width: `${health}%` }} /></div>
+        <div className="summary-foot">
+          <span>{setupCount ? `${setupCount} position${setupCount === 1 ? "" : "s"} need setup` : "Every position has decision inputs"}</span>
+          <span>{staleCount ? `${staleCount} market price${staleCount === 1 ? " is" : "s are"} stale` : "Market data is current"}</span>
+        </div>
+      </div>
+
+      <aside className="attention-card">
+        <div className="attention-card-head">
+          <div><span className="section-label">Decision queue</span><h2>{queue.length ? `${queue.length} item${queue.length === 1 ? "" : "s"} to review` : "You’re up to date"}</h2></div>
+          <span className={`queue-status ${queue.length ? "active" : "clear"}`}>{queue.length ? "Open" : <><Check size={12} /> Clear</>}</span>
+        </div>
+        <div className="attention-list">
+          {queue.slice(0, 4).map((item) => {
+            const needsSetup = item.action === "Insufficient Data" || item.allocation === null || !item.targetPrice;
+            return (
+              <button key={item.id} onClick={() => onSelect(item.id)}>
+                <span className={`queue-dot ${item.action.toLowerCase().replaceAll(" ", "-")}`} />
+                <span><strong>{item.name}</strong><small>{needsSetup ? "Complete missing decision inputs" : item.actionReasons[0] || "Review the current signal"}</small></span>
+                <span className="queue-action">{needsSetup ? "Set up" : item.action}<ChevronRight size={14} /></span>
+              </button>
+            );
+          })}
+          {!queue.length && <div className="queue-empty"><Check size={17} /><span><strong>No immediate follow-up</strong><small>Signals and market data are current.</small></span></div>}
+        </div>
+        {queue.length > 4 && <div className="queue-more">+{queue.length - 4} more in the holdings register</div>}
+      </aside>
+    </section>
+  );
 }
 
 function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> | void }) {
@@ -1050,23 +1123,18 @@ export default function Page() {
         </section>
       ) : (
         <>
-          <section className="portfolio-hero">
-            <div className="hero-main">
-              <div className="hero-kicker"><span className="live-dot" /> Consolidated portfolio · {countryVisible.length} position{countryVisible.length === 1 ? "" : "s"}</div>
-              <div className="hero-value-row"><h1>{fmt(fromInr(stats.totalInr, currentCurrency, fx), currentCurrency)}</h1><span>{currentCurrency}</span></div>
-              <div className="hero-caption">Current market value across {tab === "All" ? `${countries.length || 1} market${countries.length === 1 ? "" : "s"}` : tab}</div>
-            </div>
-            <div className="hero-metrics">
-              <div><span>Invested capital</span><strong>{stats.costInr ? fmt(fromInr(stats.costInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
-              <div><span>Net gain / loss</span><strong className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
-              <div><span>Total return</span><strong className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{fmtPct(stats.gainPct, true)}</strong></div>
-            </div>
-            <div className="hero-orbit" aria-hidden="true"><i /><i /><i /></div>
-          </section>
+          <PortfolioOverview
+            securities={countryVisible}
+            stats={stats}
+            currentCurrency={currentCurrency}
+            fx={fx}
+            marketLabel={tab === "All" ? `All markets · ${countries.length || 1} region${countries.length === 1 ? "" : "s"}` : tab}
+            onSelect={focusSecurity}
+          />
           <section className="workspace-toolbar">
             <div className="tabs" aria-label="Filter by market">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item === "All" ? "All markets" : item}</button>)}</div>
             <div className="workspace-status">
-              <button className="refresh-button" onClick={refresh} disabled={loading} aria-label="Refresh prices now" title="Refresh prices now"><RotateCw size={14} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh"}</button>
+              <button className="refresh-button" onClick={refresh} disabled={loading} aria-label="Refresh prices now" title="Refresh prices now"><RotateCw size={14} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh prices"}</button>
               <span className={`refresh-results ${refreshText ? "done" : ""}`} title={refreshDetails} aria-live="polite">{refreshText || "Auto-updates every 5 min"}</span>
               <div className="select-wrap"><label htmlFor="portfolio-currency">View in</label><select id="portfolio-currency" value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>
             </div>
