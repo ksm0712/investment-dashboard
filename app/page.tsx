@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Check, ChevronRight, CircleAlert, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, SlidersHorizontal, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, Check, CheckCircle2, ChevronRight, CircleAlert, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, SlidersHorizontal, Trash2, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
@@ -220,6 +220,20 @@ function PortfolioOverview({
         {queue.length > 4 && <div className="queue-more">+{queue.length - 4} more in the holdings register</div>}
       </aside>
     </section>
+  );
+}
+
+function Toast({ message, tone, onClose }: { message: string; tone: "success" | "error"; onClose: () => void }) {
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 5_000);
+    return () => window.clearTimeout(timer);
+  }, [message, onClose]);
+  return (
+    <div className={`app-toast ${tone}`} role="status">
+      {tone === "success" ? <CheckCircle2 size={16} /> : <CircleAlert size={16} />}
+      <span>{message}</span>
+      <button onClick={onClose} aria-label="Dismiss notification"><X size={14} /></button>
+    </div>
   );
 }
 
@@ -950,6 +964,7 @@ export default function Page() {
   const [focusId, setFocusId] = useState<number | null>(null);
   const [portfolioError, setPortfolioError] = useState("");
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
+  const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const autoRefreshAttempted = useRef(false);
   const refreshInFlight = useRef(false);
 
@@ -1009,8 +1024,10 @@ export default function Page() {
       const res = await fetch(`/api/investments/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Delete failed");
       writePortfolioCache(previous ? { ...previous, securities: previous.securities.filter((s) => s.id !== id) } : previous);
+      setToast({ message: "Investment removed from your portfolio.", tone: "success" });
     } catch {
       setData(previous);
+      setToast({ message: "The investment could not be removed. Your portfolio was restored.", tone: "error" });
     }
   }
 
@@ -1040,9 +1057,11 @@ export default function Page() {
       } else {
         await load();
       }
+      setToast({ message: `Market data refreshed. ${json.summary?.updated || 0} position${json.summary?.updated === 1 ? "" : "s"} updated.`, tone: "success" });
     } catch (error) {
       const note = error instanceof Error ? error.message : "Could not refresh prices.";
       setSummary({ updated: 0, unchanged: 0, manual: 0, not_refreshed: 0, failed: 1, details: [{ name: "Refresh", status: "failed", note }] });
+      setToast({ message: note, tone: "error" });
     } finally {
       setLoading(false);
       refreshInFlight.current = false;
@@ -1228,7 +1247,8 @@ export default function Page() {
           </section>
         </>
       )}
-      {modalOpen && <AddInvestmentModal onClose={() => setModalOpen(false)} onSaved={load} />}
+      {modalOpen && <AddInvestmentModal onClose={() => setModalOpen(false)} onSaved={async () => { await load(); setToast({ message: "Investment added and portfolio totals recalculated.", tone: "success" }); }} />}
+      {toast && <Toast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />}
     </main>
   );
 }
