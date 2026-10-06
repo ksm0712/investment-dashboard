@@ -426,6 +426,15 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 .form-hint { color: var(--green); }
 .alloc-hint { color: var(--muted); }
 .alloc-meta { color: var(--muted); font-size: 10px; }
+.position-preview { margin-top: 22px; border: 1px solid #cfd2ca; background: var(--white); }
+.position-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 13px; border-bottom: 1px solid var(--line); background: #f1f2ed; }
+.position-preview-head strong { font-size: 10px; }
+.position-preview-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+.position-preview-grid > div { padding: 13px; }
+.position-preview-grid > div + div { border-left: 1px solid var(--line); }
+.position-preview-grid span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 8px; text-transform: uppercase; }
+.position-preview-grid strong { display: block; font-family: var(--font-mono), monospace; font-size: 11px; font-weight: 500; }
+.position-preview > p { margin: 0; padding: 16px 13px; color: var(--muted); font-size: 10px; }
 .modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
 .modal-footer span { max-width: 500px; color: var(--muted); font-size: 9px; line-height: 1.5; }
 .save-btn { display: inline-flex; min-height: 42px; align-items: center; gap: 8px; padding: 0 17px; border: 1px solid var(--forest); border-radius: 3px; background: var(--forest); color: #fff; font-size: 10px; font-weight: 800; text-transform: uppercase; }
@@ -519,6 +528,9 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
   .modal-backdrop, .asset-editor-backdrop { padding: 8px; }
   .modal, .asset-editor { max-height: calc(100vh - 16px); padding: 20px 16px; }
   .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .position-preview-grid { grid-template-columns: 1fr 1fr; }
+  .position-preview-grid > div:nth-child(3) { border-top: 1px solid var(--line); border-left: 0; }
+  .position-preview-grid > div:nth-child(4) { border-top: 1px solid var(--line); }
   .modal-footer { align-items: stretch; flex-direction: column; }
   .save-btn { justify-content: center; }
   .login-page { grid-template-columns: 1fr; }

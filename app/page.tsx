@@ -272,6 +272,19 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
   const searchRequestId = useRef(0);
 
   const exchanges = marketExchanges[country] || ["Other"];
+  const formCurrency = marketCurrency[country] || "USD";
+  const positionPreview = useMemo(() => {
+    const q = Number(quantity);
+    const cost = Number(costPrice);
+    const price = Number(currentPrice);
+    const limit = Number(allocation);
+    if (!(q > 0) || !(cost > 0)) return null;
+    const invested = q * cost;
+    const marketValue = price > 0 ? q * price : null;
+    const gain = marketValue === null ? null : marketValue - invested;
+    const gainPct = gain === null || invested <= 0 ? null : (gain / invested) * 100;
+    return { invested, marketValue, gain, gainPct, remaining: limit > 0 ? limit - invested : null };
+  }, [quantity, costPrice, currentPrice, allocation]);
 
   useEffect(() => {
     if (suppressNextSearch.current) {
@@ -492,7 +505,7 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
           </div>
           <div className="field">
             <label>Currency</label>
-            <input value={marketCurrency[country] || "USD"} readOnly />
+            <input value={formCurrency} readOnly />
           </div>
         </div>
         <div className="form-section-title"><span>02</span>Identifier</div>
@@ -533,6 +546,15 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
         </div>
         <div className="form-hint alloc-hint">The most you&apos;re willing to invest in this asset. Buy and Review to Buy never trigger without it.</div>
         {targetPrice && <div className="provider-note">Target source: {targetSource || "manual"}{targetAsOn ? ` · ${fmtDate(targetAsOn)}` : ""}</div>}
+        <section className="position-preview" aria-label="New position preview">
+          <div className="position-preview-head"><span className="section-label">Position preview</span><strong>{name.trim() || "New investment"}</strong></div>
+          {positionPreview ? <div className="position-preview-grid">
+            <div><span>Invested cost</span><strong>{fmt(positionPreview.invested, formCurrency)}</strong></div>
+            <div><span>Market value</span><strong>{positionPreview.marketValue === null ? "Add current price" : fmt(positionPreview.marketValue, formCurrency)}</strong></div>
+            <div><span>Current return</span><strong className={(positionPreview.gain || 0) >= 0 ? "good" : "bad"}>{positionPreview.gainPct === null ? "—" : fmtPct(positionPreview.gainPct, true)}</strong></div>
+            <div><span>Allocation left</span><strong className={(positionPreview.remaining ?? 0) < 0 ? "bad" : ""}>{positionPreview.remaining === null ? "Set a limit" : fmt(positionPreview.remaining, formCurrency)}</strong></div>
+          </div> : <p>Add quantity and cost price to preview the position before saving.</p>}
+        </section>
         {error && <div className="bad" style={{ marginTop: 14, fontWeight: 700 }}>{error}</div>}
         <div className="modal-footer">
           <span>Market data refreshes automatically after saving.</span>
