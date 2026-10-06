@@ -18,11 +18,12 @@ The model must not predict a price or replace the portfolio action. This boundar
 
 1. The authenticated user saves an investment thesis for a holding.
 2. The server obtains a company filing or accepts report text supplied by the user.
-3. The document is cleaned, split into stable citation chunks, and ranked against the thesis and a financial-risk query.
-4. When a local embedding model is available, semantic similarity and BM25-style lexical relevance are combined. Lexical retrieval remains the zero-dependency fallback.
-5. Only the highest-ranked passages, the thesis, and the existing numerical action are sent to the configured language model.
-6. Model output is parsed into a strict application schema. Unknown citations, missing evidence, and invalid enum values fail validation.
-7. The validated result and selected source excerpts are stored under the owning user and holding. Identical inputs return the cached analysis.
+3. The document is cleaned while preserving filing section boundaries, then split into stable citation chunks.
+4. The thesis is split into independently testable claims. Each claim gets its own expanded retrieval query, and the result set reserves evidence for every claim instead of allowing a broad risk section to dominate.
+5. When a local embedding model is available, semantic similarity and BM25-style lexical relevance are combined. Claim-aware lexical retrieval remains the zero-dependency fallback.
+6. Only the highest-ranked passages and the thesis are sent to the configured language model. The numerical action is deliberately excluded from the prompt so it cannot bias the evidence verdict.
+7. Model output is parsed into a strict application schema. Unknown citations, missing evidence, and invalid enum values fail validation. A second grounding pass removes claims whose cited text is unrelated to the thesis and converts unsupported citations to `unclear`.
+8. The result preserves partial support, identifies evidence gaps, and produces concrete questions for the next filing. It is stored under the owning user and holding; a pipeline version in the cache key prevents stale analysis formats from being reused after an upgrade.
 
 ## Provider and cost policy
 

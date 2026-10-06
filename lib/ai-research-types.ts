@@ -17,6 +17,8 @@ export type ResearchCitation = {
   excerpt: string;
   sourceTitle: string;
   sourceUrl: string | null;
+  sourceDate?: string | null;
+  heading?: string | null;
 };
 
 export type ResearchClaim = {
@@ -31,6 +33,11 @@ export type ThesisCheck = {
   citationIds: string[];
 };
 
+export type EvidenceGap = {
+  claim: string;
+  neededEvidence: string;
+};
+
 export type ResearchAnalysis = {
   businessOutlook: BusinessOutlook;
   riskLevel: ResearchRisk;
@@ -39,6 +46,8 @@ export type ResearchAnalysis = {
   positiveEvidence: ResearchClaim[];
   risks: ResearchClaim[];
   thesisChecks: ThesisCheck[];
+  evidenceGaps: EvidenceGap[];
+  monitoringQuestions: string[];
   limitations: string[];
 };
 
@@ -72,4 +81,3 @@ export type ResearchDocument = {
   url?: string | null;
   date?: string | null;
 };
-

@@ -15,7 +15,7 @@ test("research store invalidates analysis when the thesis changes", async () => 
   }
   const run = {
     securityId, thesis: "Recurring revenue will grow.", numericalAction: "Buy",
-    analysis: { businessOutlook: "positive", riskLevel: "low", evidenceSignal: "supports", summary: "Supported.", positiveEvidence: [], risks: [], thesisChecks: [], limitations: [] },
+    analysis: { businessOutlook: "positive", riskLevel: "low", evidenceSignal: "supports", summary: "Supported.", positiveEvidence: [], risks: [], thesisChecks: [], evidenceGaps: [], monitoringQuestions: [], limitations: [] },
     citations: [], sourceTitle: "Report", sourceUrl: null, sourceDate: null, provider: "test", model: "test",
     retrievalMethod: "lexical", latencyMs: 10, inputTokens: 2, outputTokens: 2, cached: false, createdAt: new Date().toISOString(),
   } satisfies ResearchRun;

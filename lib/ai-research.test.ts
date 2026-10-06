@@ -22,7 +22,7 @@ function security(): Security {
 test("validateResearchAnalysis rejects citations outside retrieved context", () => {
   assert.throws(() => validateResearchAnalysis({
     businessOutlook: "mixed", riskLevel: "medium", evidenceSignal: "unclear", summary: "Evidence is mixed.",
-    positiveEvidence: [{ claim: "Revenue grew.", citationIds: ["C99"] }], risks: [], thesisChecks: [], limitations: [],
+    positiveEvidence: [{ claim: "Revenue grew.", citationIds: ["C99"] }], risks: [], thesisChecks: [], evidenceGaps: [], monitoringQuestions: [], limitations: [],
   }, ["C1"]), /unknown citation/);
 });
 
@@ -43,6 +43,8 @@ test("analyzeResearch keeps the deterministic action separate and returns valida
           positiveEvidence: [{ claim: "Recurring revenue increased.", citationIds: ["C1"] }],
           risks: [{ claim: "The largest customer ended its contract.", citationIds: ["C1"] }],
           thesisChecks: [{ statement: "Enterprise demand will grow.", status: "contradicted", explanation: "A major customer ended its contract.", citationIds: ["C1"] }],
+          evidenceGaps: [],
+          monitoringQuestions: ["Does enterprise recurring revenue return to growth next quarter?"],
           limitations: ["Only one report was analyzed."],
         }),
       };
@@ -79,6 +81,8 @@ test("missing disclosure cannot be promoted into positive thesis evidence", asyn
           positiveEvidence: [{ claim: "Customer spending grew.", citationIds: ["C1"] }],
           risks: [],
           thesisChecks: [{ statement: "Existing-customer spending grew.", status: "supported", explanation: "Spending grew.", citationIds: ["C1"] }],
+          evidenceGaps: [],
+          monitoringQuestions: [],
           limitations: [],
         }),
       };
@@ -98,4 +102,50 @@ test("missing disclosure cannot be promoted into positive thesis evidence", asyn
   assert.equal(result.analysis.businessOutlook, "mixed");
   assert.deepEqual(result.analysis.positiveEvidence, []);
   assert.equal(result.analysis.thesisChecks[0].status, "unclear");
+});
+
+test("generic filing risks are removed when they do not address the thesis", async () => {
+  const provider: AiProvider = {
+    name: "test",
+    model: "scripted",
+    async generate() {
+      return {
+        provider: "test", model: "scripted", inputTokens: 100, outputTokens: 50,
+        content: JSON.stringify({
+          businessOutlook: "mixed",
+          riskLevel: "medium",
+          evidenceSignal: "unclear",
+          summary: "The filing does not directly establish stability in recurring revenue.",
+          positiveEvidence: [{ claim: "Services and subscription revenue increased.", citationIds: ["C2"] }],
+          risks: [{ claim: "Supply constraints may adversely affect revenue.", citationIds: ["C1"] }],
+          thesisChecks: [{ statement: "Recurring revenue will remain stable.", status: "unclear", explanation: "The passage is not about recurring revenue.", citationIds: ["C1"] }],
+          evidenceGaps: [{ claim: "Recurring revenue will remain stable.", neededEvidence: "Comparable recurring revenue or retention data." }],
+          monitoringQuestions: ["Did recurring revenue and retention remain stable?"],
+          limitations: [],
+        }),
+      };
+    },
+  };
+  const document = {
+    title: "Example Systems filing",
+    text: "A sufficiently long filing body for the test. ".repeat(10),
+  };
+  const result = await analyzeResearch({
+    security: security(),
+    thesis: "Recurring revenue will remain stable.",
+    document,
+    provider,
+    retrievedEvidence: {
+      chunks: [
+        { id: "C1", text: "Supply chain constraints may adversely affect total revenue.", heading: "Risk factors", sourceTitle: document.title, lexicalScore: 0.1, score: 0.1 },
+        { id: "C2", text: "Services net sales and paid subscriptions increased year over year.", heading: "Results", sourceTitle: document.title, lexicalScore: 1, score: 1 },
+      ],
+      retrievalMethod: "lexical",
+      totalChunks: 2,
+    },
+  });
+  assert.deepEqual(result.analysis.risks, []);
+  assert.equal(result.analysis.positiveEvidence.length, 1);
+  assert.deepEqual(result.analysis.thesisChecks[0].citationIds, []);
+  assert.deepEqual(result.citations.map((citation) => citation.chunkId), ["C2"]);
 });

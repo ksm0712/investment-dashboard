@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildResearchQuery, chunkDocument, cosineSimilarity, rankHybrid, rankLexically } from "./research-retrieval.ts";
+import { buildResearchQueries, buildResearchQuery, chunkDocument, cosineSimilarity, extractThesisFacets, rankAcrossQueries, rankHybrid, rankLexically } from "./research-retrieval.ts";
 
 test("chunkDocument creates stable, bounded citation ids", () => {
   const chunks = chunkDocument({
@@ -36,4 +36,25 @@ test("hybrid retrieval combines semantic and lexical scores", () => {
   assert.equal(ranked[0].id, "C2");
   assert.equal(cosineSimilarity([1, 0], [1, 0]), 1);
   assert.equal(cosineSimilarity([1, 0], [0, 1]), 0);
+});
+
+test("thesis retrieval does not let generic risk boilerplate outrank the actual claim", () => {
+  const chunks = chunkDocument({
+    title: "Quarterly filing",
+    text: [
+      "RISK FACTORS\n\nSupply chain constraints and regulation may adversely affect revenue and operating results.",
+      "RESULTS OF OPERATIONS\n\nServices net sales increased 14 percent, driven by higher subscription and cloud services revenue. Paid subscriptions also increased year over year.",
+      "CORPORATE MATTERS\n\nThe board reviewed governance policies and office leases.",
+    ].join("\n\n"),
+  }, 220, 0);
+  const ranked = rankAcrossQueries(chunks, buildResearchQueries("Recurring revenue will remain stable."));
+  assert.match(ranked[0].text, /Services net sales increased/);
+  assert.doesNotMatch(ranked[0].text, /Supply chain constraints/);
+});
+
+test("extractThesisFacets preserves independently testable claims", () => {
+  assert.deepEqual(
+    extractThesisFacets("I expect recurring revenue to grow while margins remain stable. The main risk is customer concentration."),
+    ["recurring revenue to grow", "margins remain stable", "customer concentration"],
+  );
 });
