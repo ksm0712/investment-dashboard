@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, CircleAlert, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
@@ -29,6 +29,17 @@ function useLockBodyScroll(active: boolean) {
       window.scrollTo(0, scrollY);
     };
   }, [active]);
+}
+
+function useEscapeKey(active: boolean, onEscape: () => void) {
+  useEffect(() => {
+    if (!active) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onEscape();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [active, onEscape]);
 }
 
 type PortfolioPayload = {
@@ -138,8 +149,9 @@ function metricStats(securities: Security[], fx: Record<string, number>) {
   return { totalInr, costInr, gainInr, gainPct };
 }
 
-function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, number>; onClose: () => void; onSaved: () => void }) {
+function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> | void }) {
   useLockBodyScroll(true);
+  useEscapeKey(true, onClose);
   const [name, setName] = useState("");
   const [assetType, setAssetType] = useState<AssetType>("Stock");
   const [country, setCountry] = useState("India");
@@ -161,6 +173,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   const [matches, setMatches] = useState<SearchResult[]>([]);
   const [matchIndex, setMatchIndex] = useState("");
   const [busy, setBusy] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [quoteBusy, setQuoteBusy] = useState(false);
   const [error, setError] = useState("");
   const [searchNotice, setSearchNotice] = useState("");
@@ -168,12 +181,9 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
   const quoteCache = useRef<Record<string, Record<string, unknown>>>({});
   const quoteRequestId = useRef(0);
   const suppressNextSearch = useRef(false);
+  const searchRequestId = useRef(0);
 
   const exchanges = marketExchanges[country] || ["Other"];
-
-  useEffect(() => {
-    if (!exchanges.includes(exchange)) setExchange(exchanges[0]);
-  }, [country, exchanges, exchange]);
 
   useEffect(() => {
     if (suppressNextSearch.current) {
@@ -181,6 +191,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
       return;
     }
     if (name.trim().length < 2) {
+      searchRequestId.current += 1;
       setMatches([]);
       setSearchNotice("");
       return;
@@ -206,21 +217,25 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     }
     setError("");
     setSearchNotice("");
+    const requestId = ++searchRequestId.current;
     try {
-      setBusy(true);
+      setSearching(true);
       const res = await fetch(`/api/search?q=${encodeURIComponent(name.trim())}`);
       const data = await res.json();
+      if (requestId !== searchRequestId.current) return;
+      if (!res.ok) throw new Error(data.error || "Search could not load results.");
       const results = data.results || [];
       localSearchCache.current[key] = results;
       setMatchIndex("");
       setMatches(results);
       setSearchNotice(results.length ? "" : `No matches found for "${name.trim()}". Try the ticker or full asset name.`);
     } catch {
+      if (requestId !== searchRequestId.current) return;
       setMatches([]);
       setSearchNotice("");
       setError("Search could not load results. Try again.");
     } finally {
-      setBusy(false);
+      if (requestId === searchRequestId.current) setSearching(false);
     }
   }
 
@@ -276,6 +291,8 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
     const match = matches[Number(indexValue)];
     if (!match) return;
     setMatchIndex(indexValue);
+    searchRequestId.current += 1;
+    setSearching(false);
     suppressNextSearch.current = true;
     setName(match.name);
     setMatches([]);
@@ -337,15 +354,17 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
         const data = await res.json().catch(() => null);
         return setError(data?.error || "Could not save investment. Please try again.");
       }
-      onSaved();
+      await onSaved();
       onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Could not save investment. Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="add-investment-title">
         <div className="modal-head">
           <div><div className="eyebrow">Portfolio entry</div><div className="modal-title" id="add-investment-title">Add an investment</div><p>Search a security, confirm your purchase, and Thesis will build the live position.</p></div>
@@ -370,8 +389,8 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
             </div>
           )}
         </div>
-        {busy && <div className="busy-note">Searching...</div>}
-        {!busy && searchNotice && <div className="search-note">{searchNotice}</div>}
+        {searching && <div className="busy-note">Searching…</div>}
+        {!searching && searchNotice && <div className="search-note">{searchNotice}</div>}
         {quoteBusy && <div className="busy-note">Fetching current price...</div>}
         {matchIndex !== "" && <div className="form-hint">Autofilled — edit any field below if needed</div>}
         <div className="form-grid grid-3" style={{ marginTop: 18 }}>
@@ -381,7 +400,7 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
           </div>
           <div className="field">
             <label>Market / country</label>
-            <select value={country} onChange={(e) => setCountry(e.target.value)}>{markets.map((market) => <option key={market}>{market}</option>)}</select>
+            <select value={country} onChange={(e) => { const nextCountry = e.target.value; setCountry(nextCountry); setExchange((marketExchanges[nextCountry] || ["Other"])[0]); }}>{markets.map((market) => <option key={market}>{market}</option>)}</select>
           </div>
           <div className="field">
             <label>Currency</label>
@@ -409,18 +428,18 @@ function AddInvestmentModal({ fx, onClose, onSaved }: { fx: Record<string, numbe
         ) : <div className="alloc-meta">No ticker or scheme code needed for this asset type.</div>}
         <div className="form-section-title"><span>03</span>Position</div>
         <div className="form-grid grid-4">
-          <div className="field"><label>Quantity bought</label><input value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1.000000" /></div>
-          <div className="field"><label>Cost price</label><input value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="100.00" /></div>
+          <div className="field"><label>Quantity bought</label><input type="number" inputMode="decimal" min="0" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1.000000" /></div>
+          <div className="field"><label>Cost price</label><input type="number" inputMode="decimal" min="0" step="any" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="100.00" /></div>
           <div className="field"><label>Date bought</label><input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} /></div>
-          <div className="field"><label>Current price</label><input value={currentPrice} onChange={(e) => { setCurrentPrice(e.target.value); setPriceSource("manual"); setPriceAsOn(new Date().toISOString().slice(0, 10)); }} placeholder="150.00" /></div>
+          <div className="field"><label>Current price</label><input type="number" inputMode="decimal" min="0" step="any" value={currentPrice} onChange={(e) => { setCurrentPrice(e.target.value); setPriceSource("manual"); setPriceAsOn(new Date().toISOString().slice(0, 10)); }} placeholder="150.00" /></div>
         </div>
         <div className="form-section-title"><span>04</span>Decision inputs</div>
         <div className="form-grid grid-4">
           <div className="field">
             <label>Allocation limit (required)</label>
-            <input value={allocation} onChange={(e) => setAllocation(e.target.value)} placeholder="50000" />
+            <input type="number" inputMode="decimal" min="0" step="any" value={allocation} onChange={(e) => setAllocation(e.target.value)} placeholder="50000" />
           </div>
-          <div className="field"><label>Analyst target</label><input value={targetPrice} onChange={(e) => { setTargetPrice(e.target.value); setTargetSource("manual"); setTargetAsOn(new Date().toISOString().slice(0, 10)); }} placeholder={quoteBusy ? "Fetching…" : "Auto-filled when available"} /></div>
+          <div className="field"><label>Analyst target</label><input type="number" inputMode="decimal" min="0" step="any" value={targetPrice} onChange={(e) => { setTargetPrice(e.target.value); setTargetSource("manual"); setTargetAsOn(new Date().toISOString().slice(0, 10)); }} placeholder={quoteBusy ? "Fetching…" : "Auto-filled when available"} /></div>
           <div className="field"><label>52-week low</label><input value={week52Low} readOnly placeholder="Auto-filled" /></div>
           <div className="field"><label>52-week high</label><input value={week52High} readOnly placeholder="Auto-filled" /></div>
         </div>
@@ -533,6 +552,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   const [marketDraft, setMarketDraft] = useState<Record<number, { target?: string; secondaryTarget?: string; low?: string; high?: string }>>({});
   const [message, setMessage] = useState<Record<number, string>>({});
   useLockBodyScroll(editorAsset !== null);
+  useEscapeKey(editorAsset !== null, () => setEditorAsset(null));
   const rows = [...securities].sort((a, b) => {
     const rank = (ACTION_PRIORITY[a.action] ?? 9) - (ACTION_PRIORITY[b.action] ?? 9);
     if (rank !== 0) return rank;
@@ -775,26 +795,26 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
                 </div>
               </div>
               <ResearchPanel security={item} />
-              {deleting === item.id && <div className="delete-panel"><b>Delete {item.name} and all its purchase lots?</b> This cannot be undone. <button className="table-btn danger" style={{ width: 90, marginLeft: 12 }} onClick={() => removeAsset(item.id)}>Delete</button> <button className="table-btn" style={{ width: 90 }} onClick={() => setDeleting(null)}>Cancel</button></div>}
+              {deleting === item.id && <div className="delete-panel"><div><b>Delete {item.name} and all its purchase lots?</b><span>This cannot be undone.</span></div><div><button className="table-btn danger" onClick={() => removeAsset(item.id)}>Delete investment</button><button className="table-btn" onClick={() => setDeleting(null)}>Cancel</button></div></div>}
             </div>
             }
             {isEditorOpen && (
-              <div className="asset-editor-backdrop" role="dialog" aria-modal="true" aria-label={`Lots and allocation for ${item.name}`}>
+              <div className="asset-editor-backdrop" role="dialog" aria-modal="true" aria-label={`Lots and allocation for ${item.name}`} onMouseDown={(event) => { if (event.target === event.currentTarget) setEditorAsset(null); }}>
               <div className="asset-editor">
                 <div className="editor-title"><div><h3>Lots, allocation &amp; targets</h3><p>{item.name} · purchases are combined into the asset totals.</p></div><button className="icon-btn" aria-label="Close editor" onClick={() => setEditorAsset(null)}><X size={16} /></button></div>
                 <div className="editor-allocation">
                   <div className="compact-form">
-                    <label>Allocation amount ({item.currency})<input value={allocation} onChange={(e) => setAllocationDraft((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="Not set" /></label>
+                    <label>Allocation amount ({item.currency})<input type="number" inputMode="decimal" min="0" step="any" value={allocation} onChange={(e) => setAllocationDraft((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="Not set" /></label>
                     <button className="table-btn save-inline" onClick={() => saveAllocation(item)}>Save allocation</button>
                   </div>
                 </div>
                 <div className="editor-allocation">
                   <div className="detail-section-head"><div><h3>Target &amp; 52-week range</h3><p>Set these manually when a live provider can&apos;t supply them (common for ETFs), so Buy/Sell signals can activate.</p></div></div>
                   <div className="compact-form">
-                    <label>Analyst target ({item.currency})<input value={marketDraft[item.id]?.target ?? String(item.targetPrice ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], target: e.target.value } }))} placeholder="Not set" /></label>
-                    <label>Secondary target ({item.currency})<input value={marketDraft[item.id]?.secondaryTarget ?? String(item.secondaryTargetPrice ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], secondaryTarget: e.target.value } }))} placeholder="Optional" /></label>
-                    <label>52-week low ({item.currency})<input value={marketDraft[item.id]?.low ?? String(item.week52Low ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], low: e.target.value } }))} placeholder="Not set" /></label>
-                    <label>52-week high ({item.currency})<input value={marketDraft[item.id]?.high ?? String(item.week52High ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], high: e.target.value } }))} placeholder="Not set" /></label>
+                    <label>Analyst target ({item.currency})<input type="number" inputMode="decimal" min="0" step="any" value={marketDraft[item.id]?.target ?? String(item.targetPrice ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], target: e.target.value } }))} placeholder="Not set" /></label>
+                    <label>Secondary target ({item.currency})<input type="number" inputMode="decimal" min="0" step="any" value={marketDraft[item.id]?.secondaryTarget ?? String(item.secondaryTargetPrice ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], secondaryTarget: e.target.value } }))} placeholder="Optional" /></label>
+                    <label>52-week low ({item.currency})<input type="number" inputMode="decimal" min="0" step="any" value={marketDraft[item.id]?.low ?? String(item.week52Low ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], low: e.target.value } }))} placeholder="Not set" /></label>
+                    <label>52-week high ({item.currency})<input type="number" inputMode="decimal" min="0" step="any" value={marketDraft[item.id]?.high ?? String(item.week52High ?? "")} onChange={(e) => setMarketDraft((current) => ({ ...current, [item.id]: { ...current[item.id], high: e.target.value } }))} placeholder="Not set" /></label>
                     <button className="table-btn save-inline" onClick={() => saveMarketInputs(item)}>Save target &amp; range</button>
                   </div>
                 </div>
@@ -807,9 +827,9 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
                   </div>
                   <div className="compact-form lot-form">
                     <label>Purchase date<input type="date" value={lotDraft.purchaseDate || ""} onChange={(e) => setLotDraft({ ...lotDraft, purchaseDate: e.target.value })} /></label>
-                    <label>Quantity<input value={lotDraft.quantity || ""} onChange={(e) => setLotDraft({ ...lotDraft, quantity: e.target.value })} placeholder="10" /></label>
-                    <label>Cost price<input value={lotDraft.costPrice || ""} onChange={(e) => setLotDraft({ ...lotDraft, costPrice: e.target.value })} placeholder="100.00" /></label>
-                    <label>Fees<input value={lotDraft.fees || ""} onChange={(e) => setLotDraft({ ...lotDraft, fees: e.target.value })} placeholder="0.00" /></label>
+                    <label>Quantity<input type="number" inputMode="decimal" min="0" step="any" value={lotDraft.quantity || ""} onChange={(e) => setLotDraft({ ...lotDraft, quantity: e.target.value })} placeholder="10" /></label>
+                    <label>Cost price<input type="number" inputMode="decimal" min="0" step="any" value={lotDraft.costPrice || ""} onChange={(e) => setLotDraft({ ...lotDraft, costPrice: e.target.value })} placeholder="100.00" /></label>
+                    <label>Fees<input type="number" inputMode="decimal" min="0" step="any" value={lotDraft.fees || ""} onChange={(e) => setLotDraft({ ...lotDraft, fees: e.target.value })} placeholder="0.00" /></label>
                     <button className="table-btn save-inline" onClick={() => saveLot(item)}><Plus size={14} /> {editingLot ? "Update lot" : "Add lot"}</button>
                     {editingLot && <button className="table-btn" onClick={() => { setEditingLot(null); setLotDraft({ purchaseDate: new Date().toISOString().slice(0, 10) }); }}>Cancel</button>}
                   </div>
@@ -837,7 +857,9 @@ export default function Page() {
   const [holdingQuery, setHoldingQuery] = useState("");
   const [actionFilter, setActionFilter] = useState("All");
   const [focusId, setFocusId] = useState<number | null>(null);
+  const [portfolioError, setPortfolioError] = useState("");
   const autoRefreshAttempted = useRef(false);
+  const refreshInFlight = useRef(false);
 
   async function load() {
     try {
@@ -845,12 +867,18 @@ export default function Page() {
       if (res.status === 401) {
         writePortfolioCache(null);
         setData(null);
+        setPortfolioError("");
         setLoginChecked(true);
         return;
       }
+      if (!res.ok) throw new Error("The portfolio service is temporarily unavailable.");
       const next = await res.json();
+      if (!next?.user || !Array.isArray(next?.securities)) throw new Error("The portfolio response was incomplete.");
       writePortfolioCache(next);
       setData(next);
+      setPortfolioError("");
+    } catch (error) {
+      setPortfolioError(error instanceof Error ? error.message : "Could not load your portfolio.");
     } finally {
       setLoginChecked(true);
     }
@@ -884,6 +912,8 @@ export default function Page() {
   }
 
   async function refresh() {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     setLoading(true);
     setSummary(null);
     try {
@@ -906,6 +936,7 @@ export default function Page() {
       setSummary({ updated: 0, unchanged: 0, manual: 0, not_refreshed: 0, failed: 1, details: [{ name: "Refresh", status: "failed", note }] });
     } finally {
       setLoading(false);
+      refreshInFlight.current = false;
     }
   }
 
@@ -930,7 +961,8 @@ export default function Page() {
   function focusSecurity(id: number) {
     setTab("All");
     setHoldingQuery("");
-    setFocusId(id);
+    setFocusId(null);
+    window.requestAnimationFrame(() => setFocusId(id));
   }
 
   useEffect(() => {
@@ -971,6 +1003,7 @@ export default function Page() {
   }, [Boolean(data), lastRefreshedAt]);
 
   if (!loginChecked) return <main className="loading-page"><ProductMark /><span>Preparing your portfolio</span></main>;
+  if (!data && portfolioError) return <main className="load-error-page"><div className="load-error-card"><CircleAlert size={22} /><div className="eyebrow">Connection issue</div><h1>Your portfolio is still safe.</h1><p>{portfolioError} Check your connection and try again.</p><button className="primary-btn" onClick={load}>Try again</button></div></main>;
   if (!data) return <Login />;
 
   const refreshedAtText = lastRefreshedAt ? new Date(lastRefreshedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
@@ -1005,6 +1038,8 @@ export default function Page() {
         </div>
       </nav>
 
+      {portfolioError && <div className="app-status-banner" role="status"><CircleAlert size={15} /><span>{portfolioError} Showing the last available portfolio snapshot.</span><button onClick={load}>Retry</button></div>}
+
       {securities.length === 0 ? (
         <section className="empty">
           <div className="empty-graphic" aria-hidden="true"><span /><span /><span /><i /></div>
@@ -1032,7 +1067,7 @@ export default function Page() {
             <div className="tabs" aria-label="Filter by market">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item === "All" ? "All markets" : item}</button>)}</div>
             <div className="workspace-status">
               <button className="refresh-button" onClick={refresh} disabled={loading} aria-label="Refresh prices now" title="Refresh prices now"><RotateCw size={14} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh"}</button>
-              <span className={`refresh-results ${refreshText ? "done" : ""}`} title={refreshDetails}>{refreshText || "Auto-updates every 5 min"}</span>
+              <span className={`refresh-results ${refreshText ? "done" : ""}`} title={refreshDetails} aria-live="polite">{refreshText || "Auto-updates every 5 min"}</span>
               <div className="select-wrap"><label htmlFor="portfolio-currency">View in</label><select id="portfolio-currency" value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>
             </div>
           </section>
@@ -1066,7 +1101,7 @@ export default function Page() {
           </section>
         </>
       )}
-      {modalOpen && <AddInvestmentModal fx={fx} onClose={() => setModalOpen(false)} onSaved={load} />}
+      {modalOpen && <AddInvestmentModal onClose={() => setModalOpen(false)} onSaved={load} />}
     </main>
   );
 }
