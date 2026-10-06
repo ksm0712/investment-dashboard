@@ -597,6 +597,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
 
   const changes = useMemo(() => actionHistory.filter((entry) => entry.previousAction), [actionHistory]);
   const unread = changes.filter((entry) => !lastSeen || entry.recordedAt > lastSeen).length;
+  useEscapeKey(open, () => setOpen(false));
 
   function toggle() {
     setOpen((current) => {
@@ -612,7 +613,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
 
   return (
     <div className="alerts-wrap">
-      <button className="icon-btn alerts-bell" onClick={toggle} aria-label="Recommendation alerts">
+      <button className="icon-btn alerts-bell" onClick={toggle} aria-label="Recommendation alerts" aria-expanded={open} aria-haspopup="dialog">
         <Bell size={17} />
         {unread > 0 && <span className="alerts-badge">{unread > 9 ? "9+" : unread}</span>}
       </button>
@@ -620,7 +621,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
         <>
           <div className="alerts-backdrop" onClick={() => setOpen(false)} />
           <div className="alerts-panel" role="dialog" aria-label="Recent recommendation changes">
-            <div className="alerts-panel-head">Recommendation changes</div>
+            <div className="alerts-panel-head"><span>Recommendation changes</span><small>{changes.length} recorded</small></div>
             {changes.length === 0 && (
               <div className="alerts-empty">No recommendation changes yet. You&apos;ll see updates here the moment a holding&apos;s action changes, like Continue to Monitor flipping to Buy.</div>
             )}
@@ -633,6 +634,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
                     <ArrowRight size={11} />
                     <span className={`action-badge small ${entry.action.toLowerCase().replaceAll(" ", "-")}`}>{entry.action}</span>
                   </div>
+                  {entry.reasons[0] && <p className="alert-reason">{entry.reasons[0]}</p>}
                 </button>
               ))}
             </div>
