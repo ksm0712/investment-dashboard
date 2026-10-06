@@ -1206,9 +1206,12 @@ export default function Page() {
   return (
     <main className="page">
       <nav className="topnav">
-        <div className="brand-lockup">
-          <ProductMark small />
-          <div><strong>THESIS</strong><span>Portfolio intelligence</span></div>
+        <div className="topnav-left">
+          <div className="brand-lockup">
+            <ProductMark small />
+            <div><strong>THESIS</strong><span>Portfolio intelligence</span></div>
+          </div>
+          <div className="topnav-context"><span>Workspace</span><strong>Portfolio</strong></div>
         </div>
         <div className="actions">
           <AlertsBell actionHistory={data.actionHistory} onSelect={focusSecurity} />

@@ -93,7 +93,11 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 
 /* Main shell */
 .page { width: min(1880px, 100%); min-height: 100vh; margin: 0 auto; padding: 22px 30px 60px; }
-.topnav { display: flex; min-height: 54px; align-items: center; justify-content: space-between; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
+.topnav { position: sticky; z-index: 50; top: 0; display: flex; min-height: 62px; align-items: center; justify-content: space-between; margin: -22px -30px 18px; padding: 0 30px; border-bottom: 1px solid var(--line); background: rgba(243,240,232,.92); backdrop-filter: blur(14px); }
+.topnav-left { display: flex; align-items: center; gap: 24px; }
+.topnav-context { display: flex; flex-direction: column; padding-left: 24px; border-left: 1px solid #cbc9c1; }
+.topnav-context span { color: var(--muted); font-family: var(--font-mono), monospace; font-size: 7px; text-transform: uppercase; }
+.topnav-context strong { margin-top: 2px; font-size: 10px; }
 .actions { display: flex; align-items: center; gap: 12px; }
 .profile-chip, .profile-pic, .profile-fallback { width: 31px; height: 31px; }
 .profile-pic { display: block; border: 1px solid var(--line); border-radius: 50%; }
@@ -516,6 +520,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 
 @media (max-width: 960px) {
   .page { padding: 18px 18px 40px; }
+  .topnav { margin: -18px -18px 16px; padding: 0 18px; }
   .overview-grid { grid-template-columns: 1fr; }
   .attention-list { display: grid; grid-template-columns: 1fr 1fr; }
   .attention-list > button:nth-child(odd) { border-right: 1px solid #ebe9e3; }
@@ -534,7 +539,8 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 
 @media (max-width: 700px) {
   .page { padding: 12px 10px 28px; }
-  .topnav { min-height: 56px; }
+  .topnav { min-height: 56px; margin: -12px -10px 14px; padding: 0 10px; }
+  .topnav-context { display: none; }
   .brand-lockup span, .ghost-btn { display: none; }
   .actions { gap: 7px; }
   .primary-btn { padding: 0 11px; font-size: 9px; }
