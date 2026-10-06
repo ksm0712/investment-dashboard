@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getSecurities } from "@/lib/db";
 import { providerConfigured } from "@/lib/ai-provider";
 import { getResearchRecord, saveResearchThesis } from "@/lib/research-store";
+import { supportsAutomaticSecFiling } from "@/lib/sec-filings";
 
 async function ownedSecurity(userId: string, rawId: string) {
   const id = Number(rawId);
@@ -18,9 +19,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
   const security = await ownedSecurity(user.sub, id);
   if (!security) return NextResponse.json({ error: "Investment not found." }, { status: 404 });
   const record = await getResearchRecord(user.sub, security.id);
-  const automaticSourceAvailable = security.assetType === "Stock"
-    && security.country === "United States"
-    && Boolean(security.priceSymbol || security.ticker);
+  const automaticSourceAvailable = supportsAutomaticSecFiling(security);
   return NextResponse.json({ ...record, providerConfigured: providerConfigured(), automaticSourceAvailable });
 }
 

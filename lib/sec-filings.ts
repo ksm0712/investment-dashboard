@@ -4,7 +4,20 @@ type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<
 
 const SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json";
 const SUPPORTED_FORMS = new Set(["10-K", "10-Q", "20-F", "40-F"]);
-const MAX_FILING_BYTES = 4_000_000;
+const SEC_LISTED_EXCHANGES = new Set(["NASDAQ", "NYSE", "AMEX", "OTC"]);
+const MAX_FILING_BYTES = 12_000_000;
+
+export function supportsAutomaticSecFiling(security: {
+  assetType: string;
+  country: string;
+  exchange: string | null;
+  ticker: string | null;
+  priceSymbol: string | null;
+}) {
+  return security.assetType === "Stock"
+    && Boolean(security.priceSymbol || security.ticker)
+    && (security.country === "United States" || SEC_LISTED_EXCHANGES.has(String(security.exchange || "").toUpperCase()));
+}
 
 export class SecFilingError extends Error {
   readonly code: "unsupported" | "not_found" | "upstream";
@@ -51,10 +64,13 @@ export function filingHtmlToText(html: string) {
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
     .replace(/<ix:header\b[^>]*>[\s\S]*?<\/ix:header>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:h[1-6]|p|div|section|article|li|tr|table)>/gi, "\n\n")
+    .replace(/<\/(?:td|th)>/gi, " | ")
     .replace(/<[^>]+>/g, " ")
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, " ")
     .replace(/[ \t]+/g, " ")
-    .replace(/\s*\n\s*/g, "\n")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

@@ -4,7 +4,7 @@ import { getSecurities } from "@/lib/db";
 import { AiProviderUnavailableError } from "@/lib/ai-provider";
 import { analyzeResearch, researchInputHash } from "@/lib/ai-research";
 import type { ResearchDocument, ResearchRun } from "@/lib/ai-research-types";
-import { fetchLatestSecFiling, SecFilingError } from "@/lib/sec-filings";
+import { fetchLatestSecFiling, SecFilingError, supportsAutomaticSecFiling } from "@/lib/sec-filings";
 import {
   AiRateLimitError,
   consumeAiRequest,
@@ -59,8 +59,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     };
   } else {
     const ticker = security.priceSymbol || security.ticker;
-    if (security.assetType !== "Stock" || security.country !== "United States" || !ticker) {
-      return NextResponse.json({ error: "Automatic SEC research is available for U.S. stocks. Paste report text for this holding." }, { status: 400 });
+    if (!ticker || !supportsAutomaticSecFiling(security)) {
+      return NextResponse.json({ error: "No automatic SEC source is available for this holding. Paste at least 100 characters from a company filing, earnings release, or report." }, { status: 400 });
     }
     try {
       document = await fetchLatestSecFiling(ticker);

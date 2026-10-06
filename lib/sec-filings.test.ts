@@ -1,10 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchLatestSecFiling, filingHtmlToText, SecFilingError } from "./sec-filings.ts";
+import { fetchLatestSecFiling, filingHtmlToText, SecFilingError, supportsAutomaticSecFiling } from "./sec-filings.ts";
 
 test("filingHtmlToText removes executable markup and decodes entities", () => {
   const result = filingHtmlToText("<html><style>.x{}</style><script>alert(1)</script><p>Revenue &amp; demand&nbsp;grew.</p></html>");
   assert.equal(result, "Revenue & demand grew.");
+});
+
+test("filingHtmlToText preserves section and paragraph boundaries", () => {
+  const result = filingHtmlToText("<h2>Results of Operations</h2><p>Revenue grew.</p><p>Margin was stable.</p>");
+  assert.match(result, /Results of Operations\n+Revenue grew\.\n+Margin was stable\./);
+});
+
+test("automatic SEC research supports U.S.-listed foreign companies but not unrelated exchanges", () => {
+  const base = { assetType: "Stock", ticker: "TEST", priceSymbol: "TEST", exchange: "NASDAQ" };
+  assert.equal(supportsAutomaticSecFiling({ ...base, country: "Singapore" }), true);
+  assert.equal(supportsAutomaticSecFiling({ ...base, country: "India", exchange: "NSE" }), false);
 });
 
 test("fetchLatestSecFiling resolves ticker, submission, and primary document", async () => {
