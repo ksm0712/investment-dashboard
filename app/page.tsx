@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Check, ChevronRight, CircleAlert, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, Check, ChevronRight, CircleAlert, Database, Globe2, Plus, RotateCw, Search, ShieldCheck, SlidersHorizontal, Trash2, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
@@ -61,6 +61,7 @@ type RefreshSummary = {
 };
 
 const PORTFOLIO_CACHE_KEY = "investment-dashboard:portfolio:v2";
+const WORKSPACE_PREFERENCES_KEY = "investment-dashboard:workspace:v1";
 function readPortfolioCache(): PortfolioPayload | null {
   if (typeof window === "undefined") return null;
   try {
@@ -606,7 +607,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
   );
 }
 
-function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, focusId, emptyMessage }: {
+function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, focusId, emptyMessage, density }: {
   securities: Security[];
   totalInr: number;
   fx: Record<string, number>;
@@ -615,6 +616,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   onDelete: (id: number) => void;
   focusId: number | null;
   emptyMessage: string;
+  density: "comfortable" | "compact";
 }) {
   type SortKey = "priority" | "value" | "return" | "change" | "name";
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -751,7 +753,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
 
   if (!rows.length) return <div className="alloc-meta empty-holdings-note">{emptyMessage}</div>;
   return (
-    <div className="asset-register">
+    <div className={`asset-register density-${density}`}>
       <div className="register-sort-row">
         <span>{rows.length} result{rows.length === 1 ? "" : "s"}</span>
         <label>Sort by<select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
@@ -947,6 +949,7 @@ export default function Page() {
   const [actionFilter, setActionFilter] = useState("All");
   const [focusId, setFocusId] = useState<number | null>(null);
   const [portfolioError, setPortfolioError] = useState("");
+  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const autoRefreshAttempted = useRef(false);
   const refreshInFlight = useRef(false);
 
@@ -980,7 +983,24 @@ export default function Page() {
       setLoginChecked(true);
     }
     load();
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(WORKSPACE_PREFERENCES_KEY) || "{}");
+      if (saved.density === "compact" || saved.density === "comfortable") setDensity(saved.density);
+      if (typeof saved.actionFilter === "string" && ACTION_FILTERS.includes(saved.actionFilter)) setActionFilter(saved.actionFilter);
+      if (typeof saved.currency === "object" && saved.currency) setCurrency(saved.currency);
+    } catch {
+      // Workspace preferences are optional; defaults remain usable.
+    }
   }, []);
+
+  useEffect(() => {
+    if (!loginChecked) return;
+    try {
+      window.localStorage.setItem(WORKSPACE_PREFERENCES_KEY, JSON.stringify({ density, actionFilter, currency }));
+    } catch {
+      // Ignore browsers where persistent storage is unavailable.
+    }
+  }, [density, actionFilter, currency, loginChecked]);
 
   async function removeAsset(id: number) {
     const previous = data;
@@ -1177,7 +1197,10 @@ export default function Page() {
           <section className="holdings-panel">
             <header className="holdings-toolbar">
               <div><div className="eyebrow">Portfolio register</div><h2>Holdings</h2><p>{visible.length} of {countryVisible.length} positions shown</p></div>
-              <label className="holding-search"><Search size={15} /><input id="holding-search" aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} /><kbd>/</kbd></label>
+              <div className="holdings-tools">
+                <label className="holding-search"><Search size={15} /><input id="holding-search" aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} /><kbd>/</kbd></label>
+                <button className="density-toggle" onClick={() => setDensity((current) => current === "compact" ? "comfortable" : "compact")} aria-label={`Switch to ${density === "compact" ? "comfortable" : "compact"} rows`} title={`Switch to ${density === "compact" ? "comfortable" : "compact"} rows`}><SlidersHorizontal size={14} /><span>{density === "compact" ? "Compact" : "Comfortable"}</span></button>
+              </div>
             </header>
             <div className="action-filter-row" aria-label="Filter holdings by recommended action">
               {ACTION_FILTERS.map((action) => {
@@ -1200,6 +1223,7 @@ export default function Page() {
               onDelete={removeAsset}
               focusId={focusId}
               emptyMessage={actionFilter === "All" ? "No holdings match your search." : `Nothing is currently flagged ${actionFilter}.`}
+              density={density}
             />
           </section>
         </>
