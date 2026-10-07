@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Check, CheckCircle2, ChevronRight, CircleAlert, ClipboardCheck, Database, Download, Globe2, LayoutDashboard, List, Plus, RotateCw, Search, ShieldCheck, SlidersHorizontal, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, CheckCircle2, CircleAlert, Database, Download, Globe2, Plus, RotateCw, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
-import { portfolioAttention, portfolioHealthScore } from "@/lib/portfolio-insights";
+import { portfolioAttention } from "@/lib/portfolio-insights";
 import { portfolioCsv } from "@/lib/portfolio-export";
 import ResearchPanel from "./research-panel";
 
@@ -158,69 +158,34 @@ function PortfolioOverview({
   currentCurrency,
   fx,
   marketLabel,
-  onSelect,
 }: {
   securities: Security[];
   stats: ReturnType<typeof metricStats>;
   currentCurrency: string;
   fx: Record<string, number>;
   marketLabel: string;
-  onSelect: (id: number) => void;
 }) {
   const attention = portfolioAttention(securities);
-  const health = portfolioHealthScore(securities);
-  const queue = attention.actionable.length ? attention.actionable : [...attention.incomplete, ...attention.stale.filter((item) => !attention.incomplete.some((entry) => entry.id === item.id))];
-  const setupCount = attention.incomplete.length;
-  const staleCount = attention.stale.length;
 
   return (
-    <section className="overview-grid" id="overview" aria-label="Portfolio overview">
-      <div className="portfolio-summary-card">
-        <div className="summary-card-head">
-          <div>
-            <span className="section-label">{marketLabel}</span>
-            <h1>{fmt(fromInr(stats.totalInr, currentCurrency, fx), currentCurrency)}</h1>
-            <p>Market value across {securities.length} position{securities.length === 1 ? "" : "s"}</p>
-          </div>
-          <div className={`return-pill ${(stats.gainPct || 0) >= 0 ? "positive" : "negative"}`}>
-            <span>Total return</span>
-            <strong>{fmtPct(stats.gainPct, true)}</strong>
-          </div>
+    <section className="portfolio-overview" id="overview" aria-label="Portfolio overview">
+      <div className="overview-heading">
+        <div>
+          <h1>Portfolio</h1>
+          <p>{marketLabel} · {securities.length} position{securities.length === 1 ? "" : "s"}</p>
         </div>
-        <div className="summary-stat-row">
-          <div><span>Invested</span><strong>{stats.costInr ? fmt(fromInr(stats.costInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
-          <div><span>Unrealized P&amp;L</span><strong className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
-          <div><span>Needs a decision</span><strong>{attention.actionable.length}</strong></div>
-          <div><span>Portfolio health</span><strong>{health}<small>/100</small></strong></div>
-        </div>
-        <div className="health-track" aria-label={`Portfolio health ${health} out of 100`}><span style={{ width: `${health}%` }} /></div>
-        <div className="summary-foot">
-          <span>{setupCount ? `${setupCount} position${setupCount === 1 ? "" : "s"} need setup` : "Every position has decision inputs"}</span>
-          <span>{staleCount ? `${staleCount} market price${staleCount === 1 ? " is" : "s are"} stale` : "Market data is current"}</span>
-          <span>Largest position {fmtPct(attention.largestWeight * 100)}</span>
+        <div className="overview-balance">
+          <span>Total value</span>
+          <strong>{fmt(fromInr(stats.totalInr, currentCurrency, fx), currentCurrency)}</strong>
+          <small className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{stats.costInr ? `${fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency)} (${fmtPct(stats.gainPct, true)}) total return` : "Return unavailable"}</small>
         </div>
       </div>
-
-      <aside className="attention-card" id="decisions">
-        <div className="attention-card-head">
-          <div><span className="section-label">Decision queue</span><h2>{queue.length ? `${queue.length} item${queue.length === 1 ? "" : "s"} to review` : "You’re up to date"}</h2></div>
-          <span className={`queue-status ${queue.length ? "active" : "clear"}`}>{queue.length ? "Open" : <><Check size={12} /> Clear</>}</span>
-        </div>
-        <div className="attention-list">
-          {queue.slice(0, 4).map((item) => {
-            const needsSetup = item.action === "Insufficient Data" || item.allocation === null || !item.targetPrice;
-            return (
-              <button key={item.id} onClick={() => onSelect(item.id)}>
-                <span className={`queue-dot ${item.action.toLowerCase().replaceAll(" ", "-")}`} />
-                <span><strong>{item.name}</strong><small>{needsSetup ? "Complete missing decision inputs" : item.actionReasons[0] || "Review the current signal"}</small></span>
-                <span className="queue-action">{needsSetup ? "Set up" : item.action}<ChevronRight size={14} /></span>
-              </button>
-            );
-          })}
-          {!queue.length && <div className="queue-empty"><Check size={17} /><span><strong>No immediate follow-up</strong><small>Signals and market data are current.</small></span></div>}
-        </div>
-        {queue.length > 4 && <div className="queue-more">+{queue.length - 4} more in the holdings register</div>}
-      </aside>
+      <div className="overview-metrics">
+        <div><span>Invested</span><strong>{stats.costInr ? fmt(fromInr(stats.costInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
+        <div><span>Total return</span><strong className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
+        <div><span>Positions</span><strong>{securities.length}</strong></div>
+        <div><span>To review</span><strong>{attention.actionable.length}</strong><small>{attention.actionable.length ? "Shown first below" : "Nothing needs action"}</small></div>
+      </div>
     </section>
   );
 }
@@ -1212,33 +1177,13 @@ export default function Page() {
 
   return (
     <main className="app-shell">
-      <aside className="app-sidebar">
-        <div className="brand-lockup sidebar-brand">
-          <ProductMark />
-          <div><strong>THESIS</strong><span>Portfolio intelligence</span></div>
-        </div>
-        <nav className="sidebar-nav" aria-label="Workspace navigation">
-          <a href="#overview" className="active"><LayoutDashboard size={18} /><span>Overview</span></a>
-          <a href="#decisions"><ClipboardCheck size={18} /><span>Decisions</span></a>
-          <a href="#holdings"><List size={18} /><span>Holdings</span></a>
-        </nav>
-        <div className="sidebar-note"><span>Decision system</span><p>Numerical actions stay separate from filing evidence.</p></div>
-        <div className="sidebar-user">
-          <div className="profile-chip" title={data.user.email || data.user.name || "Signed in user"}>
-            {data.user.picture ? <img className="profile-pic" src={data.user.picture} alt={data.user.name || data.user.email || "Signed in user"} referrerPolicy="no-referrer" /> : <div className="profile-fallback">{(data.user.name || data.user.email || "U").charAt(0).toUpperCase()}</div>}
-          </div>
-          <div><strong>{data.user.name || "Your workspace"}</strong><span>{data.user.email || "Private portfolio"}</span></div>
-          <button onClick={logout}>Sign out</button>
-        </div>
-      </aside>
       <div className="page workspace-main">
       <nav className="topnav">
         <div className="topnav-left">
-          <div className="brand-lockup mobile-brand">
+          <div className="brand-lockup app-brand">
             <ProductMark small />
-            <div><strong>THESIS</strong></div>
+            <div><strong>Thesis</strong><span>Portfolio</span></div>
           </div>
-          <div className="workspace-heading"><span>Personal portfolio</span><strong>Overview</strong></div>
         </div>
         <div className="actions">
           <AlertsBell actionHistory={data.actionHistory} onSelect={focusSecurity} />
@@ -1272,7 +1217,6 @@ export default function Page() {
             currentCurrency={currentCurrency}
             fx={fx}
             marketLabel={tab === "All" ? `All markets · ${countries.length || 1} region${countries.length === 1 ? "" : "s"}` : tab}
-            onSelect={focusSecurity}
           />
           <section className="workspace-toolbar">
             <div className="tabs" aria-label="Filter by market">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item === "All" ? "All markets" : item}</button>)}</div>
@@ -1288,7 +1232,6 @@ export default function Page() {
               <div><div className="eyebrow">Portfolio register</div><h2>Holdings</h2><p>{visible.length} of {countryVisible.length} positions shown</p></div>
               <div className="holdings-tools">
                 <label className="holding-search"><Search size={15} /><input id="holding-search" aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} /><kbd>/</kbd></label>
-                <button className="density-toggle" onClick={() => setDensity((current) => current === "compact" ? "comfortable" : "compact")} aria-label={`Switch to ${density === "compact" ? "comfortable" : "compact"} rows`} title={`Switch to ${density === "compact" ? "comfortable" : "compact"} rows`}><SlidersHorizontal size={14} /><span>{density === "compact" ? "Compact" : "Comfortable"}</span></button>
               </div>
             </header>
             <div className="action-filter-row" aria-label="Filter holdings by recommended action">
