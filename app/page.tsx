@@ -869,37 +869,56 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
 
             {isDetailsOpen && <div className="asset-expanded">
               <div className="expanded-summary-head">
-                <div><div className="eyebrow">Position intelligence</div><strong>{item.name}</strong><p>{[item.sector, item.industry, item.country].filter(Boolean).join(" · ") || item.assetType}</p><p className="decision-rationale">{item.actionReasons.join(" ")}</p></div>
+                <div><strong>{item.name}</strong><p>{[item.sector, item.industry, item.country].filter(Boolean).join(" · ") || item.assetType}</p></div>
                 <div className="asset-card-actions">
                   <div className="card-updated" title={`Market: ${item.marketDataSource || item.priceSource || "—"} · Target: ${item.targetSource || "not available"}`}>
                     {freshness.stale && <span className="freshness-warning">Price may be outdated</span>}
                     <span>Updated {fmtDate(freshness.date)}</span>
                   </div>
-                  <button className="table-btn" onClick={() => openEditor(item.id)}>Lots &amp; allocation</button>
+                  <button className="table-btn" onClick={() => openEditor(item.id)}>Manage position</button>
                   <button className="icon-btn danger" aria-label={`Delete ${item.name}`} onClick={() => setDeleting(deleting === item.id ? null : item.id)}><Trash2 size={14} /></button>
                 </div>
               </div>
-              <div className="asset-insight-layout" aria-label={`${item.name} portfolio details`}>
-                {detailGroups.map((group) => <section className="detail-group" key={group.title}>
-                  <div className="detail-group-head"><h3>{group.title}</h3><p>{group.subtitle}</p></div>
-                  <div className="fact-list">{group.facts.map(([label, value, tone]) => <div className="fact-row" key={label}><span>{label}</span><strong className={tone}>{value}</strong></div>)}</div>
-                </section>)}
-                <div className="data-provenance">
-                  <span><b>Currency</b> {item.currency}</span>
-                  <span><b>Market source</b> {item.marketDataSource || item.priceSource || "—"}</span>
-                  <span><b>Target source</b> {item.targetSource || "—"}</span>
-                  <span><b>Data date</b> {fmtDate(item.marketDataAsOn || item.priceAsOn)}</span>
-                </div>
+              <div className="decision-overview" aria-label={`${item.name} decision summary`}>
+                <div className="decision-overview-primary"><span>Recommendation</span><strong className={`action-badge large ${actionClass}`}>{item.action}</strong></div>
+                <div><span>Market price</span><strong>{fmtUnit(item.latestPrice, item.currency)}</strong><small className={item.changePercent === null ? "" : item.changePercent >= 0 ? "good" : "bad"}>{item.changePercent === null ? "No daily change" : `${fmtPct(item.changePercent, true)} today`}</small></div>
+                <div><span>Analyst target</span><strong>{fmtUnit(item.targetPrice, item.currency)}</strong><small>{item.priceToTarget === null ? "Target not available" : `${ratio(item.priceToTarget, true)} to target`}</small></div>
+                <div><span>Position return</span><strong className={(item.gainPct ?? 0) >= 0 ? "good" : "bad"}>{ratio(item.gainPct, true)}</strong><small>{fmt(item.gainLoss, item.currency)} total</small></div>
+                <div><span>Allocation left</span><strong>{item.allocationRemaining === null ? "—" : fmt(item.allocationRemaining, item.currency)}</strong><small>{item.allocation === null ? "Set an allocation" : `${fmt(item.allocation, item.currency)} limit`}</small></div>
               </div>
-              {itemHistory.length > 0 && <section className="signal-history" aria-label={`Signal history for ${item.name}`}>
-                <div className="signal-history-head"><div><span className="section-label">Decision history</span><h3>How the signal changed</h3></div><span>{itemHistory.length} recent update{itemHistory.length === 1 ? "" : "s"}</span></div>
-                <div className="signal-history-list">{itemHistory.map((entry) => <div className="signal-history-item" key={entry.id}>
-                  <span className="history-line"><i /></span>
-                  <div><strong>{entry.previousAction ? `${entry.previousAction} → ${entry.action}` : entry.action}</strong><p>{entry.reasons.join(" ") || "Signal recalculated from the latest portfolio inputs."}</p></div>
-                  <time title={fmtDateTime(entry.recordedAt)}>{fmtRelativeTime(entry.recordedAt)}</time>
-                </div>)}</div>
-              </section>}
-              <ResearchPanel security={item} />
+              <div className="decision-explanation"><span>Why this signal</span><p>{item.actionReasons.join(" ") || "This signal is based on the latest price, target, allocation, and purchase lots."}</p></div>
+
+              <details className="product-disclosure position-details-disclosure">
+                <summary><span><strong>Market and position details</strong><small>Valuation, purchase basis, and decision inputs</small></span><b>View details</b></summary>
+                <div className="asset-insight-layout" aria-label={`${item.name} portfolio details`}>
+                  {detailGroups.map((group) => <section className="detail-group" key={group.title}>
+                    <div className="detail-group-head"><h3>{group.title}</h3><p>{group.subtitle}</p></div>
+                    <div className="fact-list">{group.facts.map(([label, value, tone]) => <div className="fact-row" key={label}><span>{label}</span><strong className={tone}>{value}</strong></div>)}</div>
+                  </section>)}
+                  <div className="data-provenance">
+                    <span><b>Currency</b> {item.currency}</span>
+                    <span><b>Market source</b> {item.marketDataSource || item.priceSource || "—"}</span>
+                    <span><b>Target source</b> {item.targetSource || "—"}</span>
+                    <span><b>Data date</b> {fmtDate(item.marketDataAsOn || item.priceAsOn)}</span>
+                  </div>
+                </div>
+              </details>
+
+              <details className="product-disclosure research-disclosure">
+                <summary><span><strong>Thesis and filing evidence</strong><small>Test your assumptions against company filings</small></span><b>Open analysis</b></summary>
+                <ResearchPanel security={item} />
+              </details>
+
+              {itemHistory.length > 0 && <details className="product-disclosure history-disclosure">
+                <summary><span><strong>Decision history</strong><small>{itemHistory.length} recent update{itemHistory.length === 1 ? "" : "s"}</small></span><b>View history</b></summary>
+                <section className="signal-history" aria-label={`Signal history for ${item.name}`}>
+                  <div className="signal-history-list">{itemHistory.map((entry) => <div className="signal-history-item" key={entry.id}>
+                    <span className="history-line"><i /></span>
+                    <div><strong>{entry.previousAction ? `${entry.previousAction} → ${entry.action}` : entry.action}</strong><p>{entry.reasons.join(" ") || "Signal recalculated from the latest portfolio inputs."}</p></div>
+                    <time title={fmtDateTime(entry.recordedAt)}>{fmtRelativeTime(entry.recordedAt)}</time>
+                  </div>)}</div>
+                </section>
+              </details>}
               {deleting === item.id && <div className="delete-panel"><div><b>Delete {item.name} and all its purchase lots?</b><span>This cannot be undone.</span></div><div><button className="table-btn danger" onClick={() => removeAsset(item.id)}>Delete investment</button><button className="table-btn" onClick={() => setDeleting(null)}>Cancel</button></div></div>}
             </div>
             }
