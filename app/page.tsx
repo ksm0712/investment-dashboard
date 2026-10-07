@@ -812,14 +812,11 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
       </div>
       <div className="holding-row holding-row-head" aria-hidden="true">
         <span className="holding-name-cell">Asset</span>
-        <span className="holding-num-cell">Target</span>
+        <span className="holding-num-cell">Market value</span>
         <span className="holding-num-cell">Price</span>
         <span className="holding-num-cell">Today</span>
-        <span className="holding-num-cell">From 52W low</span>
-        <span className="holding-num-cell">To 52W high</span>
-        <span className="holding-num-cell">Avg. price</span>
-        <span className="holding-num-cell">Lowest buy</span>
-        <span className="holding-num-cell">Gain / Loss</span>
+        <span className="holding-num-cell">Average cost</span>
+        <span className="holding-num-cell">Total return</span>
         <span className="holding-action-cell">Action</span>
       </div>
       {rows.map((item) => {
@@ -893,14 +890,11 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
                   <small><b>{item.priceSymbol || item.ticker || item.exchange || item.assetType}</b><span>{item.assetType}</span><span>{pct.toFixed(1)}% weight</span></small>
                 </span>
               </span>
-              <span className="holding-num-cell" data-label="Target">{fmtUnit(item.targetPrice, item.currency)}</span>
+              <span className="holding-num-cell" data-label="Market value">{fmt(item.marketValue, item.currency)}<small>{pct.toFixed(1)}% of portfolio</small></span>
               <span className="holding-num-cell" data-label="Price">{fmtUnit(item.latestPrice, item.currency)}</span>
               <span className={`holding-num-cell ${item.changePercent === null ? "" : item.changePercent >= 0 ? "good" : "bad"}`} data-label="Change">{item.changePercent === null ? "—" : fmtPct(item.changePercent, true)}</span>
-              <span className="holding-num-cell" data-label="Above 52W Low">{ratio(item.pctAbove52WeekLow, true)}</span>
-              <span className="holding-num-cell" data-label="Below 52W High">{ratio(item.pctBelow52WeekHigh)}</span>
-              <span className="holding-num-cell" data-label="Average price">{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
-              <span className="holding-num-cell" data-label="Lowest buy">{fmtUnit(item.lowestPurchasePrice, item.currency)}</span>
-              <span className={`holding-num-cell ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`} data-label="Gain / Loss">
+              <span className="holding-num-cell" data-label="Average cost">{fmtUnit(item.averagePurchasePrice, item.currency)}</span>
+              <span className={`holding-num-cell ${(item.gainLoss || 0) >= 0 ? "good" : "bad"}`} data-label="Total return">
                 {fmt(item.gainLoss, item.currency)}<small>{ratio(item.gainPct, true)}</small>
               </span>
               <span className="holding-action-cell">
