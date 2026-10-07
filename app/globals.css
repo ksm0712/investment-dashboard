@@ -507,6 +507,65 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
 .empty p { max-width: 510px; margin: 0 0 25px; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .empty-holdings-note { margin: 0 20px 20px; padding: 28px; border: 1px dashed #c8cbc2; text-align: center; }
 
+/* Readable product scale: no operational text is intentionally set below 11px. */
+body { font-size: 16px; }
+.page { width: min(1500px, 100%); }
+.eyebrow, .section-label { font-size: 11px; letter-spacing: .1em; }
+.brand-lockup span, .topnav-context span { font-size: 11px; }
+.topnav-context strong { font-size: 14px; }
+.primary-btn, .ghost-btn, .table-btn, .refresh-button, .tab { font-size: 13px; }
+.primary-btn kbd { font-size: 10px; }
+.summary-card-head p { font-size: 14px; }
+.return-pill span, .summary-stat-row span { font-size: 11px; }
+.return-pill strong { font-size: 20px; }
+.summary-stat-row strong { font-size: 16px; }
+.summary-stat-row small, .summary-foot { font-size: 11px; }
+.queue-status, .queue-action, .queue-more { font-size: 11px; }
+.attention-list strong, .queue-empty strong { font-size: 14px; }
+.attention-list small, .queue-empty small { font-size: 12px; }
+.refresh-results, .select-wrap label { font-size: 11px; }
+.select-wrap select { font-size: 13px; }
+.holdings-toolbar p, .holding-name-cell small, .holding-num-cell small { font-size: 11px; }
+.holding-search input { font-size: 14px; }
+.holding-search kbd, .density-toggle { font-size: 11px; }
+.action-filter-chip { min-height: 36px; font-size: 13px; }
+.action-filter-chip strong { min-width: 20px; height: 20px; font-size: 11px; }
+.register-sort-row, .holding-row-head > span { font-size: 11px; }
+.register-sort-row select { min-height: 34px; font-size: 12px; }
+.action-badge, .action-badge.small, .action-badge.large { font-size: 11px; }
+.expanded-summary-head p { font-size: 13px; }
+.expanded-summary-head .decision-rationale { max-width: 900px; font-size: 15px; }
+.card-updated, .data-provenance { font-size: 11px; }
+.detail-group-head h3 { font-size: 16px; }
+.detail-group-head p, .fact-row span { font-size: 13px; }
+.fact-row strong { font-size: 13px; }
+.signal-history-head h3 { font-size: 15px; }
+.signal-history-head > span, .signal-history-item time { font-size: 11px; }
+.signal-history-item strong { font-size: 13px; }
+.signal-history-item p { font-size: 12px; }
+.research-panel-head p, .research-thesis-editor textarea, .research-source-fields textarea, .research-source-fields input { font-size: 14px; }
+.research-boundary, .thesis-score, .thesis-quality-list span { font-size: 11px; }
+.research-thesis-editor label, .research-source-editor summary, .research-run-button { font-size: 13px; }
+.research-thesis-tip, .research-editor-actions > span, .research-config-note, .research-message { font-size: 12px; }
+.research-error, .research-stale, .research-empty, .research-empty strong, .research-empty span { font-size: 13px; }
+.dual-signal span, .dual-signal small, .research-citations > summary small { font-size: 11px; }
+.dual-signal strong { font-size: 17px; }
+.research-summary { font-size: 15px; }
+.research-claim-group h4, .thesis-checks h4, .research-citations h4, .research-citations > summary, .research-next-steps h4 { font-size: 13px; }
+.research-claim-group li, .research-claim-group p, .thesis-check strong { font-size: 14px; }
+.thesis-check p, .research-next-steps-title p, .evidence-gaps strong, .research-next-steps > ul, .research-limitations, .research-citation p { font-size: 13px; }
+.evidence-gaps p, .research-citation span, .research-run-meta, .research-run-details > summary, .citation-badges a { font-size: 11px; }
+.app-status-banner, .app-toast { font-size: 13px; }
+.alerts-panel-head { font-size: 14px; }
+.alerts-panel-head small, .alert-time { font-size: 11px; }
+.alerts-empty, .alert-item-top strong, .alert-reason { font-size: 13px; }
+.modal-head p, .editor-title p, .detail-section-head p, .alloc-meta, .position-preview > p, .modal-footer span, .empty-lots { font-size: 13px; }
+.form-section-title { font-size: 15px; }
+.form-section-title span, .field label, .compact-form label, .busy-note, .search-note, .form-hint, .provider-note, .detail-section-head > span, .inline-message { font-size: 12px; }
+.field input, .field select, .autocomplete-option, .compact-form input { font-size: 14px; }
+.position-preview-head strong, .position-preview-grid span { font-size: 12px; }
+.position-preview-grid strong, .lot-row, .save-btn { font-size: 13px; }
+
 @media (max-width: 1250px) {
   .overview-grid { grid-template-columns: minmax(0, 1.35fr) minmax(310px, .8fr); }
   .summary-stat-row { grid-template-columns: 1fr 1fr; }
@@ -543,7 +602,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
   .topnav-context { display: none; }
   .brand-lockup span, .ghost-btn { display: none; }
   .actions { gap: 7px; }
-  .primary-btn { padding: 0 11px; font-size: 9px; }
+  .primary-btn { padding: 0 11px; font-size: 12px; }
   .portfolio-summary-card { padding: 20px 18px 16px; }
   .summary-card-head { align-items: stretch; flex-direction: column; gap: 14px; }
   .return-pill { width: fit-content; }
@@ -561,7 +620,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rg
   .holding-row > :nth-child(n) { display: flex; }
   .holding-name-cell, .holding-action-cell { grid-column: 1 / -1; }
   .holding-num-cell, .holding-action-cell { align-items: flex-start; justify-content: flex-start; padding: 0; border: 0; text-align: left; }
-  .holding-num-cell::before { margin-bottom: 4px; color: var(--muted); content: attr(data-label); font-size: 7px; letter-spacing: .05em; text-transform: uppercase; }
+  .holding-num-cell::before { margin-bottom: 5px; color: var(--muted); content: attr(data-label); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
   .holding-action-cell { padding-top: 10px; border-top: 1px solid #e5e2da; }
   .action-badge { max-width: none; justify-content: flex-start; text-align: left; }
   .expanded-summary-head { flex-direction: column; }
