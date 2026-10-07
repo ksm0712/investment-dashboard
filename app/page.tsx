@@ -887,7 +887,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
                 <i className={`row-chevron ${isDetailsOpen ? "open" : ""}`}>›</i>
                 <span>
                   <strong>{item.name}</strong>
-                  <small><b>{item.priceSymbol || item.ticker || item.exchange || item.assetType}</b><span>{item.assetType}</span><span>{pct.toFixed(1)}% weight</span></small>
+                  <small><b>{item.priceSymbol || item.ticker || item.exchange || item.assetType}</b><span>{item.assetType}</span><span>{item.country}</span></small>
                 </span>
               </span>
               <span className="holding-num-cell" data-label="Market value">{fmt(item.marketValue, item.currency)}<small>{pct.toFixed(1)}% of portfolio</small></span>
