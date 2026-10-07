@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Check, CheckCircle2, ChevronRight, CircleAlert, Database, Download, Globe2, Plus, RotateCw, Search, ShieldCheck, SlidersHorizontal, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, Check, CheckCircle2, ChevronRight, CircleAlert, ClipboardCheck, Database, Download, Globe2, LayoutDashboard, List, Plus, RotateCw, Search, ShieldCheck, SlidersHorizontal, Trash2, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
@@ -174,7 +174,7 @@ function PortfolioOverview({
   const staleCount = attention.stale.length;
 
   return (
-    <section className="overview-grid" aria-label="Portfolio overview">
+    <section className="overview-grid" id="overview" aria-label="Portfolio overview">
       <div className="portfolio-summary-card">
         <div className="summary-card-head">
           <div>
@@ -201,7 +201,7 @@ function PortfolioOverview({
         </div>
       </div>
 
-      <aside className="attention-card">
+      <aside className="attention-card" id="decisions">
         <div className="attention-card-head">
           <div><span className="section-label">Decision queue</span><h2>{queue.length ? `${queue.length} item${queue.length === 1 ? "" : "s"} to review` : "You’re up to date"}</h2></div>
           <span className={`queue-status ${queue.length ? "active" : "clear"}`}>{queue.length ? "Open" : <><Check size={12} /> Clear</>}</span>
@@ -1211,14 +1211,34 @@ export default function Page() {
   const refreshDetails = summary?.details?.length ? summary.details.map((item) => `${item.name}: ${item.note}`).join(" · ") : "";
 
   return (
-    <main className="page">
+    <main className="app-shell">
+      <aside className="app-sidebar">
+        <div className="brand-lockup sidebar-brand">
+          <ProductMark />
+          <div><strong>THESIS</strong><span>Portfolio intelligence</span></div>
+        </div>
+        <nav className="sidebar-nav" aria-label="Workspace navigation">
+          <a href="#overview" className="active"><LayoutDashboard size={18} /><span>Overview</span></a>
+          <a href="#decisions"><ClipboardCheck size={18} /><span>Decisions</span></a>
+          <a href="#holdings"><List size={18} /><span>Holdings</span></a>
+        </nav>
+        <div className="sidebar-note"><span>Decision system</span><p>Numerical actions stay separate from filing evidence.</p></div>
+        <div className="sidebar-user">
+          <div className="profile-chip" title={data.user.email || data.user.name || "Signed in user"}>
+            {data.user.picture ? <img className="profile-pic" src={data.user.picture} alt={data.user.name || data.user.email || "Signed in user"} referrerPolicy="no-referrer" /> : <div className="profile-fallback">{(data.user.name || data.user.email || "U").charAt(0).toUpperCase()}</div>}
+          </div>
+          <div><strong>{data.user.name || "Your workspace"}</strong><span>{data.user.email || "Private portfolio"}</span></div>
+          <button onClick={logout}>Sign out</button>
+        </div>
+      </aside>
+      <div className="page workspace-main">
       <nav className="topnav">
         <div className="topnav-left">
-          <div className="brand-lockup">
+          <div className="brand-lockup mobile-brand">
             <ProductMark small />
-            <div><strong>THESIS</strong><span>Portfolio intelligence</span></div>
+            <div><strong>THESIS</strong></div>
           </div>
-          <div className="topnav-context"><span>Workspace</span><strong>Portfolio</strong></div>
+          <div className="workspace-heading"><span>Personal portfolio</span><strong>Overview</strong></div>
         </div>
         <div className="actions">
           <AlertsBell actionHistory={data.actionHistory} onSelect={focusSecurity} />
@@ -1263,7 +1283,7 @@ export default function Page() {
               <div className="select-wrap"><label htmlFor="portfolio-currency">View in</label><select id="portfolio-currency" value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>
             </div>
           </section>
-          <section className="holdings-panel">
+          <section className="holdings-panel" id="holdings">
             <header className="holdings-toolbar">
               <div><div className="eyebrow">Portfolio register</div><h2>Holdings</h2><p>{visible.length} of {countryVisible.length} positions shown</p></div>
               <div className="holdings-tools">
@@ -1300,6 +1320,7 @@ export default function Page() {
       )}
       {modalOpen && <AddInvestmentModal onClose={() => setModalOpen(false)} onSaved={async () => { await load(); setToast({ message: "Investment added and portfolio totals recalculated.", tone: "success" }); }} />}
       {toast && <Toast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />}
+      </div>
     </main>
   );
 }
