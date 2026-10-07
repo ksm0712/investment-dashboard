@@ -619,14 +619,12 @@ body { font-size: 16px; }
   .modal-footer { align-items: stretch; flex-direction: column; }
   .save-btn { justify-content: center; }
   .login-page { grid-template-columns: 1fr; }
-  .login-story { min-height: 540px; padding: 28px 24px; }
-  .login-story-copy { padding: 52px 0 38px; }
-  .login-story-copy h1 { font-size: 46px; }
+  .login-story { min-height: auto; padding: 24px 24px 32px; border-right: 0; }
+  .login-story-copy { padding: 48px 0 0; }
+  .login-story-copy h1 { font-size: 40px; }
   .login-story-copy p { font-size: 14px; }
-  .login-capabilities { grid-template-columns: 1fr; }
-  .login-capabilities > div { padding: 12px 0; border-top: 1px solid var(--line); }
-  .login-capabilities > div + div { padding-left: 0; border-left: 0; }
-  .login-access { min-height: 360px; padding: 42px 24px; }
+  .login-capabilities { display: none; }
+  .login-access { min-height: auto; padding: 48px 24px 64px; border-top: 1px solid var(--line); }
   .delete-panel { align-items: stretch; flex-direction: column; }
   .app-toast { right: 16px; bottom: 16px; }
 }
