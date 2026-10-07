@@ -56,16 +56,18 @@ Actions are mutually exclusive and evaluated from top to bottom:
 5. **Continue to Monitor:** no threshold matched.
 6. **Insufficient Data:** current price, target, or 52-week high is unavailable, so a reliable action cannot be produced.
 
-## Safe delivery sequence
+## Implemented delivery sequence
+
+The feature was delivered in layers so each calculation and migration could be checked before the interface depended on it:
 
 1. Add and test the pure calculation engine.
-2. Introduce an additive `investment_lots` table and market/target fields. Preserve every existing holding as its first lot.
-3. Extend quote refresh behind a provider interface. Market fields and target fields retain their own source and timestamp.
+2. Introduce an additive `investment_lots` table and market/target fields, preserving existing holdings as their first lots.
+3. Extend quote refresh behind a provider interface while retaining separate market and target sources and timestamps.
 4. Return consolidated asset results through the portfolio API.
-5. Add an expandable analysis-and-lots experience to the existing holdings UI.
-6. Add action-change history and alerts only after calculations and data freshness are proven reliable.
+5. Add the expandable position review and lot-management interface.
+6. Record action history only when a recommendation changes.
 
-The deployed `main` branch remains unchanged until this feature branch is reviewed and explicitly merged.
+All six stages are now on `main` and deployed. The calculation engine remains the source of truth; the interface only presents its output.
 
 ## Target-provider policy
 
