@@ -113,26 +113,26 @@ function Login() {
       <section className="login-story">
         <div className="brand-lockup login-brand">
           <ProductMark />
-          <div><strong>THESIS</strong><span>Portfolio intelligence</span></div>
+          <div><strong>Thesis</strong><span>Portfolio intelligence</span></div>
         </div>
         <div className="login-story-copy">
-          <div className="eyebrow light">Decision-grade portfolio tracking</div>
-          <h1>Know what changed.<br /><em>Know what to do.</em></h1>
-          <p>Live global market data, purchase-lot accounting, and a transparent decision engine—built into one calm portfolio register.</p>
+          <div className="eyebrow light">Private portfolio workspace</div>
+          <h1>Understand every position at a glance.</h1>
+          <p>Track market value, purchase lots, targets, and filing evidence without losing the calculation behind each signal.</p>
         </div>
         <div className="login-capabilities">
           <div><Globe2 size={17} /><span><b>Global coverage</b>US and international holdings</span></div>
           <div><Database size={17} /><span><b>Lot-level accuracy</b>Every purchase stays auditable</span></div>
-          <div><TrendingUp size={17} /><span><b>Action signals</b>Excel logic, continuously updated</span></div>
+          <div><TrendingUp size={17} /><span><b>Transparent signals</b>Every recommendation is explainable</span></div>
         </div>
         <div className="login-gridlines" aria-hidden="true" />
       </section>
       <section className="login-access">
         <div className="login-card">
           <div className="access-seal"><ShieldCheck size={18} /></div>
-          <div className="eyebrow">Private workspace</div>
-          <h2>Welcome to Thesis</h2>
-          <p>Your portfolio, calculations, and recommendation history are isolated to your account.</p>
+          <div className="eyebrow">Secure access</div>
+          <h2>Sign in to your portfolio</h2>
+          <p>Your holdings, calculations, and decision history are private to your account.</p>
           <a className="google-login-btn" href="/api/auth/google">
             {googleIcon()}
             Continue with Google
