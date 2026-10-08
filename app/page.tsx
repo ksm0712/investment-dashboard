@@ -91,7 +91,11 @@ const assetTypes: AssetType[] = ["Stock", "ETF", "Mutual Fund", "Bond", "Savings
 function ProductMark({ small = false }: { small?: boolean }) {
   return (
     <span className={`product-mark ${small ? "small" : ""}`} aria-hidden="true">
-      <i /><i /><i />
+      <svg viewBox="0 0 32 32" role="presentation">
+        <path className="mark-stem" d="M7.5 8.5h17M16 8.5v15" />
+        <path className="mark-base" d="M11 23.5h10" />
+        <circle cx="24.5" cy="23.5" r="2.25" />
+      </svg>
     </span>
   );
 }
