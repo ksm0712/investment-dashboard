@@ -1,41 +1,41 @@
 :root {
   --font-mono: var(--font-sans);
-  --ink: #101828;
-  --ink-2: #344054;
-  --forest: #176b52;
-  --forest-soft: #208064;
-  --paper: #f7f8fa;
-  --paper-2: #f9fafb;
+  --ink: #17211e;
+  --ink-2: #3f4b47;
+  --forest: #173f34;
+  --forest-soft: #28604f;
+  --paper: #f3f5f4;
+  --paper-2: #f7f8f7;
   --white: #ffffff;
-  --line: #e4e7ec;
+  --line: #dde3e0;
   --line-dark: rgba(255, 255, 255, .16);
-  --muted: #667085;
-  --muted-light: #98a2b3;
-  --acid: #d1fadf;
-  --green: #067647;
-  --red: #b42318;
-  --orange: #b54708;
-  --blue: #175cd3;
-  --yellow: #b54708;
-  --shadow: 0 12px 32px rgba(16, 24, 40, .08);
-  --shadow-soft: 0 2px 8px rgba(16, 24, 40, .04);
-  --radius-sm: 7px;
-  --radius-md: 10px;
+  --muted: #68746f;
+  --muted-light: #9aa39f;
+  --acid: #e7f2ed;
+  --green: #1d6b4f;
+  --red: #a83b32;
+  --orange: #a05a18;
+  --blue: #315f8f;
+  --yellow: #88641e;
+  --shadow: 0 18px 50px rgba(23, 33, 30, .10);
+  --shadow-soft: 0 1px 2px rgba(23, 33, 30, .04), 0 8px 22px rgba(23, 33, 30, .035);
+  --radius-sm: 9px;
+  --radius-md: 13px;
 }
 
 * { box-sizing: border-box; }
 html { min-height: 100%; background: var(--paper); scroll-behavior: smooth; }
-body { min-height: 100%; margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-sans), sans-serif; font-size: 14px; font-feature-settings: "cv02", "cv03", "cv04", "cv11"; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { min-height: 100%; margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-sans), sans-serif; font-size: 15px; font-feature-settings: "cv02", "cv03", "cv04", "cv11"; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: .55; }
 a { color: inherit; }
-::selection { background: #d1eadf; color: var(--ink); }
-:focus-visible { outline: 2px solid #26876b; outline-offset: 2px; }
+::selection { background: #dbe9e3; color: var(--ink); }
+:focus-visible { outline: 2px solid #2e735d; outline-offset: 2px; }
 .good { color: var(--green) !important; }
 .bad { color: var(--red) !important; }
-.eyebrow { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0; }
-.eyebrow.light { color: var(--acid); }
+.eyebrow { color: var(--muted); font-size: 12px; font-weight: 650; letter-spacing: 0; }
+.eyebrow.light { color: #527367; }
 
 /* Product identity */
 .brand-lockup { display: flex; align-items: center; gap: 10px; }
@@ -51,19 +51,19 @@ a { color: inherit; }
 .product-mark.small svg { width: 22px; height: 22px; }
 
 /* Shared controls */
-input, select { min-height: 40px; border: 1px solid #d0d5dd; border-radius: 7px; outline: 0; background: var(--white); color: var(--ink); padding: 0 12px; transition: border-color .15s ease, box-shadow .15s ease; }
-input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(19, 118, 91, .11); }
+input, select { min-height: 42px; border: 1px solid #cfd7d3; border-radius: var(--radius-sm); outline: 0; background: var(--white); color: var(--ink); padding: 0 12px; transition: border-color .15s ease, box-shadow .15s ease; }
+input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36, 96, 77, .10); }
 .primary-btn, .refresh-button, .table-btn, .google-login-btn, .icon-btn { transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease; }
-.primary-btn { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; padding: 0 15px; border: 1px solid var(--forest); border-radius: 7px; background: var(--forest); color: #fff; font-size: 14px; font-weight: 650; letter-spacing: 0; }
-.primary-btn:hover { transform: translateY(-1px); background: #081c17; }
-.primary-btn kbd { min-width: 18px; padding: 2px 4px; border: 1px solid rgba(255,255,255,.25); border-radius: 2px; color: #c5d1cc; font-family: var(--font-mono), monospace; font-size: 7px; font-weight: 500; }
+.primary-btn { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid var(--forest); border-radius: var(--radius-sm); background: var(--forest); color: #fff; font-size: 14px; font-weight: 650; letter-spacing: 0; box-shadow: 0 1px 1px rgba(0,0,0,.06); }
+.primary-btn:hover { background: #224d40; box-shadow: 0 5px 15px rgba(23,63,52,.14); }
+.primary-btn kbd { min-width: 18px; padding: 2px 4px; border: 1px solid rgba(255,255,255,.24); border-radius: 4px; color: #d7e3de; font-family: var(--font-sans), sans-serif; font-size: 10px; font-weight: 550; }
 .ghost-btn { min-height: 32px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
 .ghost-btn:hover { color: var(--red); }
-.icon-btn { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 3px; background: var(--white); color: var(--muted); }
-.icon-btn:hover { border-color: #a8aca3; color: var(--ink); }
+.icon-btn { display: grid; width: 38px; height: 38px; place-items: center; padding: 0; border: 1px solid #d2d9d6; border-radius: var(--radius-sm); background: var(--white); color: var(--muted); }
+.icon-btn:hover { border-color: #aab7b2; background: #fafbfa; color: var(--ink); }
 .icon-btn.danger { border-color: #e8c9c5; background: #fff8f6; color: var(--red); }
-.table-btn { display: inline-flex; min-width: 60px; height: 32px; align-items: center; justify-content: center; gap: 5px; padding: 0 11px; border: 1px solid #c9ccc3; border-radius: 3px; background: var(--white); color: var(--ink-2); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
-.table-btn:hover { border-color: var(--forest); background: var(--paper-2); }
+.table-btn { display: inline-flex; min-width: 60px; height: 36px; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border: 1px solid #cfd7d3; border-radius: var(--radius-sm); background: var(--white); color: var(--ink-2); font-size: 13px; font-weight: 620; letter-spacing: 0; }
+.table-btn:hover { border-color: #9caaa5; background: var(--paper-2); }
 .table-btn.save-inline { border-color: var(--forest); background: var(--forest); color: #fff; }
 .table-btn.danger { border-color: #e3beba; background: #fff4f2; color: var(--red); }
 

@@ -117,31 +117,31 @@ function Login() {
       <section className="login-story">
         <div className="brand-lockup login-brand">
           <ProductMark />
-          <div><strong>Thesis</strong><span>Portfolio intelligence</span></div>
+          <div><strong>Thesis</strong><span>Investment workspace</span></div>
         </div>
         <div className="login-story-copy">
-          <div className="eyebrow light">Private portfolio workspace</div>
-          <h1>Understand every position at a glance.</h1>
-          <p>Track market value, purchase lots, targets, and filing evidence without losing the calculation behind each signal.</p>
+          <div className="eyebrow light">A private record of your investments</div>
+          <h1>Keep the numbers and the reasoning together.</h1>
+          <p>Follow each position from purchase lots to market data, decision thresholds, and the evidence behind your thesis.</p>
         </div>
         <div className="login-capabilities">
-          <div><Globe2 size={17} /><span><b>Global coverage</b>US and international holdings</span></div>
-          <div><Database size={17} /><span><b>Lot-level accuracy</b>Every purchase stays auditable</span></div>
-          <div><TrendingUp size={17} /><span><b>Transparent signals</b>Every recommendation is explainable</span></div>
+          <div><Globe2 size={17} /><span><b>Positions</b>US and international holdings</span></div>
+          <div><Database size={17} /><span><b>Purchase history</b>Every lot remains visible</span></div>
+          <div><TrendingUp size={17} /><span><b>Decision record</b>Every signal shows its inputs</span></div>
         </div>
         <div className="login-gridlines" aria-hidden="true" />
       </section>
       <section className="login-access">
         <div className="login-card">
           <div className="access-seal"><ShieldCheck size={18} /></div>
-          <div className="eyebrow">Secure access</div>
-          <h2>Sign in to your portfolio</h2>
-          <p>Your holdings, calculations, and decision history are private to your account.</p>
+          <div className="eyebrow">Your account</div>
+          <h2>Sign in to Thesis</h2>
+          <p>Your holdings, calculations, and research stay private to your account.</p>
           <a className="google-login-btn" href="/api/auth/google">
             {googleIcon()}
             Continue with Google
           </a>
-          <div className="login-note">Secure Google authentication · No passwords stored</div>
+          <div className="login-note">Google sign-in · Thesis does not store passwords</div>
         </div>
       </section>
     </main>
@@ -439,10 +439,10 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="add-investment-title">
         <div className="modal-head">
-          <div><div className="eyebrow">Portfolio entry</div><div className="modal-title" id="add-investment-title">Add an investment</div><p>Search a security, confirm your purchase, and Thesis will build the live position.</p></div>
+          <div><div className="modal-title" id="add-investment-title">Add an investment</div><p>Find the security, record the purchase, and set the inputs used by the decision rules.</p></div>
           <button className="x-btn" onClick={onClose} aria-label="Close"><X size={26} /></button>
         </div>
-        <div className="form-section-title"><span>01</span>Asset</div>
+        <div className="form-section-title">Asset</div>
         <div className="field autocomplete-field">
           <label>Asset name</label>
           <input
@@ -479,7 +479,7 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
             <input value={formCurrency} readOnly />
           </div>
         </div>
-        <div className="form-section-title"><span>02</span>Identifier</div>
+        <div className="form-section-title">Identifier</div>
         {["Stock", "ETF", "Mutual Fund", "Bond"].includes(assetType) ? (
           <div className="form-grid grid-3">
             <div className="field">
@@ -498,14 +498,14 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
             </div>
           </div>
         ) : <div className="alloc-meta">No ticker or scheme code needed for this asset type.</div>}
-        <div className="form-section-title"><span>03</span>Position</div>
+        <div className="form-section-title">Position</div>
         <div className="form-grid grid-4">
           <div className="field"><label>Quantity bought</label><input type="number" inputMode="decimal" min="0" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1.000000" /></div>
           <div className="field"><label>Cost price</label><input type="number" inputMode="decimal" min="0" step="any" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="100.00" /></div>
           <div className="field"><label>Date bought</label><input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} /></div>
           <div className="field"><label>Current price</label><input type="number" inputMode="decimal" min="0" step="any" value={currentPrice} onChange={(e) => { setCurrentPrice(e.target.value); setPriceSource("manual"); setPriceAsOn(new Date().toISOString().slice(0, 10)); }} placeholder="150.00" /></div>
         </div>
-        <div className="form-section-title"><span>04</span>Decision inputs</div>
+        <div className="form-section-title">Decision inputs</div>
         <div className="form-grid grid-4">
           <div className="field">
             <label>Allocation limit (required)</label>
@@ -1205,7 +1205,7 @@ export default function Page() {
         <div className="topnav-left">
           <div className="brand-lockup app-brand">
             <ProductMark small />
-            <div><strong>Thesis</strong><span>Portfolio</span></div>
+            <div><strong>Thesis</strong><span>Investments</span></div>
           </div>
         </div>
         <div className="actions">
@@ -1226,10 +1226,10 @@ export default function Page() {
 
       {securities.length === 0 ? (
         <section className="empty">
-          <div className="empty-graphic" aria-hidden="true"><span /><span /><span /><i /></div>
-          <div className="eyebrow">Your register is ready</div>
-          <h1>Build your first live position.</h1>
-          <p>Add one holding and Thesis will connect its price, targets, 52-week range, purchase lots, and action signal.</p>
+          <ProductMark />
+          <div className="eyebrow">No positions yet</div>
+          <h1>Add your first investment.</h1>
+          <p>Record a purchase and Thesis will keep its market data, cost basis, decision inputs, and history in one place.</p>
           <button className="primary-btn" onClick={() => setModalOpen(true)}><Plus size={15} /> Add first investment</button>
         </section>
       ) : (
@@ -1252,7 +1252,7 @@ export default function Page() {
           </section>
           <section className="holdings-panel" id="holdings">
             <header className="holdings-toolbar">
-              <div><div className="eyebrow">Portfolio register</div><h2>Holdings</h2><p>{visible.length} of {countryVisible.length} positions shown</p></div>
+              <div><h2>Holdings</h2><p>{visible.length} of {countryVisible.length} positions shown</p></div>
               <div className="holdings-tools">
                 <label className="holding-search"><Search size={15} /><input id="holding-search" aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} /><kbd>/</kbd></label>
               </div>
