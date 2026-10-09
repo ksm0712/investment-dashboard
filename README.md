@@ -1,5 +1,7 @@
 # Thesis
 
+<img src="app/icon.svg" alt="Thesis mark" width="64" height="64" />
+
 Thesis is the portfolio tracker I wanted while I was still managing my investments in a spreadsheet. It keeps purchase lots, allocation limits, analyst targets, and market data in one place, then applies a fixed set of rules to show which positions may need attention.
 
 The app is live at **[thesis-karan.vercel.app](https://thesis-karan.vercel.app/)**.
@@ -93,6 +95,10 @@ The main application code lives in `app/`, calculations and integrations live in
 | Market data | Yahoo Finance with configured provider fallbacks |
 | Filing evidence | SEC EDGAR, lexical or hybrid retrieval, validated structured output |
 | Hosting | Vercel, including a daily refresh cron |
+
+### Product identity
+
+The Thesis mark is deliberately simple enough to remain legible in a browser tab: the `T` represents the written investment thesis, and the ochre point represents a decision backed by evidence. The scalable source is [`app/icon.svg`](app/icon.svg). [`app/favicon.ico`](app/favicon.ico) provides the 32 px browser fallback, and [`app/apple-icon.png`](app/apple-icon.png) is the 180 px home-screen version. Next.js discovers these files from the `app/` directory and adds versioned icon links to the page automatically.
 
 ## Run it locally
 
