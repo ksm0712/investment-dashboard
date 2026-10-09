@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="15" fill="#17352d"/>
-  <path d="M15 17h34M32 17v30" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
-  <path d="M22 47h20" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
-  <circle cx="49" cy="47" r="5" fill="#d5a85a"/>
+  <title>Thesis</title>
+  <rect width="64" height="64" rx="14" fill="#17352d"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="#31544a" stroke-width="2"/>
+  <path d="M14 16h34M31 16v30M21 46h20" fill="none" stroke="#f7f4ec" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="49" cy="46" r="5.5" fill="#d5a85a"/>
 </svg>

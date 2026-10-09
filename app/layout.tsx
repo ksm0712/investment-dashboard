@@ -9,9 +9,6 @@ export const metadata: Metadata = {
   title: "Thesis — Portfolio Intelligence",
   description: "Track purchase lots, market data, analyst targets, and explainable portfolio recommendations in one private workspace.",
   applicationName: "Thesis",
-  icons: {
-    icon: "/icon.svg",
-  },
   openGraph: {
     title: "Thesis — Portfolio Intelligence",
     description: "A private portfolio tracker with auditable calculations and filing evidence.",
