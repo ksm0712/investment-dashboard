@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, CheckCircle2, CircleAlert, Database, Download, Globe2, Plus, RotateCw, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, CheckCircle2, CircleAlert, Database, Download, Globe2, Plus, RotateCw, Rows3, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
@@ -674,13 +674,14 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
   );
 }
 
-function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, focusId, emptyMessage, density, actionHistory }: {
+function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, onClearFilters, focusId, emptyMessage, density, actionHistory }: {
   securities: Security[];
   totalInr: number;
   fx: Record<string, number>;
   displayCurrency: string;
   reload: () => void;
   onDelete: (id: number) => void;
+  onClearFilters: () => void;
   focusId: number | null;
   emptyMessage: string;
   density: "comfortable" | "compact";
@@ -825,7 +826,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
     });
   }
 
-  if (!rows.length) return <div className="alloc-meta empty-holdings-note">{emptyMessage}</div>;
+  if (!rows.length) return <div className="empty-holdings-note"><strong>{emptyMessage}</strong><span>Your positions are unchanged; only the current view is empty.</span><button type="button" className="table-btn" onClick={onClearFilters}>Clear filters</button></div>;
   return (
     <div className={`asset-register density-${density}`}>
       <div className="register-sort-row">
@@ -1167,6 +1168,13 @@ export default function Page() {
   const visible = actionFilter === "All" ? searchMatched : searchMatched.filter((security) => security.action === actionFilter);
   const stats = metricStats(countryVisible, fx);
   const currentCurrency = currency[tab] || (tab === "All" ? "USD" : marketCurrency[tab] || countryVisible[0]?.currency || "USD");
+  const filtersActive = tab !== "All" || actionFilter !== "All" || Boolean(holdingQuery.trim());
+
+  function clearFilters() {
+    setTab("All");
+    setActionFilter("All");
+    setHoldingQuery("");
+  }
 
   function focusSecurity(id: number) {
     setTab("All");
@@ -1314,6 +1322,8 @@ export default function Page() {
               <div><h2>Holdings</h2><p>{visible.length} of {countryVisible.length} positions shown</p></div>
               <div className="holdings-tools">
                 <label className="holding-search"><Search size={15} /><input id="holding-search" aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} /><kbd>/</kbd></label>
+                <button type="button" className="density-toggle" aria-pressed={density === "compact"} onClick={() => setDensity((current) => current === "comfortable" ? "compact" : "comfortable")} title="Change row density"><Rows3 size={14} />{density === "comfortable" ? "Comfortable" : "Compact"}</button>
+                {filtersActive && <button type="button" className="clear-filters" onClick={clearFilters}><X size={13} />Clear filters</button>}
               </div>
             </header>
             <div className="action-filter-row" aria-label="Filter holdings by recommended action">
@@ -1335,6 +1345,7 @@ export default function Page() {
               displayCurrency={currentCurrency}
               reload={load}
               onDelete={removeAsset}
+              onClearFilters={clearFilters}
               focusId={focusId}
               emptyMessage={actionFilter === "All" ? "No holdings match your search." : `Nothing is currently flagged ${actionFilter}.`}
               density={density}
