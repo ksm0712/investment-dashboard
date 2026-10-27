@@ -211,6 +211,9 @@ function PortfolioOverview({
   marketLabel: string;
 }) {
   const attention = portfolioAttention(securities);
+  const completeCount = Math.max(0, securities.length - attention.incomplete.length);
+  const freshCount = Math.max(0, securities.length - attention.stale.length);
+  const concentrationPct = attention.largestWeight * 100;
 
   return (
     <section className="portfolio-overview" id="overview" aria-label="Portfolio overview">
@@ -230,6 +233,12 @@ function PortfolioOverview({
         <div><span>Total return</span><strong className={(stats.gainPct || 0) >= 0 ? "good" : "bad"}>{stats.costInr ? fmt(fromInr(stats.gainInr, currentCurrency, fx), currentCurrency) : "—"}</strong></div>
         <div><span>Positions</span><strong>{securities.length}</strong></div>
         <div><span>To review</span><strong>{attention.actionable.length}</strong><small>{attention.actionable.length ? "Shown first below" : "Nothing needs action"}</small></div>
+      </div>
+      <div className="portfolio-readiness" aria-label="Portfolio data readiness">
+        <div className="readiness-intro"><strong>Before you act</strong><span>Check the inputs behind each signal</span></div>
+        <div className={attention.incomplete.length ? "needs-attention" : "ready"}><i /><span>Decision inputs</span><strong>{completeCount}/{securities.length} complete</strong><small>{attention.incomplete.length ? `${attention.incomplete.length} need a target or allocation` : "Every position is decision-ready"}</small></div>
+        <div className={attention.stale.length ? "needs-attention" : "ready"}><i /><span>Market data</span><strong>{freshCount}/{securities.length} current</strong><small>{attention.stale.length ? `${attention.stale.length} older than seven days` : "No stale prices detected"}</small></div>
+        <div className={concentrationPct >= 35 ? "needs-attention" : "ready"}><i /><span>Concentration</span><strong>{fmtPct(concentrationPct)} largest</strong><small>{concentrationPct >= 35 ? "Review single-position exposure" : "Largest position is below 35%"}</small></div>
       </div>
     </section>
   );
