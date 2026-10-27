@@ -449,6 +449,12 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .modal-head, .editor-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
 .modal-head p, .editor-title p, .detail-section-head p { margin: 6px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .modal-title { font-size: 28px; font-weight: 660; letter-spacing: -.04em; }
+.form-progress { margin: 18px 0 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #f7f9f8; }
+.form-progress > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 18px; color: var(--muted); font-size: 12px; }
+.form-progress strong { color: var(--ink); font-size: 12px; font-weight: 650; }
+.form-progress-track { height: 4px; margin: 10px 0 8px; overflow: hidden; border-radius: 999px; background: #dfe7e3; }
+.form-progress-track i { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width .2s ease; }
+.form-progress small { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .x-btn { display: grid; width: 38px; height: 38px; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fafbfa; color: var(--ink); }
 .x-btn:hover { border-color: #abb7b2; background: #f5f7f6; }
 .form-section-title { display: flex; align-items: center; gap: 9px; margin: 26px 0 12px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--ink); font-size: 15px; font-weight: 680; }

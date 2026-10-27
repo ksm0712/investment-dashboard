@@ -252,7 +252,7 @@ function Toast({ message, tone, onClose }: { message: string; tone: "success" | 
 function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> | void }) {
   useLockBodyScroll(true);
   useEscapeKey(true, onClose);
-  const dialogRef = useDialogFocus<HTMLDivElement>(true);
+  const dialogRef = useDialogFocus<HTMLFormElement>(true);
   const [name, setName] = useState("");
   const [assetType, setAssetType] = useState<AssetType>("Stock");
   const [country, setCountry] = useState("India");
@@ -298,6 +298,15 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
     const gainPct = gain === null || invested <= 0 ? null : (gain / invested) * 100;
     return { invested, marketValue, gain, gainPct, remaining: limit > 0 ? limit - invested : null };
   }, [quantity, costPrice, currentPrice, allocation]);
+  const requiredSteps = [
+    { label: "asset name", complete: Boolean(name.trim()) },
+    { label: "identifier", complete: !["Stock", "ETF", "Mutual Fund"].includes(assetType) || Boolean(ticker.trim()) },
+    { label: "purchase details", complete: Number(quantity) > 0 && Number(costPrice) > 0 && Boolean(purchaseDate) },
+    { label: "price and allocation", complete: Number(currentPrice) > 0 && Number(allocation) > 0 },
+  ];
+  const completedSteps = requiredSteps.filter((step) => step.complete).length;
+  const missingSteps = requiredSteps.filter((step) => !step.complete).map((step) => step.label);
+  const readyToSave = completedSteps === requiredSteps.length;
 
   useEffect(() => {
     if (suppressNextSearch.current) {
@@ -479,10 +488,15 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="add-investment-title" aria-describedby="add-investment-description" tabIndex={-1}>
+      <form ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="add-investment-title" aria-describedby="add-investment-description" tabIndex={-1} onSubmit={(event) => { event.preventDefault(); save(); }}>
         <div className="modal-head">
           <div><div className="modal-title" id="add-investment-title">Add an investment</div><p id="add-investment-description">Find the security, record the purchase, and set the inputs used by the decision rules.</p></div>
           <button type="button" className="x-btn" onClick={onClose} aria-label="Close"><X size={26} /></button>
+        </div>
+        <div className="form-progress" aria-live="polite">
+          <div><span>Required information</span><strong>{completedSteps} of {requiredSteps.length} complete</strong></div>
+          <div className="form-progress-track" aria-hidden="true"><i style={{ width: `${(completedSteps / requiredSteps.length) * 100}%` }} /></div>
+          <small>{readyToSave ? "Ready to add. Optional market fields can be filled later." : `Still needed: ${missingSteps.join(", ")}.`}</small>
         </div>
         <div className="form-section-title">Asset</div>
         <div className="field autocomplete-field">
@@ -492,6 +506,7 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
             onChange={(e) => { setName(e.target.value); setMatches([]); setMatchIndex(""); setSearchNotice(""); }}
             placeholder="Apple Inc, UTI Nifty 50 Index Fund, DBS Savings"
             autoComplete="off"
+            required
           />
           {matches.length > 0 && (
             <div className="autocomplete-dropdown" role="listbox">
@@ -532,7 +547,7 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
             </div>
             <div className="field">
               <label>{identifierType}</label>
-              <input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder={identifierType === "Ticker" ? "AAPL, VOO, D05" : "US0378331005"} />
+              <input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder={identifierType === "Ticker" ? "AAPL, VOO, D05" : "US0378331005"} required={["Stock", "ETF", "Mutual Fund"].includes(assetType)} />
             </div>
             <div className="field">
               <label>Exchange</label>
@@ -542,16 +557,16 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
         ) : <div className="alloc-meta">No ticker or scheme code needed for this asset type.</div>}
         <div className="form-section-title">Position</div>
         <div className="form-grid grid-4">
-          <div className="field"><label>Quantity bought</label><input type="number" inputMode="decimal" min="0" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1.000000" /></div>
-          <div className="field"><label>Cost price</label><input type="number" inputMode="decimal" min="0" step="any" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="100.00" /></div>
-          <div className="field"><label>Date bought</label><input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} /></div>
-          <div className="field"><label>Current price</label><input type="number" inputMode="decimal" min="0" step="any" value={currentPrice} onChange={(e) => { setCurrentPrice(e.target.value); setPriceSource("manual"); setPriceAsOn(new Date().toISOString().slice(0, 10)); }} placeholder="150.00" /></div>
+          <div className="field"><label>Quantity bought</label><input type="number" inputMode="decimal" min="0.000001" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1.000000" required /></div>
+          <div className="field"><label>Cost price</label><input type="number" inputMode="decimal" min="0.000001" step="any" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="100.00" required /></div>
+          <div className="field"><label>Date bought</label><input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} required /></div>
+          <div className="field"><label>Current price</label><input type="number" inputMode="decimal" min="0.000001" step="any" value={currentPrice} onChange={(e) => { setCurrentPrice(e.target.value); setPriceSource("manual"); setPriceAsOn(new Date().toISOString().slice(0, 10)); }} placeholder="150.00" required /></div>
         </div>
         <div className="form-section-title">Decision inputs</div>
         <div className="form-grid grid-4">
           <div className="field">
             <label>Allocation limit (required)</label>
-            <input type="number" inputMode="decimal" min="0" step="any" value={allocation} onChange={(e) => setAllocation(e.target.value)} placeholder="50000" />
+            <input type="number" inputMode="decimal" min="0.000001" step="any" value={allocation} onChange={(e) => setAllocation(e.target.value)} placeholder="50000" required />
           </div>
           <div className="field"><label>Analyst target</label><input type="number" inputMode="decimal" min="0" step="any" value={targetPrice} onChange={(e) => { setTargetPrice(e.target.value); setTargetSource("manual"); setTargetAsOn(new Date().toISOString().slice(0, 10)); }} placeholder={quoteBusy ? "Fetching…" : "Auto-filled when available"} /></div>
           <div className="field"><label>52-week low</label><input value={week52Low} readOnly placeholder="Auto-filled" /></div>
@@ -571,9 +586,9 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
         {error && <div className="bad" style={{ marginTop: 14, fontWeight: 700 }}>{error}</div>}
         <div className="modal-footer">
           <span>Market data refreshes automatically after saving.</span>
-          <button type="button" className="save-btn" onClick={save} disabled={busy}>{busy ? "Saving…" : "Add to portfolio"}<ArrowRight size={16} /></button>
+          <button type="submit" className="save-btn" disabled={busy || !readyToSave}>{busy ? "Saving…" : "Add to portfolio"}<ArrowRight size={16} /></button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
