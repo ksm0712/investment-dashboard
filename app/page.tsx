@@ -44,6 +44,47 @@ function useEscapeKey(active: boolean, onEscape: () => void) {
   }, [active, onEscape]);
 }
 
+function useDialogFocus<T extends HTMLElement>(active: boolean) {
+  const dialogRef = useRef<T>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusableSelector = "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
+    const initialFocusable = dialog.querySelector<HTMLElement>(focusableSelector);
+    (initialFocusable || dialog).focus();
+
+    function keepFocusInside(event: KeyboardEvent) {
+      if (event.key !== "Tab") return;
+      const elements = Array.from(dialog!.querySelectorAll<HTMLElement>(focusableSelector));
+      if (!elements.length) {
+        event.preventDefault();
+        dialog!.focus();
+        return;
+      }
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    dialog.addEventListener("keydown", keepFocusInside);
+    return () => {
+      dialog.removeEventListener("keydown", keepFocusInside);
+      previouslyFocused?.focus();
+    };
+  }, [active]);
+
+  return dialogRef;
+}
+
 type PortfolioPayload = {
   user: User;
   securities: Security[];
@@ -211,6 +252,7 @@ function Toast({ message, tone, onClose }: { message: string; tone: "success" | 
 function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> | void }) {
   useLockBodyScroll(true);
   useEscapeKey(true, onClose);
+  const dialogRef = useDialogFocus<HTMLDivElement>(true);
   const [name, setName] = useState("");
   const [assetType, setAssetType] = useState<AssetType>("Stock");
   const [country, setCountry] = useState("India");
@@ -437,10 +479,10 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="add-investment-title">
+      <div ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="add-investment-title" aria-describedby="add-investment-description" tabIndex={-1}>
         <div className="modal-head">
-          <div><div className="modal-title" id="add-investment-title">Add an investment</div><p>Find the security, record the purchase, and set the inputs used by the decision rules.</p></div>
-          <button className="x-btn" onClick={onClose} aria-label="Close"><X size={26} /></button>
+          <div><div className="modal-title" id="add-investment-title">Add an investment</div><p id="add-investment-description">Find the security, record the purchase, and set the inputs used by the decision rules.</p></div>
+          <button type="button" className="x-btn" onClick={onClose} aria-label="Close"><X size={26} /></button>
         </div>
         <div className="form-section-title">Asset</div>
         <div className="field autocomplete-field">
@@ -569,6 +611,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
   const changes = useMemo(() => actionHistory.filter((entry) => entry.previousAction), [actionHistory]);
   const unread = changes.filter((entry) => !lastSeen || entry.recordedAt > lastSeen).length;
   useEscapeKey(open, () => setOpen(false));
+  const panelRef = useDialogFocus<HTMLDivElement>(open);
 
   function toggle() {
     setOpen((current) => {
@@ -591,7 +634,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
       {open && (
         <>
           <div className="alerts-backdrop" onClick={() => setOpen(false)} />
-          <div className="alerts-panel" role="dialog" aria-label="Recent recommendation changes">
+          <div ref={panelRef} className="alerts-panel" role="dialog" aria-modal="true" aria-label="Recent recommendation changes" tabIndex={-1}>
             <div className="alerts-panel-head"><span>Recommendation changes</span><small>{changes.length} recorded</small></div>
             {changes.length === 0 && (
               <div className="alerts-empty">No recommendation changes yet. You&apos;ll see updates here the moment a holding&apos;s action changes, like Continue to Monitor flipping to Buy.</div>
@@ -641,6 +684,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   const [sortKey, setSortKey] = useState<SortKey>("priority");
   useLockBodyScroll(editorAsset !== null);
   useEscapeKey(editorAsset !== null, () => setEditorAsset(null));
+  const editorDialogRef = useDialogFocus<HTMLDivElement>(editorAsset !== null);
   const rows = [...securities].sort((a, b) => {
     if (sortKey === "name") return a.name.localeCompare(b.name);
     if (sortKey === "value") return (b.latestValueInr ?? b.valueInr) - (a.latestValueInr ?? a.valueInr);
@@ -928,8 +972,8 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
             }
             {isEditorOpen && (
               <div className="asset-editor-backdrop" role="dialog" aria-modal="true" aria-label={`Lots and allocation for ${item.name}`} onMouseDown={(event) => { if (event.target === event.currentTarget) setEditorAsset(null); }}>
-              <div className="asset-editor">
-                <div className="editor-title"><div><h3>Lots, allocation &amp; targets</h3><p>{item.name} · purchases are combined into the asset totals.</p></div><button className="icon-btn" aria-label="Close editor" onClick={() => setEditorAsset(null)}><X size={16} /></button></div>
+              <div ref={editorDialogRef} className="asset-editor" tabIndex={-1}>
+                <div className="editor-title"><div><h3>Lots, allocation &amp; targets</h3><p>{item.name} · purchases are combined into the asset totals.</p></div><button type="button" className="icon-btn" aria-label="Close editor" onClick={() => setEditorAsset(null)}><X size={16} /></button></div>
                 <div className="editor-allocation">
                   <div className="compact-form">
                     <label>Allocation amount ({item.currency})<input type="number" inputMode="decimal" min="0" step="any" value={allocation} onChange={(e) => setAllocationDraft((current) => ({ ...current, [item.id]: e.target.value }))} placeholder="Not set" /></label>
