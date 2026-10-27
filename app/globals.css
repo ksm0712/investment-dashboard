@@ -354,6 +354,11 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .load-error-page { display: grid; min-height: 100vh; place-items: center; padding: 24px; }
 .load-error-card { width: min(460px, 100%); padding: 34px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--white); box-shadow: var(--shadow-soft); }
 .load-error-card > svg { margin-bottom: 24px; color: var(--orange); }
+.system-state-mark { display: block; width: 42px; height: 42px; margin-bottom: 22px; border-radius: 10px; }
+.system-state-mark + svg { margin-top: -4px; margin-bottom: 20px; }
+.system-state-mark.loading { width: 38px; height: 38px; margin: 0; animation: state-pulse 1.8s ease-in-out infinite; }
+.system-state-link { width: fit-content; text-decoration: none; }
+@keyframes state-pulse { 50% { opacity: .7; transform: translateY(-2px); } }
 .load-error-card h1 { margin: 8px 0 10px; font-size: 30px; font-weight: 650; letter-spacing: -.045em; }
 .load-error-card p { margin: 0 0 24px; color: var(--muted); line-height: 1.65; }
 .app-status-banner { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid #dec99d; border-radius: var(--radius-sm); background: #fff8e8; color: #6f531b; font-size: 11px; }

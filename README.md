@@ -61,10 +61,13 @@ This evidence review is deliberately separate from the numerical recommendation.
 - Consolidated cost basis, market value, gain/loss, allocation remaining, and trigger distances
 - Market and analyst data with source and freshness information
 - Search, action filters, decision-priority sorting, market filters, and currency display
+- One-click filter reset and comfortable or compact holding rows
 - CSV export of the active portfolio view
 - Recommendation history recorded only when the action changes
+- Visible readiness checks for missing decision inputs, stale prices, and position concentration
 - SEC filing retrieval, claim-level evidence review, and source citations
 - Quote caching, bounded refresh concurrency, retry handling, and provider fallbacks
+- Keyboard-contained dialogs plus branded loading and recovery states
 - Responsive layouts for desktop and mobile
 
 ## Adding an investment
