@@ -95,6 +95,9 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 
 /* Main shell */
 .app-shell { min-height: 100vh; background: linear-gradient(180deg, #f8faf9 0, var(--paper) 240px); }
+.skip-link { position: fixed; z-index: 100; top: 10px; left: 10px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--forest); color: #fff; font-size: 13px; font-weight: 650; text-decoration: none; transform: translateY(-150%); transition: transform .15s ease; }
+.skip-link:focus { transform: translateY(0); }
+#portfolio-workspace:focus { outline: 0; }
 .workspace-main { width: min(1240px, 100%); }
 .page { min-height: 100vh; margin: 0 auto; padding: 0 28px 72px; }
 .topnav { position: relative; z-index: 50; display: flex; min-height: 74px; align-items: center; justify-content: space-between; margin: 0 -28px 30px; padding: 0 28px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.9); }

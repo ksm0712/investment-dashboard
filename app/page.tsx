@@ -1275,9 +1275,10 @@ export default function Page() {
   const refreshDetails = summary?.details?.length ? summary.details.map((item) => `${item.name}: ${item.note}`).join(" · ") : "";
 
   return (
-    <main className="app-shell">
+    <div className="app-shell">
+      <a className="skip-link" href="#portfolio-workspace">Skip to portfolio</a>
       <div className="page workspace-main">
-      <nav className="topnav">
+      <header className="topnav">
         <div className="topnav-left">
           <div className="brand-lockup app-brand">
             <ProductMark small />
@@ -1296,7 +1297,9 @@ export default function Page() {
           </div>
           <button className="ghost-btn" onClick={logout}>Sign out</button>
         </div>
-      </nav>
+      </header>
+
+      <main id="portfolio-workspace" tabIndex={-1}>
 
       {portfolioError && <div className="app-status-banner" role="status"><CircleAlert size={15} /><span>{portfolioError} Showing the last available portfolio snapshot.</span><button onClick={load}>Retry</button></div>}
 
@@ -1363,9 +1366,10 @@ export default function Page() {
           </section>
         </>
       )}
+      </main>
       {modalOpen && <AddInvestmentModal onClose={() => setModalOpen(false)} onSaved={async () => { await load(); setToast({ message: "Investment added and portfolio totals recalculated.", tone: "success" }); }} />}
       {toast && <Toast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />}
       </div>
-    </main>
+    </div>
   );
 }
