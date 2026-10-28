@@ -65,7 +65,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     try {
       documents = await fetchRecentSecFilings(ticker, 2);
     } catch (error) {
-      if (error instanceof SecFilingError) return NextResponse.json({ error: error.message }, { status: error.code === "upstream" ? 502 : 400 });
+      if (error instanceof SecFilingError) return NextResponse.json({
+        error: error.code === "upstream" ? "The SEC filing could not be downloaded right now. Try again in a moment or paste report text instead." : error.message,
+        code: error.code === "upstream" ? "source_unavailable" : "source_not_found",
+        retryable: error.code === "upstream",
+      }, { status: error.code === "upstream" ? 502 : 400 });
       throw error;
     }
   }
@@ -82,9 +86,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ run, usage: { ...usage, cached: false } });
   } catch (error) {
     if (error instanceof AiRateLimitError) return NextResponse.json({ error: error.message, limit: error.limit }, { status: 429 });
-    if (error instanceof AiProviderUnavailableError) return NextResponse.json({ error: error.message }, { status: 503 });
+    if (error instanceof AiProviderUnavailableError) return NextResponse.json({ error: "The evidence engine is temporarily unavailable. Your thesis is saved; try the check again shortly.", code: "engine_unavailable", retryable: true }, { status: 503 });
     console.error("AI research failed", error);
-    const message = error instanceof Error ? error.message : "AI research failed.";
-    return NextResponse.json({ error: `AI research failed: ${message}` }, { status: 502 });
+    return NextResponse.json({ error: "The evidence engine could not produce a source-grounded result. Nothing was saved; try again.", code: "analysis_failed", retryable: true }, { status: 502 });
   }
 }

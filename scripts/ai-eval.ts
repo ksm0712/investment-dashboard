@@ -1,7 +1,7 @@
 import { analyzeResearch, retrieveResearchEvidence } from "../lib/ai-research.ts";
 import { getAiProvider } from "../lib/ai-provider.ts";
 import { calculateAsset } from "../lib/portfolio-engine.ts";
-import { tokenize } from "../lib/research-retrieval.ts";
+import { extractThesisFacets, tokenize } from "../lib/research-retrieval.ts";
 import type { Security } from "../lib/types.ts";
 import { AI_EVAL_CASES, evalDocument } from "./fixtures/ai-eval-cases.ts";
 
@@ -42,6 +42,8 @@ let citationTotal = 0;
 let inputTokens = 0;
 let outputTokens = 0;
 let hybridRuns = 0;
+let expectedClaims = 0;
+let checkedClaims = 0;
 const prepared: Array<{
   document: ReturnType<typeof evalDocument>;
   retrieval: Awaited<ReturnType<typeof retrieveResearchEvidence>>;
@@ -70,6 +72,9 @@ for (let index = 0; index < cases.length; index += 1) {
   const started = performance.now();
   try {
     const run = await analyzeResearch({ security: security(index + 1, testCase.company), thesis: testCase.thesis, document, provider, topK: 5, retrievedEvidence: retrieval });
+    const facets = extractThesisFacets(testCase.thesis);
+    expectedClaims += facets.length;
+    checkedClaims += Math.min(facets.length, run.analysis.thesisChecks.length);
     structuredValid += 1;
     latencies.push(performance.now() - started);
     if (run.analysis.evidenceSignal === testCase.expectedSignal) signalCorrect += 1;
@@ -99,6 +104,7 @@ const result = {
   evidenceSignalAccuracyPct: percentage(signalCorrect, cases.length),
   riskLevelAccuracyPct: percentage(riskCorrect, cases.length),
   citationPrecisionPct: percentage(citationRelevant, citationTotal),
+  thesisClaimCoveragePct: percentage(checkedClaims, expectedClaims),
   hybridRetrievalPct: percentage(hybridRuns, cases.length),
   p50EndToEndLatencyMs: Math.round(percentile(latencies, 0.5) || 0),
   p95EndToEndLatencyMs: Math.round(percentile(latencies, 0.95) || 0),

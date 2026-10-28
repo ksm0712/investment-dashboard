@@ -55,13 +55,34 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
   const result = run.analysis;
   const evidenceGaps = result.evidenceGaps || [];
   const monitoringQuestions = result.monitoringQuestions || [];
+  const coverage = result.coverage || {
+    totalClaims: result.thesisChecks.length,
+    supported: result.thesisChecks.filter((check) => check.status === "supported").length,
+    contradicted: result.thesisChecks.filter((check) => check.status === "contradicted").length,
+    unclear: result.thesisChecks.filter((check) => check.status === "unclear").length,
+    citedClaims: result.thesisChecks.filter((check) => check.citationIds.length > 0).length,
+  };
+  const sourceCount = run.sources?.length || 1;
+  const implication = result.evidenceSignal === "supports"
+    ? "Every material claim was supported by direct evidence. Keep the cited metrics on your monitoring list."
+    : result.evidenceSignal === "contradicts"
+      ? "At least one material claim conflicts with direct filing evidence. Revisit that assumption before relying on the thesis."
+      : "The filings do not answer every material claim. Treat the gaps below as work to do, not as confirmation.";
   return (
     <div className="research-result">
       <div className="dual-signal">
         <div><span>Numerical engine</span><strong>{run.numericalAction}</strong><small>Calculated from price, target, allocation, and lots</small></div>
         <div className={`evidence-${result.evidenceSignal}`}><span>Evidence verdict</span><strong>{signalLabel(result.evidenceSignal)}</strong><small>Business outlook: {result.businessOutlook} · Thesis risk: {result.riskLevel}</small></div>
       </div>
+      <div className="research-coverage" aria-label="Evidence coverage">
+        <div><span>Claims checked</span><strong>{coverage.totalClaims}</strong></div>
+        <div className="supported"><span>Supported</span><strong>{coverage.supported}</strong></div>
+        <div className="contradicted"><span>Contradicted</span><strong>{coverage.contradicted}</strong></div>
+        <div className="unclear"><span>Still unclear</span><strong>{coverage.unclear}</strong></div>
+        <div><span>With citations</span><strong>{coverage.citedClaims}/{coverage.totalClaims}</strong></div>
+      </div>
       <p className="research-summary">{result.summary}</p>
+      <div className={`research-implication ${result.evidenceSignal}`}><strong>What this means</strong><span>{implication}</span></div>
       <div className="research-claims-grid">
         <ClaimList title="Supported positives" claims={result.positiveEvidence} tone="positive" />
         <ClaimList title="Evidence-based risks" claims={result.risks} tone="risk" />
@@ -74,7 +95,7 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
       </section>}
       {result.limitations.length > 0 && <div className="research-limitations"><AlertTriangle size={14} /><span><b>Limits:</b> {result.limitations.join(" ")}</span></div>}
       <details className="research-citations">
-        <summary><span>Source evidence</span><small>{run.citations.length} cited passage{run.citations.length === 1 ? "" : "s"}</small></summary>
+        <summary><span>Source evidence</span><small>{run.citations.length} passage{run.citations.length === 1 ? "" : "s"} · {sourceCount} filing{sourceCount === 1 ? "" : "s"}</small></summary>
         <div className="citation-list">{run.citations.map((citation) => <div className="research-citation" id={`research-source-${citation.chunkId}`} key={citation.chunkId}>
           <b>{citation.chunkId}</b>
           <div><p>{citation.excerpt}{citation.excerpt.length >= 520 ? "…" : ""}</p><span>{citation.heading ? `${citation.heading} · ` : ""}{citation.sourceTitle}{citation.sourceDate ? ` · ${fmtDate(citation.sourceDate)}` : ""}</span></div>
@@ -83,6 +104,7 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
       </details>
       <details className="research-run-details">
         <summary>Review details</summary>
+        {run.sources && <ul className="research-source-list">{run.sources.map((source) => <li key={`${source.url}-${source.title}`}>{source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a> : source.title}{source.date ? <span>{fmtDate(source.date)}</span> : null}</li>)}</ul>}
         <div className="research-run-meta">
           <span>{run.provider} · {run.model}</span>
           <span>{run.retrievalMethod} retrieval</span>
@@ -106,7 +128,8 @@ export default function ResearchPanel({ security }: { security: Security }) {
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<{ message: string; retryable?: boolean } | null>(null);
+  const [analysisStage, setAnalysisStage] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -119,12 +142,21 @@ export default function ResearchPanel({ security }: { security: Security }) {
           setThesis(data.thesis || "");
         }
       })
-      .catch((loadError) => active && setError(loadError instanceof Error ? loadError.message : "Could not load research."));
+      .catch((loadError) => active && setError({ message: loadError instanceof Error ? loadError.message : "Could not load research." }));
     return () => { active = false; };
   }, [security.id]);
 
+  useEffect(() => {
+    if (!analyzing) {
+      setAnalysisStage(0);
+      return;
+    }
+    const interval = window.setInterval(() => setAnalysisStage((current) => Math.min(current + 1, 2)), 2_800);
+    return () => window.clearInterval(interval);
+  }, [analyzing]);
+
   async function saveThesis() {
-    setError("");
+    setError(null);
     setMessage("");
     setSaving(true);
     try {
@@ -138,14 +170,14 @@ export default function ResearchPanel({ security }: { security: Security }) {
       setPayload((current) => current ? { ...current, thesis: data.thesis, analysis: current.thesis === data.thesis ? current.analysis : null } : current);
       setMessage("Investment thesis saved.");
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Could not save thesis.");
+      setError({ message: saveError instanceof Error ? saveError.message : "Could not save thesis." });
     } finally {
       setSaving(false);
     }
   }
 
   async function analyze() {
-    setError("");
+    setError(null);
     setMessage("");
     setAnalyzing(true);
     try {
@@ -155,11 +187,17 @@ export default function ResearchPanel({ security }: { security: Security }) {
         body: JSON.stringify({ thesis, documentText, sourceTitle, sourceUrl, sourceDate }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not analyze this report.");
+      if (!response.ok) {
+        const failure = new Error(data.error || "Could not analyze this report.") as Error & { retryable?: boolean };
+        failure.retryable = Boolean(data.retryable);
+        throw failure;
+      }
       setPayload((current) => current ? { ...current, thesis, analysis: data.run } : current);
-      setMessage(data.run.cached ? "Loaded the matching evidence review." : "Evidence review completed.");
+      const remaining = Number.isFinite(data.usage?.limit) && Number.isFinite(data.usage?.used) ? Math.max(0, data.usage.limit - data.usage.used) : null;
+      setMessage(data.run.cached ? "Loaded the matching evidence review." : `Evidence review completed.${remaining === null ? "" : ` ${remaining} check${remaining === 1 ? "" : "s"} remaining today.`}`);
     } catch (analyzeError) {
-      setError(analyzeError instanceof Error ? analyzeError.message : "Could not analyze this report.");
+      const failure = analyzeError as Error & { retryable?: boolean };
+      setError({ message: analyzeError instanceof Error ? analyzeError.message : "Could not analyze this report.", retryable: Boolean(failure?.retryable) });
     } finally {
       setAnalyzing(false);
     }
@@ -171,6 +209,8 @@ export default function ResearchPanel({ security }: { security: Security }) {
   const thesisChanged = thesis.trim() !== savedThesis;
   const analysisIsCurrent = Boolean(payload?.analysis && payload.analysis.thesis.trim() === thesis.trim());
   const quality = useMemo(() => thesisQuality(thesis), [thesis]);
+  const thesisReady = thesis.trim().length >= 10 && quality.score >= 50;
+  const analysisStages = ["Collecting company filings…", "Finding evidence for each claim…", "Validating verdicts and citations…"];
   return (
     <section className="ai-research-panel" aria-label={`Thesis evidence for ${security.name}`}>
       <div className="research-panel-head">
@@ -199,15 +239,16 @@ export default function ResearchPanel({ security }: { security: Security }) {
       </div>
 
       <div className="research-action-row">
-        <button className="research-run-button" onClick={analyze} disabled={analyzing || !payload?.providerConfigured || thesis.trim().length < 10 || !sourceReady}>
-          <FileCheck2 size={15} /> {analyzing ? "Finding evidence and checking each claim…" : automatic ? "Run evidence check" : "Check supplied report"}
+        <button className="research-run-button" onClick={analyze} disabled={analyzing || !payload?.providerConfigured || !thesisReady || !sourceReady}>
+          <FileCheck2 size={15} /> {analyzing ? analysisStages[analysisStage] : automatic ? "Run evidence check" : "Check supplied report"}
         </button>
         {!payload?.providerConfigured && payload && <span className="research-config-note">The research engine is not configured on this deployment.</span>}
-        {automatic && <span className="research-config-note">Uses the latest available SEC 10-K, 10-Q, 20-F, or 40-F and cites only thesis-relevant passages.</span>}
+        {automatic && <span className="research-config-note">Reviews the latest complementary quarterly and annual SEC filings, with citations to the exact source passage.</span>}
         {payload && !payload.automaticSourceAvailable && documentText.trim().length < 100 && <span className="research-config-note">Paste at least 100 characters of first-party report evidence to run the check.</span>}
+        {thesis.trim().length >= 10 && quality.score < 50 && <span className="research-config-note">Add a measurable driver and expected direction before running the check.</span>}
         {message && <span className="research-message">{message}</span>}
       </div>
-      {error && <div className="research-error">{error}</div>}
+      {error && <div className="research-error"><AlertTriangle size={15} /><span>{error.message}</span>{error.retryable && <button type="button" onClick={analyze} disabled={analyzing}>Try again</button>}</div>}
       {payload?.analysis && !analysisIsCurrent && <div className="research-stale"><AlertTriangle size={14} /><span>This result belongs to the previously saved thesis. Run a new evidence check before relying on it.</span></div>}
       {payload?.analysis ? <div className={analysisIsCurrent ? "" : "research-result-stale"}><AnalysisResult run={payload.analysis} /></div> : <div className="research-empty"><strong>No evidence check yet</strong><span>Write a measurable thesis, then run the latest filing or paste a first-party report.</span></div>}
     </section>

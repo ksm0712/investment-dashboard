@@ -49,7 +49,7 @@ Opening a holding starts with the recommendation, the numbers that matter to it,
 
 ### 5. Test the written thesis
 
-For an eligible U.S. company, Thesis can retrieve the latest SEC filing and compare relevant passages with the claims in a saved investment thesis. The result identifies supporting evidence, contradictions, and gaps, with citations back to the retrieved filing sections.
+For an eligible U.S.-listed company, Thesis retrieves the latest quarterly and annual SEC filings together and compares relevant passages with every material claim in a saved investment thesis. The result identifies support, contradictions, and unresolved gaps, with citations back to the exact source filing.
 
 This evidence review is deliberately separate from the numerical recommendation. Model output cannot change a Buy or Sell result. The retrieval and validation flow is described in [docs/ai-research-architecture.md](docs/ai-research-architecture.md).
 
@@ -66,7 +66,8 @@ This evidence review is deliberately separate from the numerical recommendation.
 - CSV export of the active portfolio view
 - Recommendation history recorded only when the action changes
 - Visible readiness checks for missing decision inputs, stale prices, and position concentration
-- SEC filing retrieval, claim-level evidence review, and source citations
+- Paired quarterly/annual SEC retrieval, claim-level evidence coverage, and source-accurate citations
+- Counterevidence retrieval, structured-output repair, and bounded provider retry
 - Quote caching, bounded refresh concurrency, retry handling, and provider fallbacks
 - Last-sync timestamps, saved-snapshot recovery, and clear offline status
 - Keyboard-contained dialogs, unsaved-entry protection, and discoverable shortcuts
