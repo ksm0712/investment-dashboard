@@ -289,6 +289,8 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .research-source-fields > div { display: grid; grid-template-columns: 1fr 130px; gap: 8px; }
 .research-source-fields input { height: 36px; padding: 0 10px; }
 .research-source-fields textarea { min-height: 132px; padding: 10px; resize: vertical; }
+.research-source-draft { display: flex !important; grid-template-columns: none !important; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
+.research-source-draft button { border: 0; background: transparent; color: var(--red); font: inherit; font-weight: 650; cursor: pointer; }
 .research-action-row { display: flex; align-items: center; gap: 12px; min-height: 38px; margin-top: 13px; }
 .research-run-button { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #372c69; color: white; font-size: 11px; font-weight: 750; cursor: pointer; }
 .research-run-button:hover { background: #4a3b89; }

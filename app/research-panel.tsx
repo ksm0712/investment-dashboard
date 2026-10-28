@@ -132,6 +132,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<{ message: string; retryable?: boolean } | null>(null);
   const [analysisStage, setAnalysisStage] = useState(0);
+  const sourceDraftKey = `thesis:research-source:${security.id}`;
 
   useEffect(() => {
     let active = true;
@@ -147,6 +148,34 @@ export default function ResearchPanel({ security }: { security: Security }) {
       .catch((loadError) => active && setError({ message: loadError instanceof Error ? loadError.message : "Could not load research." }));
     return () => { active = false; };
   }, [security.id]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(sourceDraftKey);
+      if (!saved) return;
+      const draft = JSON.parse(saved) as { sourceTitle?: string; sourceUrl?: string; sourceDate?: string; documentText?: string };
+      setSourceTitle(draft.sourceTitle || "");
+      setSourceUrl(draft.sourceUrl || "");
+      setSourceDate(draft.sourceDate || "");
+      setDocumentText(draft.documentText || "");
+    } catch {
+      window.localStorage.removeItem(sourceDraftKey);
+    }
+  }, [sourceDraftKey]);
+
+  useEffect(() => {
+    const hasDraft = sourceTitle || sourceUrl || sourceDate || documentText;
+    if (!hasDraft) return;
+    window.localStorage.setItem(sourceDraftKey, JSON.stringify({ sourceTitle, sourceUrl, sourceDate, documentText }));
+  }, [documentText, sourceDate, sourceDraftKey, sourceTitle, sourceUrl]);
+
+  function clearSourceDraft() {
+    setSourceTitle("");
+    setSourceUrl("");
+    setSourceDate("");
+    setDocumentText("");
+    window.localStorage.removeItem(sourceDraftKey);
+  }
 
   useEffect(() => {
     if (!analyzing) {
@@ -240,6 +269,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
             <input value={sourceTitle} onChange={(event) => setSourceTitle(event.target.value)} placeholder="Source title (for example, Q2 earnings release)" />
             <div><input value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://source-url.com" /><input type="date" value={sourceDate} onChange={(event) => setSourceDate(event.target.value)} /></div>
             <textarea value={documentText} maxLength={250_000} onChange={(event) => setDocumentText(event.target.value)} placeholder="Paste at least 100 characters from a filing, earnings release, or company report…" />
+            {(sourceTitle || sourceUrl || sourceDate || documentText) && <div className="research-source-draft"><span>Draft saved in this browser</span><button type="button" onClick={clearSourceDraft}>Clear draft</button></div>}
           </div>
         </details>
       </div>
