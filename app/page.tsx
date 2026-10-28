@@ -206,12 +206,14 @@ function PortfolioOverview({
   currentCurrency,
   fx,
   marketLabel,
+  onFocusPosition,
 }: {
   securities: Security[];
   stats: ReturnType<typeof metricStats>;
   currentCurrency: string;
   fx: Record<string, number>;
   marketLabel: string;
+  onFocusPosition: (id: number) => void;
 }) {
   const attention = portfolioAttention(securities);
   const completeCount = Math.max(0, securities.length - attention.incomplete.length);
@@ -239,9 +241,9 @@ function PortfolioOverview({
       </div>
       <div className="portfolio-readiness" aria-label="Portfolio data readiness">
         <div className="readiness-intro"><strong>Before you act</strong><span>Check the inputs behind each signal</span></div>
-        <div className={attention.incomplete.length ? "needs-attention" : "ready"}><i /><span>Decision inputs</span><strong>{completeCount}/{securities.length} complete</strong><small>{attention.incomplete.length ? `${attention.incomplete.length} need a target or allocation` : "Every position is decision-ready"}</small></div>
-        <div className={attention.stale.length ? "needs-attention" : "ready"}><i /><span>Market data</span><strong>{freshCount}/{securities.length} current</strong><small>{attention.stale.length ? `${attention.stale.length} older than seven days` : "No stale prices detected"}</small></div>
-        <div className={concentrationPct >= 35 ? "needs-attention" : "ready"}><i /><span>Concentration</span><strong>{fmtPct(concentrationPct)} largest</strong><small>{concentrationPct >= 35 ? "Review single-position exposure" : "Largest position is below 35%"}</small></div>
+        <button type="button" className={attention.incomplete.length ? "needs-attention" : "ready"} disabled={!attention.incomplete.length} onClick={() => attention.incomplete[0] && onFocusPosition(attention.incomplete[0].id)}><i /><span>Decision inputs</span><strong>{completeCount}/{securities.length} complete</strong><small>{attention.incomplete.length ? `${attention.incomplete.length} need a target or allocation · Review` : "Every position is decision-ready"}</small></button>
+        <button type="button" className={attention.stale.length ? "needs-attention" : "ready"} disabled={!attention.stale.length} onClick={() => attention.stale[0] && onFocusPosition(attention.stale[0].id)}><i /><span>Market data</span><strong>{freshCount}/{securities.length} current</strong><small>{attention.stale.length ? `${attention.stale.length} older than seven days · Review` : "No stale prices detected"}</small></button>
+        <button type="button" className={concentrationPct >= 35 ? "needs-attention" : "ready"} disabled={concentrationPct < 35 || !securities.length} onClick={() => attention.concentrated[0] && onFocusPosition(attention.concentrated[0].id)}><i /><span>Concentration</span><strong>{fmtPct(concentrationPct)} largest</strong><small>{concentrationPct >= 35 ? "Review single-position exposure" : "Largest position is below 35%"}</small></button>
       </div>
     </section>
   );
@@ -1324,6 +1326,7 @@ export default function Page() {
             currentCurrency={currentCurrency}
             fx={fx}
             marketLabel={tab === "All" ? `All markets · ${countries.length || 1} region${countries.length === 1 ? "" : "s"}` : tab}
+            onFocusPosition={focusSecurity}
           />
           <section className="workspace-toolbar">
             <div className="tabs" aria-label="Filter by market">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item === "All" ? "All markets" : item}</button>)}</div>
