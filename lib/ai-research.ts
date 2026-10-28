@@ -223,6 +223,21 @@ function topicOverlap(left: string, right: string) {
   return overlap;
 }
 
+export function citationMeetsNumericThreshold(statement: string, evidence: string) {
+  const requirement = statement.match(/\b(above|over|at least|more than|exceed\w*|below|under|at most|no more than|less than)\s+\$?([\d,.]+)\s*(%|percent|million|billion)?/i);
+  if (!requirement) return true;
+  const target = Number(requirement[2].replace(/,/g, ""));
+  if (!Number.isFinite(target)) return false;
+  const normalizeUnit = (value?: string) => value?.toLowerCase() === "percent" ? "%" : value?.toLowerCase();
+  const unit = normalizeUnit(requirement[3]);
+  const values = [...evidence.matchAll(/\$?([\d,.]+)\s*(%|percent|million|billion)?/gi)]
+    .filter((match) => !unit || normalizeUnit(match[2]) === unit)
+    .map((match) => Number(match[1].replace(/,/g, "")))
+    .filter(Number.isFinite);
+  const lowerBound = /^(above|over|at least|more than|exceed)/i.test(requirement[1]);
+  return lowerBound ? values.some((value) => value >= target) : values.some((value) => value <= target);
+}
+
 function canonicalizeThesisChecks(analysis: ResearchAnalysis, thesis: string): ResearchAnalysis {
   const facets = extractThesisFacets(thesis);
   if (!facets.length) return analysis;
@@ -292,6 +307,7 @@ function enforceGroundedCoherence(
   const explicitlyMissing = (ids: string[]) => ids.some((id) => /\b(?:did not disclose|not reported|did not provide|did not separate|has not published|no expected|not comparable|remain unspecified|provided no|were not disclosed|gave no)\b/i.test(chunks.get(id) || ""));
   const isForwardLooking = (statement: string) => /\b(?:will|should|expect\w*|forecast\w*|next|future|over the coming|within \d+)\b/i.test(statement);
   const hasLeadingEvidence = (ids: string[]) => ids.some((id) => /\b(?:guidance|outlook|expect\w*|forecast\w*|backlog|bookings?|contracts?|remaining performance obligation|rpo|retention|renewal|pipeline|committed|scheduled|target\w*)\b/i.test(chunks.get(id) || ""));
+  const meetsNumericThreshold = (statement: string, ids: string[]) => ids.some((id) => citationMeetsNumericThreshold(statement, chunks.get(id) || ""));
   const citationIsRelevant = (statement: string, ids: string[]) => ids.some((id) => {
     const text = chunks.get(id);
     if (!text) return false;
@@ -310,6 +326,9 @@ function enforceGroundedCoherence(
     }
     if (check.status === "supported" && isForwardLooking(check.statement) && !hasLeadingEvidence(check.citationIds)) {
       return { ...check, status: "unclear" as const, explanation: "The citation reports historical performance but does not provide guidance or another leading indicator for this forward-looking claim." };
+    }
+    if (check.status === "supported" && !meetsNumericThreshold(check.statement, check.citationIds)) {
+      return { ...check, status: "unclear" as const, explanation: "The citation does not report a comparable value that clears the threshold stated in this claim." };
     }
     if (!check.citationIds.length || citationIsRelevant(check.statement, check.citationIds)) return check;
     return {

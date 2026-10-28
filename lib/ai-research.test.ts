@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AiProvider } from "./ai-provider.ts";
-import { analyzeResearch, evidenceQualityFor, researchInputHash, validateResearchAnalysis } from "./ai-research.ts";
+import { analyzeResearch, citationMeetsNumericThreshold, evidenceQualityFor, researchInputHash, validateResearchAnalysis } from "./ai-research.ts";
 import { RESEARCH_PIPELINE_VERSION } from "./research-version.ts";
 import { calculateAsset } from "./portfolio-engine.ts";
 import type { Security } from "./types.ts";
@@ -233,4 +233,12 @@ test("historical results alone cannot support a forward-looking thesis", async (
   assert.equal(result.analysis.thesisChecks[0].status, "unclear");
   assert.equal(result.analysis.evidenceSignal, "unclear");
   assert.match(result.analysis.thesisChecks[0].explanation, /historical performance/);
+});
+
+test("numeric threshold checks require a comparable value in the citation", () => {
+  assert.equal(citationMeetsNumericThreshold("Gross margin remains above 60%", "Gross margin was 62 percent."), true);
+  assert.equal(citationMeetsNumericThreshold("Gross margin remains above 60%", "Gross margin was 58 percent."), false);
+  assert.equal(citationMeetsNumericThreshold("Churn remains below 5%", "Churn was 4%."), true);
+  assert.equal(citationMeetsNumericThreshold("Churn remains below 5%", "Revenue increased 20%."), false);
+  assert.equal(citationMeetsNumericThreshold("Revenue will grow", "Revenue increased."), true);
 });
