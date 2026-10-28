@@ -452,7 +452,7 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .delete-panel > div:last-child { display: flex; gap: 7px; }
 
 /* Alerts */
-.alerts-wrap { position: relative; }
+.alerts-wrap, .shortcuts-wrap { position: relative; }
 .alerts-bell { position: relative; }
 .alerts-badge { position: absolute; top: -5px; right: -5px; display: grid; min-width: 16px; height: 16px; place-items: center; padding: 0 4px; border-radius: 50%; background: var(--red); color: #fff; font-family: var(--font-mono), monospace; font-size: 7px; box-shadow: 0 0 0 2px var(--paper); }
 .alerts-backdrop { position: fixed; z-index: 60; inset: 0; background: transparent; }
@@ -468,6 +468,15 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .alert-time { color: var(--muted); font-family: var(--font-mono), monospace; font-size: 8px; }
 .alert-item-transition { display: flex; align-items: center; gap: 6px; }
 .alert-reason { overflow: hidden; margin: 7px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.shortcuts-panel { position: absolute; z-index: 61; top: calc(100% + 11px); right: 0; width: 300px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--white); box-shadow: var(--shadow); }
+.shortcuts-head { display: flex; min-height: 48px; align-items: center; justify-content: space-between; padding: 0 14px 0 16px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.shortcuts-head button { display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); }
+.shortcuts-head button:hover { background: #f0f3f2; color: var(--ink); }
+.shortcuts-panel dl { margin: 0; padding: 8px; }
+.shortcuts-panel dl > div { display: grid; grid-template-columns: 58px 1fr; align-items: center; padding: 9px 8px; }
+.shortcuts-panel dt, .shortcuts-panel dd { margin: 0; }
+.shortcuts-panel kbd { display: inline-flex; min-width: 26px; min-height: 24px; align-items: center; justify-content: center; padding: 2px 7px; border: 1px solid #d3d9d6; border-radius: 5px; background: #f6f8f7; color: var(--ink-2); font-size: 12px; font-weight: 650; }
+.shortcuts-panel dd { color: var(--muted); font-size: 13px; }
 
 /* Editor and add-investment dialogs */
 .modal-backdrop, .asset-editor-backdrop { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; padding: 28px; background: rgba(20, 29, 26, .58); backdrop-filter: blur(6px); }

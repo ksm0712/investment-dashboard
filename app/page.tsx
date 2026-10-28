@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, CheckCircle2, CircleAlert, Database, Download, Globe2, Plus, RotateCw, Rows3, Search, ShieldCheck, Trash2, TrendingUp, WifiOff, X } from "lucide-react";
+import { ArrowRight, Bell, CheckCircle2, CircleAlert, CircleHelp, Database, Download, Globe2, Plus, RotateCw, Rows3, Search, ShieldCheck, Trash2, TrendingUp, WifiOff, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
@@ -725,6 +725,43 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
   );
 }
 
+function ShortcutHelp() {
+  const [open, setOpen] = useState(false);
+  useEscapeKey(open, () => setOpen(false));
+  const panelRef = useDialogFocus<HTMLDivElement>(open);
+
+  useEffect(() => {
+    function openFromKeyboard(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']") || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "?") {
+        event.preventDefault();
+        setOpen(true);
+      }
+    }
+    window.addEventListener("keydown", openFromKeyboard);
+    return () => window.removeEventListener("keydown", openFromKeyboard);
+  }, []);
+
+  return (
+    <div className="shortcuts-wrap">
+      <button className="icon-btn" onClick={() => setOpen((current) => !current)} aria-label="Keyboard shortcuts" aria-expanded={open} aria-haspopup="dialog"><CircleHelp size={17} /></button>
+      {open && <>
+        <div className="alerts-backdrop" onClick={() => setOpen(false)} />
+        <div ref={panelRef} className="shortcuts-panel" role="dialog" aria-modal="true" aria-labelledby="shortcut-help-title" tabIndex={-1}>
+          <div className="shortcuts-head"><strong id="shortcut-help-title">Keyboard shortcuts</strong><button type="button" onClick={() => setOpen(false)} aria-label="Close keyboard shortcuts"><X size={15} /></button></div>
+          <dl>
+            <div><dt><kbd>N</kbd></dt><dd>Add an investment</dd></div>
+            <div><dt><kbd>/</kbd></dt><dd>Search holdings</dd></div>
+            <div><dt><kbd>?</kbd></dt><dd>Open this guide</dd></div>
+            <div><dt><kbd>Esc</kbd></dt><dd>Close the active dialog</dd></div>
+          </dl>
+        </div>
+      </>}
+    </div>
+  );
+}
+
 function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, onClearFilters, focusId, emptyMessage, density, sortKey, onSortChange, actionHistory }: {
   securities: Security[];
   totalInr: number;
@@ -1359,6 +1396,7 @@ export default function Page() {
           </div>
         </div>
         <div className="actions">
+          <ShortcutHelp />
           <AlertsBell actionHistory={data.actionHistory} onSelect={focusSecurity} />
           <button className="primary-btn" onClick={() => setModalOpen(true)}><Plus size={15} /> Add investment <kbd>N</kbd></button>
           <div className="profile-chip" title={data.user.email || data.user.name || "Signed in user"}>

@@ -61,14 +61,20 @@ This evidence review is deliberately separate from the numerical recommendation.
 - Consolidated cost basis, market value, gain/loss, allocation remaining, and trigger distances
 - Market and analyst data with source and freshness information
 - Search, action filters, decision-priority sorting, market filters, and currency display
-- One-click filter reset and comfortable or compact holding rows
+- Persistent sorting, currency, action filter, and comfortable or compact holding rows
+- Click-through readiness checks for missing inputs, stale prices, and concentrated positions
 - CSV export of the active portfolio view
 - Recommendation history recorded only when the action changes
 - Visible readiness checks for missing decision inputs, stale prices, and position concentration
 - SEC filing retrieval, claim-level evidence review, and source citations
 - Quote caching, bounded refresh concurrency, retry handling, and provider fallbacks
-- Keyboard-contained dialogs plus branded loading and recovery states
+- Last-sync timestamps, saved-snapshot recovery, and clear offline status
+- Keyboard-contained dialogs, unsaved-entry protection, and discoverable shortcuts
 - Responsive layouts for desktop and mobile
+
+## Working quickly
+
+The holdings search, filters, sort order, row density, and display currency are designed to behave like workspace controls rather than one-off page settings. Thesis remembers the selected view between visits. Use `/` to move to holdings search, `N` to open the investment form, and `?` to see the shortcut guide. Every dialog keeps keyboard focus contained, and an unfinished investment cannot be dismissed without confirmation.
 
 ## Adding an investment
 
