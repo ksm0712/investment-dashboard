@@ -22,6 +22,9 @@ const QUERY_EXPANSIONS: Array<[RegExp, string]> = [
   [/\b(regulation|regulatory|approval|certification)\b/i, "regulation regulatory approval certification investigation compliance regulator"],
 ];
 
+const COUNTER_EVIDENCE_PATTERN = /\b(?:declin\w*|decreas\w*|fell|falling|fail\w*|lost|loss|terminat\w*|cancel\w*|weaken\w*|deteriorat\w*|missed|below|reduc\w*|suspend\w*|withdraw\w*|not disclosed|not reported|not provided|unspecified|not comparable|no expected)\b/i;
+const COUNTER_EVIDENCE_TERMS = "decline decreased fell failed lost terminated cancelled weakened deterioration missed below reduced suspended withdrew not disclosed not reported not provided unspecified not comparable";
+
 export type RankedChunk = ResearchChunk & { lexicalScore: number; semanticScore?: number; score: number };
 
 export function tokenize(text: string) {
@@ -54,6 +57,11 @@ function expandQuery(query: string) {
     .filter(([pattern]) => pattern.test(query))
     .map(([, terms]) => terms);
   return [query, ...expansions].join(" ");
+}
+
+function sharedTermCount(left: string, right: string) {
+  const leftTerms = new Set(tokenize(expandQuery(left)));
+  return [...new Set(tokenize(right))].filter((term) => leftTerms.has(term)).length;
 }
 
 export function buildResearchQueries(thesis: string) {
@@ -225,6 +233,33 @@ export function rankAcrossQueries(chunks: ResearchChunk[], queries: string[]): R
       return { ...chunk, lexicalScore, score: 0.75 * fused.bestNormalized + 0.25 * fused.reciprocalRank };
     })
     .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id));
+}
+
+/** Find direct opposing evidence and explicit disclosure gaps for each thesis claim. */
+export function rankCounterEvidence(chunks: ResearchChunk[], facets: string[]) {
+  const leaders = facets.flatMap((facet) => rankLexically(chunks, `${expandQuery(facet)} ${COUNTER_EVIDENCE_TERMS}`)
+    .filter((chunk) => COUNTER_EVIDENCE_PATTERN.test(chunk.text) && sharedTermCount(facet, `${chunk.heading || ""} ${chunk.text}`) >= 2)
+    .slice(0, 1));
+  return [...new Map(leaders.map((chunk) => [chunk.id, chunk])).values()];
+}
+
+function tokenSimilarity(left: ResearchChunk, right: ResearchChunk) {
+  const leftTerms = new Set(tokenize(left.text));
+  const rightTerms = new Set(tokenize(right.text));
+  const intersection = [...leftTerms].filter((term) => rightTerms.has(term)).length;
+  const union = new Set([...leftTerms, ...rightTerms]).size;
+  return union ? intersection / union : 0;
+}
+
+/** Keep repeated filing boilerplate from consuming the limited model context. */
+export function selectDiverseEvidence(candidates: RankedChunk[], limit: number) {
+  const selected: RankedChunk[] = [];
+  for (const candidate of candidates) {
+    if (selected.some((current) => current.id === candidate.id || tokenSimilarity(current, candidate) >= 0.82)) continue;
+    selected.push(candidate);
+    if (selected.length >= limit) break;
+  }
+  return selected;
 }
 
 export function rankHybridAcrossQueries(

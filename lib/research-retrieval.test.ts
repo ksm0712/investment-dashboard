@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildResearchQueries, buildResearchQuery, chunkDocument, cosineSimilarity, extractThesisFacets, rankAcrossQueries, rankHybrid, rankLexically } from "./research-retrieval.ts";
+import { buildResearchQueries, buildResearchQuery, chunkDocument, cosineSimilarity, extractThesisFacets, rankAcrossQueries, rankCounterEvidence, rankHybrid, rankLexically, selectDiverseEvidence } from "./research-retrieval.ts";
 import { retrieveResearchEvidence } from "./ai-research.ts";
 
 test("chunkDocument creates stable, bounded citation ids", () => {
@@ -68,4 +68,24 @@ test("multi-filing retrieval keeps citations tied to the correct source", async 
   assert.ok(retrieval.chunks.some((chunk) => chunk.sourceTitle === "Latest 10-Q" && chunk.sourceUrl === "https://example.com/q"));
   assert.ok(retrieval.chunks.some((chunk) => chunk.sourceTitle === "Latest 10-K" && chunk.sourceUrl === "https://example.com/k"));
   assert.equal(new Set(retrieval.chunks.map((chunk) => chunk.id)).size, retrieval.chunks.length);
+});
+
+test("counter-evidence retrieval prefers a direct disclosure gap over generic risk text", () => {
+  const chunks = chunkDocument({ title: "Quarterly filing", text: [
+    "Supply constraints may adversely affect total company revenue.",
+    "Recurring revenue and customer retention were not disclosed for the quarter.",
+    "The board approved routine governance matters.",
+  ].join("\n\n") }, 120, 0);
+  const ranked = rankCounterEvidence(chunks, ["Recurring revenue will remain stable"]);
+  assert.equal(ranked.length, 1);
+  assert.match(ranked[0].text, /Recurring revenue and customer retention were not disclosed/);
+});
+
+test("diverse evidence selection removes substantially repeated filing passages", () => {
+  const candidates = [
+    { id: "C1", text: "Subscription revenue grew 20 percent and customer retention remained at 97 percent.", sourceTitle: "10-Q", lexicalScore: 1, score: 1 },
+    { id: "C2", text: "Subscription revenue grew 20 percent; customer retention remained at 97 percent.", sourceTitle: "10-K", lexicalScore: .9, score: .9 },
+    { id: "C3", text: "Gross margin declined because hosting costs increased.", sourceTitle: "10-Q", lexicalScore: .8, score: .8 },
+  ];
+  assert.deepEqual(selectDiverseEvidence(candidates, 3).map((chunk) => chunk.id), ["C1", "C3"]);
 });

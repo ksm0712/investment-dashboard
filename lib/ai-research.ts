@@ -20,8 +20,10 @@ import {
   buildResearchQuery,
   chunkDocument,
   rankAcrossQueries,
+  rankCounterEvidence,
   rankHybridAcrossQueries,
   rankLexically,
+  selectDiverseEvidence,
   tokenize,
 } from "./research-retrieval.ts";
 
@@ -303,13 +305,18 @@ export async function retrieveResearchEvidence(
   if (!allChunks.length) throw new Error("The report did not contain readable evidence.");
   const queries = buildResearchQueries(thesis);
   let ranked = rankAcrossQueries(allChunks, queries);
-  const facetLeaders = queries
+  const facetQueries = queries.length > 1 ? queries.slice(1) : queries;
+  const facetLeaders = facetQueries
     .map((query) => rankLexically(allChunks, query)[0])
     .filter((chunk) => chunk && chunk.lexicalScore > 0);
+  const counterLeaders = rankCounterEvidence(allChunks, facetQueries);
+  const sourceLeaders = [...new Set(allChunks.map((chunk) => chunk.sourceTitle))]
+    .map((sourceTitle) => ranked.find((chunk) => chunk.sourceTitle === sourceTitle && chunk.score > 0))
+    .filter((chunk): chunk is NonNullable<typeof chunk> => Boolean(chunk));
   let retrievalMethod: "lexical" | "hybrid" = "lexical";
   if (provider.embed) {
     try {
-      const candidateChunks = [...new Map([...facetLeaders, ...ranked.slice(0, 48)].map((chunk) => [chunk.id, chunk])).values()];
+      const candidateChunks = [...new Map([...facetLeaders, ...counterLeaders, ...sourceLeaders, ...ranked.slice(0, 48)].map((chunk) => [chunk.id, chunk])).values()];
       const embeddings = await provider.embed([...queries, ...candidateChunks.map((chunk) => `${chunk.heading || ""}\n${chunk.text}`)]);
       ranked = rankHybridAcrossQueries(candidateChunks, embeddings.slice(0, queries.length), embeddings.slice(queries.length));
       retrievalMethod = "hybrid";
@@ -318,10 +325,12 @@ export async function retrieveResearchEvidence(
     }
   }
   const limit = Math.min(Math.max(topK, 3), 8);
-  const selected = [...new Map([
+  const selected = selectDiverseEvidence([...new Map([
     ...facetLeaders.map((leader) => [leader.id, ranked.find((chunk) => chunk.id === leader.id) || leader] as const),
+    ...counterLeaders.map((leader) => [leader.id, ranked.find((chunk) => chunk.id === leader.id) || leader] as const),
+    ...sourceLeaders.map((leader) => [leader.id, ranked.find((chunk) => chunk.id === leader.id) || leader] as const),
     ...ranked.map((chunk) => [chunk.id, chunk] as const),
-  ]).values()].slice(0, limit);
+  ]).values()], limit);
   return {
     chunks: selected,
     retrievalMethod,
