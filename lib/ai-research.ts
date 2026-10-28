@@ -290,6 +290,8 @@ function enforceGroundedCoherence(
   const modelSignal = analysis.evidenceSignal;
   const chunks = new Map(selected.map((chunk) => [chunk.id, chunk.text]));
   const explicitlyMissing = (ids: string[]) => ids.some((id) => /\b(?:did not disclose|not reported|did not provide|did not separate|has not published|no expected|not comparable|remain unspecified|provided no|were not disclosed|gave no)\b/i.test(chunks.get(id) || ""));
+  const isForwardLooking = (statement: string) => /\b(?:will|should|expect\w*|forecast\w*|next|future|over the coming|within \d+)\b/i.test(statement);
+  const hasLeadingEvidence = (ids: string[]) => ids.some((id) => /\b(?:guidance|outlook|expect\w*|forecast\w*|backlog|bookings?|contracts?|remaining performance obligation|rpo|retention|renewal|pipeline|committed|scheduled|target\w*)\b/i.test(chunks.get(id) || ""));
   const citationIsRelevant = (statement: string, ids: string[]) => ids.some((id) => {
     const text = chunks.get(id);
     if (!text) return false;
@@ -305,6 +307,9 @@ function enforceGroundedCoherence(
   const thesisChecks = analysis.thesisChecks.map((check) => {
     if (check.status === "supported" && explicitlyMissing(check.citationIds)) {
       return { ...check, status: "unclear" as const, explanation: "The source explicitly says the comparable evidence needed for this claim was not disclosed." };
+    }
+    if (check.status === "supported" && isForwardLooking(check.statement) && !hasLeadingEvidence(check.citationIds)) {
+      return { ...check, status: "unclear" as const, explanation: "The citation reports historical performance but does not provide guidance or another leading indicator for this forward-looking claim." };
     }
     if (!check.citationIds.length || citationIsRelevant(check.statement, check.citationIds)) return check;
     return {

@@ -208,11 +208,29 @@ test("analysis adds an explicit unclear check when the model skips a thesis clai
   const result = await analyzeResearch({
     security: security(),
     thesis: "Recurring revenue will grow while gross margin remains above 60%.",
-    document: { title: "Report", text: "Recurring revenue grew 20 percent during the period. ".repeat(12) },
+    document: { title: "Report", text: "Management expects recurring revenue to grow 20 percent under its current guidance. ".repeat(12) },
     provider,
   });
   assert.deepEqual(result.analysis.thesisChecks.map((check) => check.status), ["supported", "unclear"]);
   assert.equal(result.analysis.evidenceSignal, "unclear");
   assert.deepEqual(result.analysis.coverage, { totalClaims: 2, supported: 1, contradicted: 0, unclear: 1, citedClaims: 1 });
   assert.match(result.analysis.summary, /1 supported, 1 still unclear/);
+});
+
+test("historical results alone cannot support a forward-looking thesis", async () => {
+  const provider: AiProvider = {
+    name: "test", model: "historical-only",
+    async generate() {
+      return { provider: "test", model: "historical-only", inputTokens: 10, outputTokens: 10, content: JSON.stringify({
+        businessOutlook: "positive", riskLevel: "low", evidenceSignal: "supports", summary: "Revenue growth supports the thesis.",
+        positiveEvidence: [{ claim: "Revenue grew 20 percent.", citationIds: ["C1"] }], risks: [],
+        thesisChecks: [{ statement: "Revenue will grow next year", status: "supported", explanation: "Revenue grew historically.", citationIds: ["C1"] }],
+        evidenceGaps: [], monitoringQuestions: [], limitations: [],
+      }) };
+    },
+  };
+  const result = await analyzeResearch({ security: security(), thesis: "Revenue will grow next year.", document: { title: "10-K", text: "Revenue grew 20 percent during the completed fiscal year. ".repeat(12) }, provider });
+  assert.equal(result.analysis.thesisChecks[0].status, "unclear");
+  assert.equal(result.analysis.evidenceSignal, "unclear");
+  assert.match(result.analysis.thesisChecks[0].explanation, /historical performance/);
 });
