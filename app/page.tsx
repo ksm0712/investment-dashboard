@@ -102,6 +102,9 @@ type RefreshSummary = {
   byType?: Record<string, Record<string, number>>;
 };
 
+type SortKey = "priority" | "value" | "return" | "change" | "name";
+const SORT_KEYS: SortKey[] = ["priority", "value", "return", "change", "name"];
+
 const PORTFOLIO_CACHE_KEY = "investment-dashboard:portfolio:v2";
 const WORKSPACE_PREFERENCES_KEY = "investment-dashboard:workspace:v1";
 function readPortfolioCache(): PortfolioPayload | null {
@@ -683,7 +686,7 @@ function AlertsBell({ actionHistory, onSelect }: { actionHistory: ActionHistoryE
   );
 }
 
-function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, onClearFilters, focusId, emptyMessage, density, actionHistory }: {
+function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete, onClearFilters, focusId, emptyMessage, density, sortKey, onSortChange, actionHistory }: {
   securities: Security[];
   totalInr: number;
   fx: Record<string, number>;
@@ -694,9 +697,10 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   focusId: number | null;
   emptyMessage: string;
   density: "comfortable" | "compact";
+  sortKey: SortKey;
+  onSortChange: (sortKey: SortKey) => void;
   actionHistory: ActionHistoryEntry[];
 }) {
-  type SortKey = "priority" | "value" | "return" | "change" | "name";
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [editorAsset, setEditorAsset] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
@@ -706,7 +710,6 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
   const [allocationDraft, setAllocationDraft] = useState<Record<number, string>>({});
   const [marketDraft, setMarketDraft] = useState<Record<number, { target?: string; secondaryTarget?: string; low?: string; high?: string }>>({});
   const [message, setMessage] = useState<Record<number, string>>({});
-  const [sortKey, setSortKey] = useState<SortKey>("priority");
   useLockBodyScroll(editorAsset !== null);
   useEscapeKey(editorAsset !== null, () => setEditorAsset(null));
   const editorDialogRef = useDialogFocus<HTMLDivElement>(editorAsset !== null);
@@ -840,7 +843,7 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
     <div className={`asset-register density-${density}`}>
       <div className="register-sort-row">
         <span>{rows.length} result{rows.length === 1 ? "" : "s"}</span>
-        <label>Sort by<select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
+        <label>Sort by<select value={sortKey} onChange={(event) => onSortChange(event.target.value as SortKey)}>
           <option value="priority">Decision priority</option>
           <option value="value">Position value</option>
           <option value="return">Total return</option>
@@ -1056,6 +1059,7 @@ export default function Page() {
   const [focusId, setFocusId] = useState<number | null>(null);
   const [portfolioError, setPortfolioError] = useState("");
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
+  const [sortKey, setSortKey] = useState<SortKey>("priority");
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const autoRefreshAttempted = useRef(false);
   const refreshInFlight = useRef(false);
@@ -1093,6 +1097,7 @@ export default function Page() {
     try {
       const saved = JSON.parse(window.localStorage.getItem(WORKSPACE_PREFERENCES_KEY) || "{}");
       if (saved.density === "compact" || saved.density === "comfortable") setDensity(saved.density);
+      if (SORT_KEYS.includes(saved.sortKey)) setSortKey(saved.sortKey);
       if (typeof saved.actionFilter === "string" && ACTION_FILTERS.includes(saved.actionFilter)) setActionFilter(saved.actionFilter);
       if (typeof saved.currency === "object" && saved.currency) setCurrency(saved.currency);
     } catch {
@@ -1103,11 +1108,11 @@ export default function Page() {
   useEffect(() => {
     if (!loginChecked) return;
     try {
-      window.localStorage.setItem(WORKSPACE_PREFERENCES_KEY, JSON.stringify({ density, actionFilter, currency }));
+      window.localStorage.setItem(WORKSPACE_PREFERENCES_KEY, JSON.stringify({ density, sortKey, actionFilter, currency }));
     } catch {
       // Ignore browsers where persistent storage is unavailable.
     }
-  }, [density, actionFilter, currency, loginChecked]);
+  }, [density, sortKey, actionFilter, currency, loginChecked]);
 
   async function removeAsset(id: number) {
     const previous = data;
@@ -1333,7 +1338,7 @@ export default function Page() {
             <header className="holdings-toolbar">
               <div><h2>Holdings</h2><p>{visible.length} of {countryVisible.length} positions shown</p></div>
               <div className="holdings-tools">
-                <label className="holding-search"><Search size={15} /><input id="holding-search" aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} /><kbd>/</kbd></label>
+                <label className="holding-search"><Search size={15} /><input id="holding-search" aria-label="Search holdings" placeholder="Search name or ticker" value={holdingQuery} onChange={(event) => setHoldingQuery(event.target.value)} />{holdingQuery ? <button type="button" className="search-clear" onClick={() => setHoldingQuery("")} aria-label="Clear holdings search"><X size={14} /></button> : <kbd>/</kbd>}</label>
                 <button type="button" className="density-toggle" aria-pressed={density === "compact"} onClick={() => setDensity((current) => current === "comfortable" ? "compact" : "comfortable")} title="Change row density"><Rows3 size={14} />{density === "comfortable" ? "Comfortable" : "Compact"}</button>
                 {filtersActive && <button type="button" className="clear-filters" onClick={clearFilters}><X size={13} />Clear filters</button>}
               </div>
@@ -1361,6 +1366,8 @@ export default function Page() {
               focusId={focusId}
               emptyMessage={actionFilter === "All" ? "No holdings match your search." : `Nothing is currently flagged ${actionFilter}.`}
               density={density}
+              sortKey={sortKey}
+              onSortChange={setSortKey}
               actionHistory={data.actionHistory || []}
             />
           </section>
