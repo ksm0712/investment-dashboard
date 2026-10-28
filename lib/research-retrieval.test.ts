@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildResearchQueries, buildResearchQuery, chunkDocument, cosineSimilarity, extractThesisFacets, rankAcrossQueries, rankHybrid, rankLexically } from "./research-retrieval.ts";
+import { retrieveResearchEvidence } from "./ai-research.ts";
 
 test("chunkDocument creates stable, bounded citation ids", () => {
   const chunks = chunkDocument({
@@ -57,4 +58,14 @@ test("extractThesisFacets preserves independently testable claims", () => {
     extractThesisFacets("I expect recurring revenue to grow while margins remain stable. The main risk is customer concentration."),
     ["recurring revenue to grow", "margins remain stable", "customer concentration"],
   );
+});
+
+test("multi-filing retrieval keeps citations tied to the correct source", async () => {
+  const retrieval = await retrieveResearchEvidence([
+    { title: "Latest 10-Q", url: "https://example.com/q", text: "Quarterly revenue grew 18 percent. ".repeat(20) },
+    { title: "Latest 10-K", url: "https://example.com/k", text: "Customer retention remained above 96 percent. ".repeat(20) },
+  ], "Revenue will grow while customer retention stays above 95%.", { name: "test", model: "none", generate: async () => { throw new Error("unused"); } }, 6);
+  assert.ok(retrieval.chunks.some((chunk) => chunk.sourceTitle === "Latest 10-Q" && chunk.sourceUrl === "https://example.com/q"));
+  assert.ok(retrieval.chunks.some((chunk) => chunk.sourceTitle === "Latest 10-K" && chunk.sourceUrl === "https://example.com/k"));
+  assert.equal(new Set(retrieval.chunks.map((chunk) => chunk.id)).size, retrieval.chunks.length);
 });

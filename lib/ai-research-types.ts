@@ -60,6 +60,7 @@ export type ResearchRun = {
   sourceTitle: string;
   sourceUrl: string | null;
   sourceDate: string | null;
+  sources?: Array<{ title: string; url: string | null; date: string | null }>;
   provider: string;
   model: string;
   retrievalMethod: "lexical" | "hybrid";

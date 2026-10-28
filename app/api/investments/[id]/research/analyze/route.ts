@@ -4,7 +4,7 @@ import { getSecurities } from "@/lib/db";
 import { AiProviderUnavailableError } from "@/lib/ai-provider";
 import { analyzeResearch, researchInputHash } from "@/lib/ai-research";
 import type { ResearchDocument, ResearchRun } from "@/lib/ai-research-types";
-import { fetchLatestSecFiling, SecFilingError, supportsAutomaticSecFiling } from "@/lib/sec-filings";
+import { fetchRecentSecFilings, SecFilingError, supportsAutomaticSecFiling } from "@/lib/sec-filings";
 import {
   AiRateLimitError,
   consumeAiRequest,
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
   await saveResearchThesis(user.sub, id, thesis);
 
-  let document: ResearchDocument;
+  let documents: ResearchDocument[];
   const manualText = typeof body.documentText === "string" ? body.documentText.trim() : "";
   if (manualText) {
     if (manualText.length < 100 || manualText.length > MAX_MANUAL_DOCUMENT_CHARS) {
@@ -51,32 +51,32 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         return NextResponse.json({ error: "Source URL must be a valid HTTP or HTTPS address." }, { status: 400 });
       }
     }
-    document = {
+    documents = [{
       title: typeof body.sourceTitle === "string" && body.sourceTitle.trim() ? body.sourceTitle.trim().slice(0, 200) : `${security.name} supplied report`,
       text: manualText,
       url: sourceUrl,
       date: typeof body.sourceDate === "string" ? body.sourceDate.slice(0, 10) : null,
-    };
+    }];
   } else {
     const ticker = security.priceSymbol || security.ticker;
     if (!ticker || !supportsAutomaticSecFiling(security)) {
       return NextResponse.json({ error: "No automatic SEC source is available for this holding. Paste at least 100 characters from a company filing, earnings release, or report." }, { status: 400 });
     }
     try {
-      document = await fetchLatestSecFiling(ticker);
+      documents = await fetchRecentSecFilings(ticker, 2);
     } catch (error) {
       if (error instanceof SecFilingError) return NextResponse.json({ error: error.message }, { status: error.code === "upstream" ? 502 : 400 });
       throw error;
     }
   }
 
-  const inputHash = researchInputHash(security, thesis, document);
+  const inputHash = researchInputHash(security, thesis, documents);
   const cached = await getCachedResearchRun(user.sub, id, inputHash);
   if (cached) return NextResponse.json({ run: cached, usage: { cached: true } });
 
   try {
     const usage = await consumeAiRequest(user.sub, id);
-    const result = await analyzeResearch({ security, thesis, document });
+    const result = await analyzeResearch({ security, thesis, document: documents });
     const run: ResearchRun = { ...result, cached: false };
     await saveResearchRun(user.sub, id, inputHash, run);
     return NextResponse.json({ run, usage: { ...usage, cached: false } });

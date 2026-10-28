@@ -89,6 +89,7 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
           <span>{run.cached ? "cached response" : `${run.latencyMs} ms processing`}</span>
           {(run.inputTokens !== null || run.outputTokens !== null) && <span>{(run.inputTokens || 0) + (run.outputTokens || 0)} tokens</span>}
           <span>{fmtDate(run.createdAt)}</span>
+          {run.sources && <span>{run.sources.length} source filing{run.sources.length === 1 ? "" : "s"}</span>}
         </div>
       </details>
     </div>

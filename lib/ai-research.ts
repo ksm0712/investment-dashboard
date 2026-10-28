@@ -175,7 +175,7 @@ function parseJson(text: string) {
 function researchPrompt(
   security: Security,
   thesis: string,
-  evidence: Array<{ id: string; text: string; heading?: string | null; sourceDate?: string | null }>,
+  evidence: Array<{ id: string; text: string; heading?: string | null; sourceTitle: string; sourceDate?: string | null }>,
   schema: Record<string, unknown>,
 ) {
   const company = {
@@ -200,7 +200,7 @@ function researchPrompt(
     `\nJSON_SCHEMA\n${JSON.stringify(schema)}`,
     `\nCOMPANY\n${JSON.stringify(company)}`,
     `\nUSER_THESIS\n${thesis}`,
-    `\nEVIDENCE_PASSAGES\n${evidence.map((chunk) => `[${chunk.id}]${chunk.heading ? ` SECTION: ${chunk.heading}` : ""}${chunk.sourceDate ? ` DATE: ${chunk.sourceDate}` : ""}\n${chunk.text}`).join("\n\n")}`,
+    `\nEVIDENCE_PASSAGES\n${evidence.map((chunk) => `[${chunk.id}] SOURCE: ${chunk.sourceTitle}${chunk.heading ? ` · SECTION: ${chunk.heading}` : ""}${chunk.sourceDate ? ` · DATE: ${chunk.sourceDate}` : ""}\n${chunk.text}`).join("\n\n")}`,
   ].join("\n");
 }
 
@@ -279,9 +279,9 @@ function bestExcerpt(text: string, thesis: string, maxChars = 520) {
   return excerpt.trim().slice(0, maxChars);
 }
 
-export function researchInputHash(security: Security, thesis: string, document: ResearchDocument) {
+export function researchInputHash(security: Security, thesis: string, document: ResearchDocument | ResearchDocument[]) {
   return crypto.createHash("sha256").update(JSON.stringify({
-    pipelineVersion: 2,
+    pipelineVersion: 3,
     securityId: security.id,
     action: security.action,
     reasons: security.actionReasons,
@@ -293,12 +293,13 @@ export function researchInputHash(security: Security, thesis: string, document: 
 }
 
 export async function retrieveResearchEvidence(
-  document: ResearchDocument,
+  document: ResearchDocument | ResearchDocument[],
   thesis: string,
   provider: AiProvider,
   topK = 6,
 ) {
-  const allChunks = chunkDocument(document);
+  const documents = Array.isArray(document) ? document : [document];
+  const allChunks = documents.flatMap((source) => chunkDocument(source)).map((chunk, index) => ({ ...chunk, id: `C${index + 1}` }));
   if (!allChunks.length) throw new Error("The report did not contain readable evidence.");
   const queries = buildResearchQueries(thesis);
   let ranked = rankAcrossQueries(allChunks, queries);
@@ -331,7 +332,7 @@ export async function retrieveResearchEvidence(
 export async function analyzeResearch(input: {
   security: Security;
   thesis: string;
-  document: ResearchDocument;
+  document: ResearchDocument | ResearchDocument[];
   provider?: AiProvider;
   topK?: number;
   retrievedEvidence?: Awaited<ReturnType<typeof retrieveResearchEvidence>>;
@@ -339,7 +340,8 @@ export async function analyzeResearch(input: {
   const thesis = input.thesis.trim();
   if (thesis.length < 10) throw new Error("Write an investment thesis of at least 10 characters first.");
   if (thesis.length > 2_000) throw new Error("Investment thesis must be 2,000 characters or fewer.");
-  if (input.document.text.length < 100) throw new Error("The report needs at least 100 characters of evidence.");
+  const documents = Array.isArray(input.document) ? input.document : [input.document];
+  if (!documents.length || documents.every((document) => document.text.length < 100)) throw new Error("The report needs at least 100 characters of evidence.");
   const provider = input.provider || getAiProvider();
   const retrieval = input.retrievedEvidence || await retrieveResearchEvidence(input.document, thesis, provider, input.topK || 6);
   const selected = retrieval.chunks;
@@ -377,9 +379,10 @@ export async function analyzeResearch(input: {
     numericalAction: input.security.action,
     analysis,
     citations,
-    sourceTitle: input.document.title,
-    sourceUrl: input.document.url || null,
-    sourceDate: input.document.date || null,
+    sourceTitle: documents[0].title,
+    sourceUrl: documents[0].url || null,
+    sourceDate: documents[0].date || null,
+    sources: documents.map((document) => ({ title: document.title, url: document.url || null, date: document.date || null })),
     provider: response.provider,
     model: response.model,
     retrievalMethod: retrieval.retrievalMethod,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchLatestSecFiling, filingHtmlToText, SecFilingError, supportsAutomaticSecFiling } from "./sec-filings.ts";
+import { fetchLatestSecFiling, fetchRecentSecFilings, filingHtmlToText, SecFilingError, supportsAutomaticSecFiling } from "./sec-filings.ts";
 
 test("filingHtmlToText removes executable markup and decodes entities", () => {
   const result = filingHtmlToText("<html><style>.x{}</style><script>alert(1)</script><p>Revenue &amp; demand&nbsp;grew.</p></html>");
@@ -45,6 +45,31 @@ test("fetchLatestSecFiling resolves ticker, submission, and primary document", a
   assert.match(document.text, /customer concentration/);
   assert.equal(calls.length, 3);
   assert.match(document.url || "", /Archives\/edgar\/data\/1234\/000000123426000001\/test-20260801.htm$/);
+});
+
+test("fetchRecentSecFilings returns complementary quarterly and annual evidence", async () => {
+  const fetchImpl = async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith("company_tickers.json")) return Response.json({ 0: { cik_str: 1234, ticker: "TEST", title: "Test Systems" } });
+    if (url.includes("submissions")) return Response.json({
+      name: "Test Systems, Inc.",
+      filings: { recent: {
+        accessionNumber: ["0000001234-26-000002", "0000001234-26-000001"],
+        filingDate: ["2026-08-01", "2026-02-01"],
+        form: ["10-Q", "10-K"],
+        primaryDocument: ["quarter.htm", "annual.htm"],
+      } },
+    });
+    const evidence = url.endsWith("annual.htm") ? "Annual customer retention and segment history." : "Quarterly revenue and margin update.";
+    return new Response(`<p>${evidence.repeat(20)}</p>`, { status: 200 });
+  };
+  const documents = await fetchRecentSecFilings("TEST", 2, fetchImpl);
+  assert.deepEqual(documents.map((document) => document.title), [
+    "Test Systems, Inc. 10-Q filed 2026-08-01",
+    "Test Systems, Inc. 10-K filed 2026-02-01",
+  ]);
+  assert.match(documents[0].url || "", /quarter\.htm$/);
+  assert.match(documents[1].url || "", /annual\.htm$/);
 });
 
 test("fetchLatestSecFiling returns an explicit unsupported error", async () => {
