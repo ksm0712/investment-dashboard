@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AiProvider } from "./ai-provider.ts";
-import { analyzeResearch, researchInputHash, validateResearchAnalysis } from "./ai-research.ts";
+import { analyzeResearch, evidenceQualityFor, researchInputHash, validateResearchAnalysis } from "./ai-research.ts";
 import { RESEARCH_PIPELINE_VERSION } from "./research-version.ts";
 import { calculateAsset } from "./portfolio-engine.ts";
 import type { Security } from "./types.ts";
@@ -72,6 +72,17 @@ test("research cache identity includes the current analysis method", () => {
   const hash = researchInputHash(security(), "Recurring revenue will grow next year.", { title: "Report", text: "Evidence ".repeat(20) });
   assert.equal(hash.length, 64);
   assert.equal(RESEARCH_PIPELINE_VERSION, 4);
+});
+
+test("evidence quality reports direct answers separately from citations", () => {
+  const quality = evidenceQualityFor({
+    businessOutlook: "mixed", riskLevel: "medium", evidenceSignal: "unclear", summary: "Mixed.", positiveEvidence: [], risks: [], evidenceGaps: [], monitoringQuestions: [], limitations: [],
+    thesisChecks: [
+      { statement: "Revenue grows", status: "supported", explanation: "Direct.", citationIds: ["C1"] },
+      { statement: "Margin expands", status: "unclear", explanation: "Missing.", citationIds: [] },
+    ],
+  }, [{ title: "10-Q", text: "Evidence", date: "2026-06-30" }]);
+  assert.deepEqual(quality, { rating: "partial", directlyAnswered: 1, citationRate: 50, sourceCount: 1, freshestSourceDate: "2026-06-30" });
 });
 
 test("missing disclosure cannot be promoted into positive thesis evidence", async () => {

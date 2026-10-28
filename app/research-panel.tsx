@@ -83,6 +83,10 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
         <div className="unclear"><span>Still unclear</span><strong>{coverage.unclear}</strong></div>
         <div><span>With citations</span><strong>{coverage.citedClaims}/{coverage.totalClaims}</strong></div>
       </div>
+      {result.evidenceQuality && <div className={`research-quality research-quality-${result.evidenceQuality.rating}`}>
+        <div><span>Evidence quality</span><strong>{result.evidenceQuality.rating}</strong></div>
+        <p>{result.evidenceQuality.directlyAnswered} of {coverage.totalClaims} claims directly answered · {result.evidenceQuality.citationRate}% cited · {result.evidenceQuality.sourceCount} first-party source{result.evidenceQuality.sourceCount === 1 ? "" : "s"}{result.evidenceQuality.freshestSourceDate ? ` · newest ${fmtDate(result.evidenceQuality.freshestSourceDate)}` : ""}</p>
+      </div>}
       <p className="research-summary">{result.summary}</p>
       <div className={`research-implication ${result.evidenceSignal}`}><strong>What this means</strong><span>{implication}</span></div>
       <div className="research-claims-grid">

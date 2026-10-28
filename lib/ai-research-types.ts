@@ -56,6 +56,13 @@ export type ResearchAnalysis = {
     unclear: number;
     citedClaims: number;
   };
+  evidenceQuality?: {
+    rating: "strong" | "partial" | "limited";
+    directlyAnswered: number;
+    citationRate: number;
+    sourceCount: number;
+    freshestSourceDate: string | null;
+  };
 };
 
 export type ResearchRun = {

@@ -256,6 +256,20 @@ function coverageFor(checks: ThesisCheck[]) {
   };
 }
 
+export function evidenceQualityFor(analysis: ResearchAnalysis, documents: ResearchDocument[]) {
+  const total = Math.max(1, analysis.thesisChecks.length);
+  const directlyAnswered = analysis.thesisChecks.filter((check) => check.status !== "unclear").length;
+  const citationRate = Math.round(100 * analysis.thesisChecks.filter((check) => check.citationIds.length > 0).length / total);
+  const dated = documents.map((document) => document.date).filter((date): date is string => Boolean(date)).sort().reverse();
+  const answerRate = directlyAnswered / total;
+  const rating = answerRate === 1 && citationRate === 100
+    ? "strong" as const
+    : answerRate >= 0.5 && citationRate >= 50
+      ? "partial" as const
+      : "limited" as const;
+  return { rating, directlyAnswered, citationRate, sourceCount: documents.length, freshestSourceDate: dated[0] || null };
+}
+
 function guardedSummary(checks: ThesisCheck[]) {
   const coverage = coverageFor(checks);
   const parts = [
@@ -435,11 +449,12 @@ export async function analyzeResearch(input: {
     };
     validated = validateResearchAnalysis(parseJson(response.content), selected.map((chunk) => chunk.id));
   }
-  const analysis = enforceGroundedCoherence(
+  const groundedAnalysis = enforceGroundedCoherence(
     canonicalizeThesisChecks(validated, thesis),
     selected,
     thesis,
   );
+  const analysis = { ...groundedAnalysis, evidenceQuality: evidenceQualityFor(groundedAnalysis, documents) };
   const usedIds = [...new Set([
     ...analysis.positiveEvidence.flatMap((claim) => claim.citationIds),
     ...analysis.risks.flatMap((claim) => claim.citationIds),

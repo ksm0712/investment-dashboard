@@ -320,6 +320,13 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .research-coverage .supported strong { color: var(--green); }
 .research-coverage .contradicted strong { color: var(--red); }
 .research-coverage .unclear strong { color: var(--yellow); }
+.research-quality { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 10px; padding: 10px 12px; border: 1px solid #ddd4bc; border-radius: 8px; background: #faf7ef; }
+.research-quality div span, .research-quality div strong { display: block; }
+.research-quality div span { color: var(--muted); font-size: 11px; }
+.research-quality div strong { margin-top: 2px; font-size: 14px; text-transform: capitalize; }
+.research-quality p { margin: 0; color: var(--ink-2); font-size: 12px; text-align: right; }
+.research-quality-strong { border-color: #bad8ca; background: #f1f7f4; }
+.research-quality-limited { border-color: #e1b9b1; background: #fff5f3; }
 .research-summary { margin: 14px 0; color: var(--ink-2); font-size: 12px; line-height: 1.65; }
 .research-implication { display: grid; grid-template-columns: 130px 1fr; gap: 12px; margin-bottom: 14px; padding: 11px 13px; border-left: 3px solid #aa8b4f; background: #faf7ef; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
 .research-implication.supports { border-color: var(--green); background: #f1f7f4; }
