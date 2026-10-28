@@ -614,6 +614,14 @@ function marketFreshness(item: Security) {
   return { stale: ageDays > 7, date: raw };
 }
 
+function latestMarketTimestamp(securities: Security[]) {
+  const timestamps = securities
+    .map((item) => item.refreshedAt || item.marketDataAsOn || item.priceAsOn)
+    .map((value) => value ? new Date(value).getTime() : NaN)
+    .filter(Number.isFinite);
+  return timestamps.length ? new Date(Math.max(...timestamps)).toISOString() : null;
+}
+
 const ACTION_PRIORITY: Record<string, number> = {
   Sell: 0,
   "Review to Sell": 1,
@@ -1081,6 +1089,7 @@ export default function Page() {
       if (!next?.user || !Array.isArray(next?.securities)) throw new Error("The portfolio response was incomplete.");
       writePortfolioCache(next);
       setData(next);
+      setLastRefreshedAt(latestMarketTimestamp(next.securities));
       setPortfolioError("");
     } catch (error) {
       setPortfolioError(error instanceof Error ? error.message : "Could not load your portfolio.");
@@ -1093,6 +1102,7 @@ export default function Page() {
     const cached = readPortfolioCache();
     if (cached) {
       setData(cached);
+      setLastRefreshedAt(latestMarketTimestamp(cached.securities));
       setLoginChecked(true);
     }
     load();
@@ -1280,6 +1290,8 @@ export default function Page() {
     summary.failed ? `${summary.failed} failed` : "",
   ].filter(Boolean).join(" · ") : "";
   const refreshDetails = summary?.details?.length ? summary.details.map((item) => `${item.name}: ${item.note}`).join(" · ") : "";
+  const syncStatus = lastRefreshedAt ? `Last synced ${fmtRelativeTime(lastRefreshedAt)}` : "Waiting for first market sync";
+  const syncTitle = lastRefreshedAt ? `Latest saved market update: ${fmtDateTime(lastRefreshedAt)}. Automatic refresh runs every five minutes while this page is open.` : "No saved market update is available yet.";
 
   return (
     <div className="app-shell">
@@ -1333,7 +1345,7 @@ export default function Page() {
             <div className="workspace-status">
               <button className="refresh-button" onClick={refresh} disabled={loading} aria-label="Refresh prices now" title="Refresh prices now"><RotateCw size={14} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh prices"}</button>
               <button className="refresh-button export-button" onClick={exportPortfolio} aria-label="Export visible holdings as CSV" title="Export visible holdings as CSV"><Download size={14} />Export</button>
-              <span className={`refresh-results ${refreshText ? "done" : ""}`} title={refreshDetails} aria-live="polite">{refreshText || "Auto-updates every 5 min"}</span>
+              <span className={`refresh-results ${refreshText ? "done" : ""}`} title={refreshDetails || syncTitle} aria-live="polite">{refreshText || syncStatus}</span>
               <div className="select-wrap"><label htmlFor="portfolio-currency">View in</label><select id="portfolio-currency" value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>
             </div>
           </section>
