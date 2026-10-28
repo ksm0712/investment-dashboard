@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, CircleHelp, Download, ExternalLink, FileCheck2, FileSearch, Save, Square } from "lucide-react";
+import { AlertTriangle, Check, CircleHelp, Copy, Download, ExternalLink, FileCheck2, FileSearch, Save, Square } from "lucide-react";
 import type { ResearchClaim, ResearchRecord, ResearchRun, ThesisCheck } from "@/lib/ai-research-types";
 import type { Security } from "@/lib/types";
 import { fmtDate } from "@/lib/format";
 import { thesisQuality } from "@/lib/thesis-quality";
 import { RESEARCH_PIPELINE_VERSION } from "@/lib/research-version";
 import { extractThesisFacets } from "@/lib/research-retrieval";
-import { researchRunToMarkdown } from "@/lib/research-export";
+import { monitoringChecklistText, researchRunToMarkdown } from "@/lib/research-export";
 
 type ResearchPayload = ResearchRecord & {
   providerConfigured: boolean;
@@ -55,6 +55,7 @@ function ThesisChecks({ checks }: { checks: ThesisCheck[] }) {
 }
 
 function AnalysisResult({ run }: { run: ResearchRun }) {
+  const [checklistCopied, setChecklistCopied] = useState(false);
   const result = run.analysis;
   const evidenceGaps = result.evidenceGaps || [];
   const monitoringQuestions = result.monitoringQuestions || [];
@@ -79,6 +80,11 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
     link.download = `thesis-evidence-${run.securityId}-${run.createdAt.slice(0, 10)}.md`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+  async function copyMonitoringChecklist() {
+    await navigator.clipboard.writeText(monitoringChecklistText(run));
+    setChecklistCopied(true);
+    window.setTimeout(() => setChecklistCopied(false), 2_000);
   }
   return (
     <div className="research-result">
@@ -106,7 +112,7 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
       </div>
       <ThesisChecks checks={result.thesisChecks} />
       {(evidenceGaps.length > 0 || monitoringQuestions.length > 0) && <section className="research-next-steps">
-        <div className="research-next-steps-title"><CircleHelp size={15} /><div><h4>What would make this answer stronger?</h4><p>Use these checks in the next filing or earnings update.</p></div></div>
+        <div className="research-next-steps-title"><CircleHelp size={15} /><div><h4>What would make this answer stronger?</h4><p>Use these checks in the next filing or earnings update.</p></div><button type="button" onClick={copyMonitoringChecklist}>{checklistCopied ? <Check size={13} /> : <Copy size={13} />}{checklistCopied ? "Copied" : "Copy checklist"}</button></div>
         {evidenceGaps.length > 0 && <div className="evidence-gaps">{evidenceGaps.map((gap, index) => <div key={`${gap.claim}-${index}`}><strong>{gap.claim}</strong><p>{gap.neededEvidence}</p></div>)}</div>}
         {monitoringQuestions.length > 0 && <ul>{monitoringQuestions.map((question, index) => <li key={`${question}-${index}`}>{question}</li>)}</ul>}
       </section>}

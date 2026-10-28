@@ -49,7 +49,9 @@ Opening a holding starts with the recommendation, the numbers that matter to it,
 
 ### 5. Test the written thesis
 
-For an eligible U.S.-listed company, Thesis retrieves the latest quarterly and annual SEC filings together and compares relevant passages with every material claim in a saved investment thesis. The result identifies support, contradictions, and unresolved gaps, with citations back to the exact source filing.
+For an eligible U.S.-listed company, Thesis retrieves the latest quarterly and annual SEC filings together and compares relevant passages with every material claim in a saved investment thesis. Before the review starts, the app shows the claims it extracted. The result identifies support, contradictions, unresolved gaps, and the quality of the evidence, with citations back to the exact source filing.
+
+The review is meant to leave the user with work they can actually do. Evidence gaps become a copyable monitoring checklist for the next filing, and the complete review can be exported as Markdown with its claim checks and source passages intact. Forecasts require a leading indicator such as guidance or backlog, and numeric thresholds are checked against the values in the cited passage instead of being accepted from the model at face value.
 
 This evidence review is deliberately separate from the numerical recommendation. Model output cannot change a Buy or Sell result. The retrieval and validation flow is described in [docs/ai-research-architecture.md](docs/ai-research-architecture.md).
 
@@ -66,7 +68,8 @@ This evidence review is deliberately separate from the numerical recommendation.
 - CSV export of the active portfolio view
 - Recommendation history recorded only when the action changes
 - Visible readiness checks for missing decision inputs, stale prices, and position concentration
-- Paired quarterly/annual SEC retrieval, claim-level evidence coverage, and source-accurate citations
+- Paired quarterly/annual SEC retrieval, claim-level evidence quality, and claim-specific source citations
+- Forecast and numeric-threshold safeguards, copyable monitoring checklists, and Markdown evidence exports
 - Counterevidence retrieval, structured-output repair, and bounded provider retry
 - Quote caching, bounded refresh concurrency, retry handling, and provider fallbacks
 - Last-sync timestamps, saved-snapshot recovery, and clear offline status

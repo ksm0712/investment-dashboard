@@ -361,6 +361,8 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .thesis-check p { margin: 3px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .research-next-steps { margin-top: 14px; padding: 13px; border: 1px solid #cfc5eb; border-radius: 10px; background: #f8f5ff; }
 .research-next-steps-title { display: flex; gap: 8px; align-items: flex-start; color: #55458f; }
+.research-next-steps-title > div { flex: 1; }
+.research-next-steps-title button { display: inline-flex; flex: 0 0 auto; min-height: 30px; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid #bdcbc3; border-radius: 7px; background: white; color: var(--green); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
 .research-next-steps h4 { margin: 0; font-size: 11px; letter-spacing: 0; }
 .research-next-steps-title p { margin: 3px 0 0; color: var(--muted); font-size: 9px; }
 .evidence-gaps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 11px; }

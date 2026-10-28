@@ -23,8 +23,9 @@ The model must not predict a price or replace the portfolio action. This boundar
 5. When a local embedding model is available, semantic similarity and BM25-style lexical relevance are combined. Claim-aware lexical retrieval remains the zero-dependency fallback.
 6. Only the highest-ranked passages and the thesis are sent to the configured language model. The numerical action is deliberately excluded from the prompt so it cannot bias the evidence verdict.
 7. Model output is parsed into a strict application schema. Unknown citations, missing evidence, and invalid enum values trigger one bounded repair pass. Transient provider failures use the shared capped retry and circuit-breaker policy.
-8. A deterministic grounding pass removes unrelated citations, adds an explicit `unclear` result for any thesis claim the model skipped, and recomputes the overall verdict from the claim-level results.
-9. The result reports claim coverage, preserves partial support, identifies evidence gaps, and produces concrete questions for the next filing. It is stored under the owning user and holding; a pipeline version in the cache key prevents stale analysis formats from being reused after an upgrade.
+8. A deterministic grounding pass removes unrelated citations, adds an explicit `unclear` result for any thesis claim the model skipped, and recomputes the overall verdict from the claim-level results. A future claim cannot be marked supported from historical results alone, and an explicit numeric threshold must be cleared by a comparable value in the cited passage.
+9. The result reports claim coverage and evidence quality separately, preserves partial support, identifies evidence gaps, and produces concrete questions for the next filing. Each excerpt is selected for the exact claim that cites it instead of the thesis in general.
+10. The user can copy the gaps as a monitoring checklist or export the whole evidence record as Markdown. The result is stored under the owning user and holding; a pipeline version in both the cache key and saved run prevents an older analysis method from appearing current after an upgrade.
 
 ## Provider and cost policy
 

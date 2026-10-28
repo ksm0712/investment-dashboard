@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { researchRunToMarkdown } from "./research-export.ts";
+import { monitoringChecklistText, researchRunToMarkdown } from "./research-export.ts";
 import type { ResearchRun } from "./ai-research-types.ts";
 
 test("research export preserves the thesis, verdict, checks, and source links", () => {
@@ -14,4 +14,5 @@ test("research export preserves the thesis, verdict, checks, and source links", 
   assert.match(markdown, /SUPPORTED — Revenue grows next year/);
   assert.match(markdown, /\[Open source\]\(https:\/\/example.com\/10q\)/);
   assert.match(markdown, /pipeline v4/);
+  assert.equal(monitoringChecklistText(run), "1. Did guidance change?");
 });
