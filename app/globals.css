@@ -304,6 +304,9 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .research-error button { flex: 0 0 auto; padding: 5px 8px; border: 1px solid currentColor; border-radius: 6px; background: transparent; color: inherit; font-size: 12px; font-weight: 650; }
 .research-empty { margin-top: 15px; padding: 18px; border: 1px dashed #d5cec0; border-radius: 10px; color: var(--muted); font-size: 11px; text-align: center; }
 .research-result { margin-top: 17px; border-top: 1px solid var(--line); padding-top: 17px; }
+.research-result-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: var(--muted); font-size: 12px; font-weight: 650; }
+.research-result-toolbar button { display: inline-flex; min-height: 32px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line-dark); border-radius: 7px; background: white; color: var(--ink-2); font: inherit; cursor: pointer; }
+.research-result-toolbar button:hover { background: #f3f5f4; }
 .dual-signal { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .dual-signal > div { padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: #f7f5ee; }
 .dual-signal > div:last-child { border-color: #d9d0f1; background: #f6f2ff; }

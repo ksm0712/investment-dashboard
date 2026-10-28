@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, CircleHelp, ExternalLink, FileCheck2, FileSearch, Save, Square } from "lucide-react";
+import { AlertTriangle, Check, CircleHelp, Download, ExternalLink, FileCheck2, FileSearch, Save, Square } from "lucide-react";
 import type { ResearchClaim, ResearchRecord, ResearchRun, ThesisCheck } from "@/lib/ai-research-types";
 import type { Security } from "@/lib/types";
 import { fmtDate } from "@/lib/format";
 import { thesisQuality } from "@/lib/thesis-quality";
 import { RESEARCH_PIPELINE_VERSION } from "@/lib/research-version";
 import { extractThesisFacets } from "@/lib/research-retrieval";
+import { researchRunToMarkdown } from "@/lib/research-export";
 
 type ResearchPayload = ResearchRecord & {
   providerConfigured: boolean;
@@ -70,8 +71,18 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
     : result.evidenceSignal === "contradicts"
       ? "At least one material claim conflicts with direct filing evidence. Revisit that assumption before relying on the thesis."
       : "The filings do not answer every material claim. Treat the gaps below as work to do, not as confirmation.";
+  function downloadReview() {
+    const blob = new Blob([researchRunToMarkdown(run)], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `thesis-evidence-${run.securityId}-${run.createdAt.slice(0, 10)}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
   return (
     <div className="research-result">
+      <div className="research-result-toolbar"><span>Evidence review</span><button type="button" onClick={downloadReview}><Download size={13} /> Export review</button></div>
       <div className="dual-signal">
         <div><span>Numerical engine</span><strong>{run.numericalAction}</strong><small>Calculated from price, target, allocation, and lots</small></div>
         <div className={`evidence-${result.evidenceSignal}`}><span>Evidence verdict</span><strong>{signalLabel(result.evidenceSignal)}</strong><small>Business outlook: {result.businessOutlook} · Thesis risk: {result.riskLevel}</small></div>
