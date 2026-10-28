@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AiProvider } from "./ai-provider.ts";
-import { analyzeResearch, validateResearchAnalysis } from "./ai-research.ts";
+import { analyzeResearch, researchInputHash, validateResearchAnalysis } from "./ai-research.ts";
+import { RESEARCH_PIPELINE_VERSION } from "./research-version.ts";
 import { calculateAsset } from "./portfolio-engine.ts";
 import type { Security } from "./types.ts";
 
@@ -64,6 +65,13 @@ test("analyzeResearch keeps the deterministic action separate and returns valida
   assert.equal(result.analysis.evidenceSignal, "contradicts");
   assert.equal(result.citations[0].sourceUrl, "https://example.com/q2");
   assert.equal(result.provider, "test");
+  assert.equal(result.pipelineVersion, RESEARCH_PIPELINE_VERSION);
+});
+
+test("research cache identity includes the current analysis method", () => {
+  const hash = researchInputHash(security(), "Recurring revenue will grow next year.", { title: "Report", text: "Evidence ".repeat(20) });
+  assert.equal(hash.length, 64);
+  assert.equal(RESEARCH_PIPELINE_VERSION, 4);
 });
 
 test("missing disclosure cannot be promoted into positive thesis evidence", async () => {

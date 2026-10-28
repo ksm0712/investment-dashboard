@@ -1,0 +1,1 @@
+export const RESEARCH_PIPELINE_VERSION = 4;

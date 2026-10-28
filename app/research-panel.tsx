@@ -6,6 +6,7 @@ import type { ResearchClaim, ResearchRecord, ResearchRun, ThesisCheck } from "@/
 import type { Security } from "@/lib/types";
 import { fmtDate } from "@/lib/format";
 import { thesisQuality } from "@/lib/thesis-quality";
+import { RESEARCH_PIPELINE_VERSION } from "@/lib/research-version";
 
 type ResearchPayload = ResearchRecord & {
   providerConfigured: boolean;
@@ -207,7 +208,9 @@ export default function ResearchPanel({ security }: { security: Security }) {
   const sourceReady = automatic || documentText.trim().length >= 100;
   const savedThesis = payload?.thesis.trim() || "";
   const thesisChanged = thesis.trim() !== savedThesis;
-  const analysisIsCurrent = Boolean(payload?.analysis && payload.analysis.thesis.trim() === thesis.trim());
+  const analysisMatchesThesis = Boolean(payload?.analysis && payload.analysis.thesis.trim() === thesis.trim());
+  const analysisUsesCurrentMethod = payload?.analysis?.pipelineVersion === RESEARCH_PIPELINE_VERSION;
+  const analysisIsCurrent = Boolean(analysisMatchesThesis && analysisUsesCurrentMethod);
   const quality = useMemo(() => thesisQuality(thesis), [thesis]);
   const thesisReady = thesis.trim().length >= 10 && quality.score >= 50;
   const analysisStages = ["Collecting company filings…", "Finding evidence for each claim…", "Validating verdicts and citations…"];
@@ -249,7 +252,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
         {message && <span className="research-message">{message}</span>}
       </div>
       {error && <div className="research-error"><AlertTriangle size={15} /><span>{error.message}</span>{error.retryable && <button type="button" onClick={analyze} disabled={analyzing}>Try again</button>}</div>}
-      {payload?.analysis && !analysisIsCurrent && <div className="research-stale"><AlertTriangle size={14} /><span>This result belongs to the previously saved thesis. Run a new evidence check before relying on it.</span></div>}
+      {payload?.analysis && !analysisIsCurrent && <div className="research-stale"><AlertTriangle size={14} /><span>{analysisMatchesThesis ? "This review used an older analysis method. Run it again before relying on the result." : "This result belongs to the previously saved thesis. Run a new evidence check before relying on it."}</span></div>}
       {payload?.analysis ? <div className={analysisIsCurrent ? "" : "research-result-stale"}><AnalysisResult run={payload.analysis} /></div> : <div className="research-empty"><strong>No evidence check yet</strong><span>Write a measurable thesis, then run the latest filing or paste a first-party report.</span></div>}
     </section>
   );

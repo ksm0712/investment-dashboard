@@ -27,6 +27,7 @@ import {
   selectDiverseEvidence,
   tokenize,
 } from "./research-retrieval.ts";
+import { RESEARCH_PIPELINE_VERSION } from "./research-version.ts";
 
 const BUSINESS_OUTLOOKS = new Set<BusinessOutlook>(["positive", "mixed", "negative"]);
 const RISK_LEVELS = new Set<ResearchRisk>(["low", "medium", "high"]);
@@ -339,7 +340,7 @@ function bestExcerpt(text: string, thesis: string, maxChars = 520) {
 
 export function researchInputHash(security: Security, thesis: string, document: ResearchDocument | ResearchDocument[]) {
   return crypto.createHash("sha256").update(JSON.stringify({
-    pipelineVersion: 3,
+    pipelineVersion: RESEARCH_PIPELINE_VERSION,
     securityId: security.id,
     action: security.action,
     reasons: security.actionReasons,
@@ -456,6 +457,7 @@ export async function analyzeResearch(input: {
     };
   });
   return {
+    pipelineVersion: RESEARCH_PIPELINE_VERSION,
     securityId: input.security.id,
     thesis,
     numericalAction: input.security.action,

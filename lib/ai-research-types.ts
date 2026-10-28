@@ -59,6 +59,7 @@ export type ResearchAnalysis = {
 };
 
 export type ResearchRun = {
+  pipelineVersion?: number;
   securityId: number;
   thesis: string;
   numericalAction: string;
