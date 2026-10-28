@@ -274,6 +274,9 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .research-thesis-editor textarea, .research-source-fields textarea, .research-source-fields input { width: 100%; border: 1px solid #d7d2c7; border-radius: 8px; background: white; color: var(--ink); font: inherit; font-size: 12px; line-height: 1.5; outline: none; }
 .research-thesis-editor textarea { min-height: 112px; padding: 10px 11px; resize: vertical; }
 .research-thesis-tip { margin: 7px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.research-claim-preview { margin-top: 12px; padding: 11px 12px; border: 1px solid #dce3df; border-radius: 8px; background: #fff; }
+.research-claim-preview > span { display: block; color: var(--muted); font-size: 12px; font-weight: 650; }
+.research-claim-preview ol { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 20px; color: var(--ink-2); font-size: 13px; line-height: 1.45; }
 .thesis-quality-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .thesis-quality-list span { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid #dedbd3; border-radius: 2px; background: #f5f3ed; color: #89918d; font-size: 8px; }
 .thesis-quality-list span.passed { border-color: #bfd4c9; background: #eff7f2; color: #2e7156; }

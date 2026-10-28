@@ -7,6 +7,7 @@ import type { Security } from "@/lib/types";
 import { fmtDate } from "@/lib/format";
 import { thesisQuality } from "@/lib/thesis-quality";
 import { RESEARCH_PIPELINE_VERSION } from "@/lib/research-version";
+import { extractThesisFacets } from "@/lib/research-retrieval";
 
 type ResearchPayload = ResearchRecord & {
   providerConfigured: boolean;
@@ -212,6 +213,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
   const analysisUsesCurrentMethod = payload?.analysis?.pipelineVersion === RESEARCH_PIPELINE_VERSION;
   const analysisIsCurrent = Boolean(analysisMatchesThesis && analysisUsesCurrentMethod);
   const quality = useMemo(() => thesisQuality(thesis), [thesis]);
+  const thesisClaims = useMemo(() => extractThesisFacets(thesis), [thesis]);
   const thesisReady = thesis.trim().length >= 10 && quality.score >= 50;
   const analysisStages = ["Collecting company filings…", "Finding evidence for each claim…", "Validating verdicts and citations…"];
   return (
@@ -228,6 +230,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
           <div className="thesis-quality-list">
             {quality.checks.map((check) => <span className={check.passed ? "passed" : ""} key={check.id} title={check.guidance}><i>{check.passed ? <Check size={10} /> : "·"}</i>{check.label}</span>)}
           </div>
+          {thesisClaims.length > 0 && <div className="research-claim-preview"><span>Claims this review will test</span><ol>{thesisClaims.map((claim) => <li key={claim}>{claim}</li>)}</ol></div>}
           {quality.score < 75 && thesis.trim().length >= 10 && <p className="research-thesis-tip">{quality.checks.find((check) => !check.passed)?.guidance}</p>}
           <div className="research-editor-actions"><span>{thesis.length}/2,000{thesisChanged ? " · Unsaved changes" : ""}</span><button className="table-btn" onClick={saveThesis} disabled={saving || !thesisChanged || thesis.trim().length < 10}><Save size={13} /> {saving ? "Saving…" : thesisChanged || !savedThesis ? "Save thesis" : "Saved"}</button></div>
         </div>
