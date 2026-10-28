@@ -486,13 +486,19 @@ export async function analyzeResearch(input: {
   ])];
   const citations: ResearchCitation[] = usedIds.map((id) => {
     const chunk = selected.find((candidate) => candidate.id === id)!;
+    const matchedClaims = [...new Set([
+      ...analysis.thesisChecks.filter((check) => check.citationIds.includes(id)).map((check) => check.statement),
+      ...analysis.positiveEvidence.filter((claim) => claim.citationIds.includes(id)).map((claim) => claim.claim),
+      ...analysis.risks.filter((claim) => claim.citationIds.includes(id)).map((claim) => claim.claim),
+    ])];
     return {
       chunkId: id,
-      excerpt: bestExcerpt(chunk.text, thesis),
+      excerpt: bestExcerpt(chunk.text, matchedClaims.join(" ") || thesis),
       sourceTitle: chunk.sourceTitle,
       sourceUrl: chunk.sourceUrl || null,
       sourceDate: chunk.sourceDate || null,
       heading: chunk.heading || null,
+      matchedClaims,
     };
   });
   return {

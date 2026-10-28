@@ -64,6 +64,7 @@ test("analyzeResearch keeps the deterministic action separate and returns valida
   assert.equal(result.numericalAction, security().action);
   assert.equal(result.analysis.evidenceSignal, "contradicts");
   assert.equal(result.citations[0].sourceUrl, "https://example.com/q2");
+  assert.ok(result.citations[0].matchedClaims?.some((claim) => /Enterprise demand/.test(claim)));
   assert.equal(result.provider, "test");
   assert.equal(result.pipelineVersion, RESEARCH_PIPELINE_VERSION);
 });

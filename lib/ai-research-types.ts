@@ -19,6 +19,7 @@ export type ResearchCitation = {
   sourceUrl: string | null;
   sourceDate?: string | null;
   heading?: string | null;
+  matchedClaims?: string[];
 };
 
 export type ResearchClaim = {

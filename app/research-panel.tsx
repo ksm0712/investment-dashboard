@@ -104,7 +104,7 @@ function AnalysisResult({ run }: { run: ResearchRun }) {
         <summary><span>Source evidence</span><small>{run.citations.length} passage{run.citations.length === 1 ? "" : "s"} · {sourceCount} filing{sourceCount === 1 ? "" : "s"}</small></summary>
         <div className="citation-list">{run.citations.map((citation) => <div className="research-citation" id={`research-source-${citation.chunkId}`} key={citation.chunkId}>
           <b>{citation.chunkId}</b>
-          <div><p>{citation.excerpt}{citation.excerpt.length >= 520 ? "…" : ""}</p><span>{citation.heading ? `${citation.heading} · ` : ""}{citation.sourceTitle}{citation.sourceDate ? ` · ${fmtDate(citation.sourceDate)}` : ""}</span></div>
+          <div>{citation.matchedClaims?.length ? <small>Used for: {citation.matchedClaims.join(" · ")}</small> : null}<p>{citation.excerpt}{citation.excerpt.length >= 520 ? "…" : ""}</p><span>{citation.heading ? `${citation.heading} · ` : ""}{citation.sourceTitle}{citation.sourceDate ? ` · ${fmtDate(citation.sourceDate)}` : ""}</span></div>
           {citation.sourceUrl && <a href={citation.sourceUrl} target="_blank" rel="noreferrer" aria-label={`Open source for ${citation.chunkId}`}><ExternalLink size={14} /></a>}
         </div>)}</div>
       </details>
