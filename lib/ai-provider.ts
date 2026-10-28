@@ -1,3 +1,5 @@
+import { parseRetryAfter, ProviderHttpError, withResilience } from "./resilient-fetch.ts";
+
 export type ModelResponse = {
   content: string;
   provider: string;
@@ -36,9 +38,10 @@ function ollamaProvider(): AiProvider {
     name: "ollama",
     model,
     async generate(request) {
-      let response: Response;
-      try {
-        response = await fetch(`${ollamaBaseUrl()}/api/chat`, {
+      return withResilience(`ai:ollama:${model}`, async () => {
+        let response: Response;
+        try {
+          response = await fetch(`${ollamaBaseUrl()}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -53,20 +56,21 @@ function ollamaProvider(): AiProvider {
             ],
           }),
           signal: AbortSignal.timeout(90_000),
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "connection failed";
-        throw new AiProviderUnavailableError(`Local Ollama is unavailable: ${message}`);
-      }
-      if (!response.ok) throw new Error(`Ollama returned ${response.status}: ${(await response.text()).slice(0, 240)}`);
-      const payload = await response.json();
-      return {
-        content: String(payload.message?.content || ""),
-        provider: "ollama",
-        model,
-        inputTokens: Number.isFinite(payload.prompt_eval_count) ? Number(payload.prompt_eval_count) : null,
-        outputTokens: Number.isFinite(payload.eval_count) ? Number(payload.eval_count) : null,
-      };
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "connection failed";
+          throw new AiProviderUnavailableError(`Local Ollama is unavailable: ${message}`);
+        }
+        if (!response.ok) throw new ProviderHttpError(response.status, `Ollama returned ${response.status}.`, parseRetryAfter(response.headers.get("retry-after")));
+        const payload = await response.json();
+        return {
+          content: String(payload.message?.content || ""),
+          provider: "ollama",
+          model,
+          inputTokens: Number.isFinite(payload.prompt_eval_count) ? Number(payload.prompt_eval_count) : null,
+          outputTokens: Number.isFinite(payload.eval_count) ? Number(payload.eval_count) : null,
+        };
+      });
     },
     async embed(texts) {
       const embeddingModel = process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text";
@@ -94,7 +98,8 @@ function groqProvider(): AiProvider {
     name: "groq",
     model,
     async generate(request) {
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      return withResilience(`ai:groq:${model}`, async () => {
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -107,16 +112,17 @@ function groqProvider(): AiProvider {
           ],
         }),
         signal: AbortSignal.timeout(45_000),
+        });
+        if (!response.ok) throw new ProviderHttpError(response.status, `Hosted AI provider returned ${response.status}.`, parseRetryAfter(response.headers.get("retry-after")));
+        const payload = await response.json();
+        return {
+          content: String(payload.choices?.[0]?.message?.content || ""),
+          provider: "groq",
+          model,
+          inputTokens: Number.isFinite(payload.usage?.prompt_tokens) ? Number(payload.usage.prompt_tokens) : null,
+          outputTokens: Number.isFinite(payload.usage?.completion_tokens) ? Number(payload.usage.completion_tokens) : null,
+        };
       });
-      if (!response.ok) throw new Error(`Hosted AI provider returned ${response.status}: ${(await response.text()).slice(0, 240)}`);
-      const payload = await response.json();
-      return {
-        content: String(payload.choices?.[0]?.message?.content || ""),
-        provider: "groq",
-        model,
-        inputTokens: Number.isFinite(payload.usage?.prompt_tokens) ? Number(payload.usage.prompt_tokens) : null,
-        outputTokens: Number.isFinite(payload.usage?.completion_tokens) ? Number(payload.usage.completion_tokens) : null,
-      };
     },
   };
 }

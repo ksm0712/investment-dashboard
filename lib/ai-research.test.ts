@@ -149,3 +149,26 @@ test("generic filing risks are removed when they do not address the thesis", asy
   assert.deepEqual(result.analysis.thesisChecks[0].citationIds, []);
   assert.deepEqual(result.citations.map((citation) => citation.chunkId), ["C2"]);
 });
+
+test("analysis repairs one malformed structured response instead of failing the run", async () => {
+  let calls = 0;
+  const provider: AiProvider = {
+    name: "test",
+    model: "repair",
+    async generate(request) {
+      calls += 1;
+      if (calls === 1) return { provider: "test", model: "repair", inputTokens: 10, outputTokens: 5, content: "not valid json" };
+      assert.match(request.prompt, /PREVIOUS_INVALID_OUTPUT/);
+      return { provider: "test", model: "repair", inputTokens: 12, outputTokens: 8, content: `Here is the corrected result:\n${JSON.stringify({
+        businessOutlook: "mixed", riskLevel: "medium", evidenceSignal: "unclear", summary: "The filing does not establish future growth.",
+        positiveEvidence: [], risks: [], thesisChecks: [{ statement: "Recurring revenue will grow.", status: "unclear", explanation: "Only historical revenue was reported.", citationIds: [] }],
+        evidenceGaps: [{ claim: "Recurring revenue growth", neededEvidence: "Current recurring revenue guidance." }], monitoringQuestions: ["What is current recurring revenue growth?"], limitations: [],
+      })}` };
+    },
+  };
+  const result = await analyzeResearch({ security: security(), thesis: "Recurring revenue will grow next year.", document: { title: "Report", text: "Historical revenue increased, but no forward guidance was provided. ".repeat(8) }, provider });
+  assert.equal(calls, 2);
+  assert.equal(result.analysis.evidenceSignal, "unclear");
+  assert.equal(result.inputTokens, 22);
+  assert.equal(result.outputTokens, 13);
+});

@@ -171,7 +171,14 @@ export function validateResearchAnalysis(value: unknown, allowedCitationIds: str
 
 function parseJson(text: string) {
   const trimmed = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  return JSON.parse(trimmed);
+  const objectStart = trimmed.indexOf("{");
+  const objectEnd = trimmed.lastIndexOf("}");
+  if (objectStart < 0 || objectEnd <= objectStart) throw new Error("The model response did not contain a JSON object.");
+  return JSON.parse(trimmed.slice(objectStart, objectEnd + 1));
+}
+
+function addTokenCounts(first: number | null, second: number | null) {
+  return first === null && second === null ? null : (first || 0) + (second || 0);
 }
 
 function researchPrompt(
@@ -356,13 +363,30 @@ export async function analyzeResearch(input: {
   const selected = retrieval.chunks;
   const schema = outputSchemaForCitations(selected.map((chunk) => chunk.id));
   const start = performance.now();
-  const response = await provider.generate({
+  const request = {
     system: "You are a financial evidence analyst. You never make investment recommendations. You return source-grounded JSON only.",
     prompt: researchPrompt(input.security, thesis, selected, schema),
     jsonSchema: schema,
-  });
+  };
+  let response = await provider.generate(request);
+  let validated: ResearchAnalysis;
+  try {
+    validated = validateResearchAnalysis(parseJson(response.content), selected.map((chunk) => chunk.id));
+  } catch (firstError) {
+    const repaired = await provider.generate({
+      ...request,
+      system: `${request.system} Correct the previous response so every required field and citation validates against the supplied schema.`,
+      prompt: `${request.prompt}\n\nPREVIOUS_INVALID_OUTPUT\n${response.content.slice(0, 6_000)}\n\nVALIDATION_ERROR\n${firstError instanceof Error ? firstError.message : "Invalid structured output"}\n\nReturn only the corrected JSON object.`,
+    });
+    response = {
+      ...repaired,
+      inputTokens: addTokenCounts(response.inputTokens, repaired.inputTokens),
+      outputTokens: addTokenCounts(response.outputTokens, repaired.outputTokens),
+    };
+    validated = validateResearchAnalysis(parseJson(response.content), selected.map((chunk) => chunk.id));
+  }
   const analysis = enforceGroundedCoherence(
-    validateResearchAnalysis(parseJson(response.content), selected.map((chunk) => chunk.id)),
+    validated,
     selected,
     thesis,
   );
