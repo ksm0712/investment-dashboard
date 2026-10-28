@@ -49,6 +49,13 @@ export type ResearchAnalysis = {
   evidenceGaps: EvidenceGap[];
   monitoringQuestions: string[];
   limitations: string[];
+  coverage?: {
+    totalClaims: number;
+    supported: number;
+    contradicted: number;
+    unclear: number;
+    citedClaims: number;
+  };
 };
 
 export type ResearchRun = {

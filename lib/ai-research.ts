@@ -19,6 +19,7 @@ import {
   buildResearchQueries,
   buildResearchQuery,
   chunkDocument,
+  extractThesisFacets,
   rankAcrossQueries,
   rankCounterEvidence,
   rankHybridAcrossQueries,
@@ -221,11 +222,57 @@ function topicOverlap(left: string, right: string) {
   return overlap;
 }
 
+function canonicalizeThesisChecks(analysis: ResearchAnalysis, thesis: string): ResearchAnalysis {
+  const facets = extractThesisFacets(thesis);
+  if (!facets.length) return analysis;
+  const used = new Set<number>();
+  const thesisChecks = facets.map((facet) => {
+    const ranked = analysis.thesisChecks
+      .map((check, index) => ({ check, index, overlap: used.has(index) ? -1 : topicOverlap(facet, check.statement) }))
+      .sort((left, right) => right.overlap - left.overlap);
+    const match = ranked[0];
+    if (!match || match.overlap < 2) {
+      return {
+        statement: facet,
+        status: "unclear" as const,
+        explanation: "The analysis did not find direct filing evidence for this part of the thesis.",
+        citationIds: [],
+      };
+    }
+    used.add(match.index);
+    return { ...match.check, statement: facet };
+  });
+  return { ...analysis, thesisChecks };
+}
+
+function coverageFor(checks: ThesisCheck[]) {
+  return {
+    totalClaims: checks.length,
+    supported: checks.filter((check) => check.status === "supported").length,
+    contradicted: checks.filter((check) => check.status === "contradicted").length,
+    unclear: checks.filter((check) => check.status === "unclear").length,
+    citedClaims: checks.filter((check) => check.citationIds.length > 0).length,
+  };
+}
+
+function guardedSummary(checks: ThesisCheck[]) {
+  const coverage = coverageFor(checks);
+  const parts = [
+    coverage.supported ? `${coverage.supported} supported` : "",
+    coverage.contradicted ? `${coverage.contradicted} contradicted` : "",
+    coverage.unclear ? `${coverage.unclear} still unclear` : "",
+  ].filter(Boolean).join(", ");
+  if (coverage.contradicted) return `Of ${coverage.totalClaims} material thesis claim${coverage.totalClaims === 1 ? "" : "s"}, ${parts}. Direct contradictory evidence needs attention before relying on the thesis.`;
+  if (!coverage.unclear) return `All ${coverage.totalClaims} material thesis claim${coverage.totalClaims === 1 ? " is" : "s are"} supported by direct evidence in the reviewed filings.`;
+  return `Of ${coverage.totalClaims} material thesis claim${coverage.totalClaims === 1 ? "" : "s"}, ${parts}. The reviewed filings do not provide enough direct evidence for a complete verdict.`;
+}
+
 function enforceGroundedCoherence(
   analysis: ResearchAnalysis,
   selected: Array<{ id: string; text: string }>,
   thesis: string,
 ): ResearchAnalysis {
+  const modelSignal = analysis.evidenceSignal;
   const chunks = new Map(selected.map((chunk) => [chunk.id, chunk.text]));
   const explicitlyMissing = (ids: string[]) => ids.some((id) => /\b(?:did not disclose|not reported|did not provide|did not separate|has not published|no expected|not comparable|remain unspecified|provided no|were not disclosed|gave no)\b/i.test(chunks.get(id) || ""));
   const citationIsRelevant = (statement: string, ids: string[]) => ids.some((id) => {
@@ -265,10 +312,12 @@ function enforceGroundedCoherence(
     businessOutlook: evidenceSignal === "unclear" ? "mixed" : analysis.businessOutlook,
     riskLevel: evidenceSignal === "unclear" && analysis.riskLevel === "low" ? "medium" : analysis.riskLevel,
     evidenceSignal,
+    summary: evidenceSignal === modelSignal ? analysis.summary : guardedSummary(thesisChecks),
     positiveEvidence: groundedClaims(analysis.positiveEvidence),
     risks: groundedClaims(analysis.risks),
     thesisChecks,
     evidenceGaps: [...analysis.evidenceGaps, ...addedGaps].slice(0, 5),
+    coverage: coverageFor(thesisChecks),
   };
 }
 
@@ -386,7 +435,7 @@ export async function analyzeResearch(input: {
     validated = validateResearchAnalysis(parseJson(response.content), selected.map((chunk) => chunk.id));
   }
   const analysis = enforceGroundedCoherence(
-    validated,
+    canonicalizeThesisChecks(validated, thesis),
     selected,
     thesis,
   );

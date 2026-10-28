@@ -172,3 +172,28 @@ test("analysis repairs one malformed structured response instead of failing the 
   assert.equal(result.inputTokens, 22);
   assert.equal(result.outputTokens, 13);
 });
+
+test("analysis adds an explicit unclear check when the model skips a thesis claim", async () => {
+  const provider: AiProvider = {
+    name: "test",
+    model: "incomplete-checks",
+    async generate() {
+      return { provider: "test", model: "incomplete-checks", inputTokens: 20, outputTokens: 10, content: JSON.stringify({
+        businessOutlook: "positive", riskLevel: "low", evidenceSignal: "supports", summary: "The thesis is fully supported.",
+        positiveEvidence: [{ claim: "Recurring revenue grew.", citationIds: ["C1"] }], risks: [],
+        thesisChecks: [{ statement: "Recurring revenue will grow", status: "supported", explanation: "Recurring revenue grew 20 percent.", citationIds: ["C1"] }],
+        evidenceGaps: [], monitoringQuestions: [], limitations: [],
+      }) };
+    },
+  };
+  const result = await analyzeResearch({
+    security: security(),
+    thesis: "Recurring revenue will grow while gross margin remains above 60%.",
+    document: { title: "Report", text: "Recurring revenue grew 20 percent during the period. ".repeat(12) },
+    provider,
+  });
+  assert.deepEqual(result.analysis.thesisChecks.map((check) => check.status), ["supported", "unclear"]);
+  assert.equal(result.analysis.evidenceSignal, "unclear");
+  assert.deepEqual(result.analysis.coverage, { totalClaims: 2, supported: 1, contradicted: 0, unclear: 1, citedClaims: 1 });
+  assert.match(result.analysis.summary, /1 supported, 1 still unclear/);
+});
