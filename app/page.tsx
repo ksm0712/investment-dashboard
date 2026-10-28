@@ -265,7 +265,7 @@ function Toast({ message, tone, onClose }: { message: string; tone: "success" | 
 
 function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> | void }) {
   useLockBodyScroll(true);
-  useEscapeKey(true, onClose);
+  useEscapeKey(true, requestClose);
   const dialogRef = useDialogFocus<HTMLFormElement>(true);
   const [name, setName] = useState("");
   const [assetType, setAssetType] = useState<AssetType>("Stock");
@@ -291,6 +291,7 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
   const [searching, setSearching] = useState(false);
   const [quoteBusy, setQuoteBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [searchNotice, setSearchNotice] = useState("");
   const localSearchCache = useRef<Record<string, SearchResult[]>>({});
   const quoteCache = useRef<Record<string, Record<string, unknown>>>({});
@@ -321,6 +322,33 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
   const completedSteps = requiredSteps.filter((step) => step.complete).length;
   const missingSteps = requiredSteps.filter((step) => !step.complete).map((step) => step.label);
   const readyToSave = completedSteps === requiredSteps.length;
+  const today = new Date().toISOString().slice(0, 10);
+  const hasDraft = Boolean(
+    name.trim() || ticker.trim() || quantity || costPrice || currentPrice || allocation || targetPrice
+    || assetType !== "Stock" || country !== "India" || identifierType !== "Ticker" || exchange !== "NSE" || purchaseDate !== today,
+  );
+
+  function requestClose() {
+    if (busy) return;
+    if (confirmDiscard) {
+      setConfirmDiscard(false);
+      return;
+    }
+    if (hasDraft) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onClose();
+  }
+
+  useEffect(() => {
+    if (!hasDraft) return;
+    function protectDraft(event: BeforeUnloadEvent) {
+      event.preventDefault();
+    }
+    window.addEventListener("beforeunload", protectDraft);
+    return () => window.removeEventListener("beforeunload", protectDraft);
+  }, [hasDraft]);
 
   useEffect(() => {
     if (suppressNextSearch.current) {
@@ -501,12 +529,13 @@ function AddInvestmentModal({ onClose, onSaved }: { onClose: () => void; onSaved
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <form ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="add-investment-title" aria-describedby="add-investment-description" tabIndex={-1} onSubmit={(event) => { event.preventDefault(); save(); }}>
         <div className="modal-head">
           <div><div className="modal-title" id="add-investment-title">Add an investment</div><p id="add-investment-description">Find the security, record the purchase, and set the inputs used by the decision rules.</p></div>
-          <button type="button" className="x-btn" onClick={onClose} aria-label="Close"><X size={26} /></button>
+          <button type="button" className="x-btn" onClick={requestClose} aria-label="Close"><X size={26} /></button>
         </div>
+        {confirmDiscard && <div className="discard-confirmation" role="alert"><div><strong>Discard this investment?</strong><span>The details you entered have not been saved.</span></div><button type="button" className="table-btn" onClick={() => setConfirmDiscard(false)} autoFocus>Keep editing</button><button type="button" className="table-btn danger" onClick={onClose}>Discard</button></div>}
         <div className="form-progress" aria-live="polite">
           <div><span>Required information</span><strong>{completedSteps} of {requiredSteps.length} complete</strong></div>
           <div className="form-progress-track" aria-hidden="true"><i style={{ width: `${(completedSteps / requiredSteps.length) * 100}%` }} /></div>

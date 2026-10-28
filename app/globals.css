@@ -474,6 +474,10 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .modal, .asset-editor { width: min(1040px, 100%); max-height: calc(100vh - 56px); overflow: auto; overscroll-behavior: contain; border: 1px solid #cbd3cf; border-radius: 16px; background: var(--white); box-shadow: 0 34px 90px rgba(16, 27, 23, .28); }
 .modal { padding: 30px 32px 32px; }
 .modal-head, .editor-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.discard-confirmation { display: flex; align-items: center; gap: 10px; margin: 16px 0; padding: 12px; border: 1px solid #e8c9c5; border-radius: var(--radius-sm); background: #fff8f6; }
+.discard-confirmation > div { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.discard-confirmation strong { font-size: 13px; }
+.discard-confirmation span { color: var(--muted); font-size: 12px; }
 .modal-head p, .editor-title p, .detail-section-head p { margin: 6px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .modal-title { font-size: 28px; font-weight: 660; letter-spacing: -.04em; }
 .form-progress { margin: 18px 0 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #f7f9f8; }
