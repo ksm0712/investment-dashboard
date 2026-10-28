@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, CheckCircle2, CircleAlert, Database, Download, Globe2, Plus, RotateCw, Rows3, Search, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Bell, CheckCircle2, CircleAlert, Database, Download, Globe2, Plus, RotateCw, Rows3, Search, ShieldCheck, Trash2, TrendingUp, WifiOff, X } from "lucide-react";
 import type { ActionHistoryEntry, AddInvestmentInput, AssetType, SearchResult, Security, User } from "@/lib/types";
 import { currencies, marketCurrency, marketExchanges, markets } from "@/lib/constants";
 import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, fromInr } from "@/lib/format";
@@ -1070,6 +1070,7 @@ export default function Page() {
   const [portfolioError, setPortfolioError] = useState("");
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [sortKey, setSortKey] = useState<SortKey>("priority");
+  const [isOnline, setIsOnline] = useState(true);
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const autoRefreshAttempted = useRef(false);
   const refreshInFlight = useRef(false);
@@ -1118,6 +1119,25 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
+    setIsOnline(window.navigator.onLine);
+    function handleOffline() {
+      setIsOnline(false);
+    }
+    function handleOnline() {
+      setIsOnline(true);
+      setToast({ message: "Connection restored. Checking your saved portfolio…", tone: "success" });
+      load();
+    }
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!loginChecked) return;
     try {
       window.localStorage.setItem(WORKSPACE_PREFERENCES_KEY, JSON.stringify({ density, sortKey, actionFilter, currency }));
@@ -1147,6 +1167,11 @@ export default function Page() {
   }
 
   async function refresh() {
+    if (!window.navigator.onLine) {
+      setIsOnline(false);
+      setToast({ message: "You are offline. Saved portfolio data remains available.", tone: "error" });
+      return;
+    }
     if (refreshInFlight.current) return;
     refreshInFlight.current = true;
     setLoading(true);
@@ -1221,7 +1246,7 @@ export default function Page() {
   }
 
   useEffect(() => {
-    if (!data || autoRefreshAttempted.current) return;
+    if (!data || !isOnline || autoRefreshAttempted.current) return;
     const needsIntelligence = data.securities.some((security) =>
       ["Stock", "ETF"].includes(security.assetType)
       && (!security.targetPrice || !security.week52Low || !security.week52High || security.changePercent === null),
@@ -1230,20 +1255,20 @@ export default function Page() {
       autoRefreshAttempted.current = true;
       refresh();
     }
-  }, [data]);
+  }, [data, isOnline]);
 
   useEffect(() => {
     if (tab !== "All" && !currency[tab]) setCurrency((prev) => ({ ...prev, [tab]: marketCurrency[tab] || countryVisible[0]?.currency || "USD" }));
   }, [tab, currency, countryVisible]);
 
   useEffect(() => {
-    if (!data) return;
+    if (!data || !isOnline) return;
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") refresh();
     }, AUTO_REFRESH_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [Boolean(data)]);
+  }, [Boolean(data), isOnline]);
 
   useEffect(() => {
     if (!data) return;
@@ -1321,6 +1346,7 @@ export default function Page() {
       <main id="portfolio-workspace" tabIndex={-1}>
 
       {portfolioError && <div className="app-status-banner" role="status"><CircleAlert size={15} /><span>{portfolioError} Showing the last available portfolio snapshot.</span><button onClick={load}>Retry</button></div>}
+      {!isOnline && <div className="app-status-banner offline" role="status"><WifiOff size={15} /><span>You are offline. Thesis is showing the last saved snapshot; refresh and account changes will resume when you reconnect.</span></div>}
 
       {securities.length === 0 ? (
         <section className="empty">
@@ -1343,7 +1369,7 @@ export default function Page() {
           <section className="workspace-toolbar">
             <div className="tabs" aria-label="Filter by market">{["All", ...countries].map((item) => <button key={item} className={`tab ${tab === item ? "on" : ""}`} onClick={() => setTab(item)}>{item === "All" ? "All markets" : item}</button>)}</div>
             <div className="workspace-status">
-              <button className="refresh-button" onClick={refresh} disabled={loading} aria-label="Refresh prices now" title="Refresh prices now"><RotateCw size={14} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh prices"}</button>
+              <button className="refresh-button" onClick={refresh} disabled={loading || !isOnline} aria-label={isOnline ? "Refresh prices now" : "Refresh unavailable while offline"} title={isOnline ? "Refresh prices now" : "Reconnect to refresh prices"}><RotateCw size={14} className={loading ? "spin" : ""} />{loading ? "Refreshing" : "Refresh prices"}</button>
               <button className="refresh-button export-button" onClick={exportPortfolio} aria-label="Export visible holdings as CSV" title="Export visible holdings as CSV"><Download size={14} />Export</button>
               <span className={`refresh-results ${refreshText ? "done" : ""}`} title={refreshDetails || syncTitle} aria-live="polite">{refreshText || syncStatus}</span>
               <div className="select-wrap"><label htmlFor="portfolio-currency">View in</label><select id="portfolio-currency" value={currentCurrency} onChange={(e) => setCurrency({ ...currency, [tab]: e.target.value })}>{currencies.map((cur) => <option key={cur}>{cur}</option>)}</select></div>

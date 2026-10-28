@@ -369,6 +369,7 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .load-error-card h1 { margin: 8px 0 10px; font-size: 30px; font-weight: 650; letter-spacing: -.045em; }
 .load-error-card p { margin: 0 0 24px; color: var(--muted); line-height: 1.65; }
 .app-status-banner { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid #dec99d; border-radius: var(--radius-sm); background: #fff8e8; color: #6f531b; font-size: 11px; }
+.app-status-banner.offline { border-color: #ccd6d2; background: #f1f5f3; color: var(--ink-2); }
 .app-status-banner button { margin-left: auto; padding: 0; border: 0; background: transparent; color: inherit; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 .app-toast { position: fixed; z-index: 100; right: 24px; bottom: 24px; display: grid; width: min(380px, calc(100vw - 32px)); min-height: 52px; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid #b9d2c6; border-radius: 4px; background: #f4faf6; color: #225e48; box-shadow: 0 16px 45px rgba(20, 36, 30, .17); font-size: 10px; animation: toast-in .2s ease-out both; }
 .app-toast.error { border-color: #e0b8b2; background: #fff5f3; color: #913b31; }
