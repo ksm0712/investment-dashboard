@@ -295,6 +295,8 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .research-run-button { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #372c69; color: white; font-size: 11px; font-weight: 750; cursor: pointer; }
 .research-run-button:hover { background: #4a3b89; }
 .research-run-button:disabled { cursor: not-allowed; opacity: .48; }
+.research-cancel-button { display: inline-flex; min-height: 36px; align-items: center; gap: 7px; padding: 0 12px; border: 1px solid var(--line-dark); border-radius: 8px; background: white; color: var(--ink-2); font-size: 13px; font-weight: 650; cursor: pointer; }
+.research-cancel-button:hover { background: #f3f5f4; }
 .research-config-note, .research-message { color: var(--muted); font-size: 10px; }
 .research-message { color: #296a4e; font-weight: 700; }
 .research-error { margin-top: 10px; padding: 9px 11px; border: 1px solid #e7b8af; border-radius: 8px; background: #fff3f0; color: #9d3528; font-size: 11px; }

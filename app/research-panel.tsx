@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, CircleHelp, ExternalLink, FileCheck2, FileSearch, Save } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Check, CircleHelp, ExternalLink, FileCheck2, FileSearch, Save, Square } from "lucide-react";
 import type { ResearchClaim, ResearchRecord, ResearchRun, ThesisCheck } from "@/lib/ai-research-types";
 import type { Security } from "@/lib/types";
 import { fmtDate } from "@/lib/format";
@@ -132,6 +132,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<{ message: string; retryable?: boolean } | null>(null);
   const [analysisStage, setAnalysisStage] = useState(0);
+  const analysisController = useRef<AbortController | null>(null);
   const sourceDraftKey = `thesis:research-source:${security.id}`;
 
   useEffect(() => {
@@ -186,6 +187,8 @@ export default function ResearchPanel({ security }: { security: Security }) {
     return () => window.clearInterval(interval);
   }, [analyzing]);
 
+  useEffect(() => () => analysisController.current?.abort(), []);
+
   async function saveThesis() {
     setError(null);
     setMessage("");
@@ -208,6 +211,9 @@ export default function ResearchPanel({ security }: { security: Security }) {
   }
 
   async function analyze() {
+    analysisController.current?.abort();
+    const controller = new AbortController();
+    analysisController.current = controller;
     setError(null);
     setMessage("");
     setAnalyzing(true);
@@ -216,6 +222,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ thesis, documentText, sourceTitle, sourceUrl, sourceDate }),
+        signal: controller.signal,
       });
       const data = await response.json();
       if (!response.ok) {
@@ -227,11 +234,20 @@ export default function ResearchPanel({ security }: { security: Security }) {
       const remaining = Number.isFinite(data.usage?.limit) && Number.isFinite(data.usage?.used) ? Math.max(0, data.usage.limit - data.usage.used) : null;
       setMessage(data.run.cached ? "Loaded the matching evidence review." : `Evidence review completed.${remaining === null ? "" : ` ${remaining} check${remaining === 1 ? "" : "s"} remaining today.`}`);
     } catch (analyzeError) {
+      if (controller.signal.aborted) {
+        setMessage("Evidence review cancelled.");
+        return;
+      }
       const failure = analyzeError as Error & { retryable?: boolean };
       setError({ message: analyzeError instanceof Error ? analyzeError.message : "Could not analyze this report.", retryable: Boolean(failure?.retryable) });
     } finally {
+      if (analysisController.current === controller) analysisController.current = null;
       setAnalyzing(false);
     }
+  }
+
+  function cancelAnalysis() {
+    analysisController.current?.abort();
   }
 
   const automatic = Boolean(payload?.automaticSourceAvailable && !documentText.trim());
@@ -278,6 +294,7 @@ export default function ResearchPanel({ security }: { security: Security }) {
         <button className="research-run-button" onClick={analyze} disabled={analyzing || !payload?.providerConfigured || !thesisReady || !sourceReady}>
           <FileCheck2 size={15} /> {analyzing ? analysisStages[analysisStage] : automatic ? "Run evidence check" : "Check supplied report"}
         </button>
+        {analyzing && <button type="button" className="research-cancel-button" onClick={cancelAnalysis}><Square size={12} /> Cancel</button>}
         {!payload?.providerConfigured && payload && <span className="research-config-note">The research engine is not configured on this deployment.</span>}
         {automatic && <span className="research-config-note">Reviews the latest complementary quarterly and annual SEC filings, with citations to the exact source passage.</span>}
         {payload && !payload.automaticSourceAvailable && documentText.trim().length < 100 && <span className="research-config-note">Paste at least 100 characters of first-party report evidence to run the check.</span>}
