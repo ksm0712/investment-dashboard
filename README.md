@@ -47,7 +47,11 @@ Opening a holding starts with the recommendation, the numbers that matter to it,
 
 ![Position review](public/screenshots/position-review.png)
 
-### 5. Test the written thesis
+### 5. Stress-test the decision
+
+Every holding includes a private what-if lab. Change the hypothetical market price, target, 52-week high, or allocation limit and the app immediately reruns the same deterministic decision engine without saving anything to the portfolio. A price map shows where the action changes between Buy, Monitor, and Sell; pullback and upside presets make quick checks easy. Scenario drafts stay in that browser and can be copied as a short decision brief.
+
+### 6. Test the written thesis
 
 For an eligible U.S.-listed company, Thesis retrieves the latest quarterly and annual SEC filings together and compares relevant passages with every material claim in a saved investment thesis. Before the review starts, the app shows the claims it extracted. The result identifies support, contradictions, unresolved gaps, and the quality of the evidence, with citations back to the exact source filing.
 
@@ -68,6 +72,7 @@ This evidence review is deliberately separate from the numerical recommendation.
 - CSV export of the active portfolio view
 - Recommendation history recorded only when the action changes
 - Visible readiness checks for missing decision inputs, stale prices, and position concentration
+- Private what-if scenarios with price scrubbing, action-region maps, local drafts, and portable decision briefs
 - Paired quarterly/annual SEC retrieval, claim-level evidence quality, and claim-specific source citations
 - Forecast and numeric-threshold safeguards, copyable monitoring checklists, and Markdown evidence exports
 - Counterevidence retrieval, structured-output repair, and bounded provider retry

@@ -23,6 +23,14 @@ An instrument must be identified by a provider symbol plus exchange. A display n
 
 Percentage values are stored internally as decimal ratios (`0.25` means 25%) and converted to display percentages only at the UI boundary.
 
+### What-if lab
+
+`lib/scenario-lab.ts` is a read-only adapter around the calculation engine. It accepts temporary price, target, high, and allocation inputs, then calls `calculateAsset` with the holding's real purchase lots. It never writes through an API route or updates the database.
+
+The price decision map samples the same calculation across a bounded range anchored to the live price, target, 52-week range, and lowest purchase. Adjacent samples with the same action become a visible region. This makes the rule transitions inspectable without creating a second recommendation formula in the UI.
+
+Scenario drafts are stored per holding in browser local storage. They remain private to that browser, are discarded by Reset, and do not appear in action history because action history records saved portfolio recalculations only.
+
 ## Exact spreadsheet formulas
 
 ```text

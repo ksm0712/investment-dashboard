@@ -60,3 +60,9 @@ test("scenario brief is portable and states that portfolio data is unchanged", (
   assert.match(brief, /Scenario action: Buy \(current action: Continue to Monitor\)/);
   assert.match(brief, /saved portfolio data was not changed/);
 });
+
+test("decision map respects allocation gates instead of inventing a buy region", () => {
+  const map = buildDecisionMap({ ...security, allocation: 800 });
+  assert.equal(map.ranges.some((range) => range.action === "Buy" || range.action === "Review to Buy"), false);
+  assert.ok(map.ranges.some((range) => range.action === "Continue to Monitor"));
+});
