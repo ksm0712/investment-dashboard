@@ -263,8 +263,10 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .scenario-head > div > span { display: flex; align-items: center; gap: 6px; color: var(--green); font-size: 12px; font-weight: 700; }
 .scenario-head h3 { margin: 6px 0 4px; font-size: 20px; letter-spacing: -.025em; }
 .scenario-head p { margin: 0; color: var(--muted); font-size: 13px; }
-.scenario-head > button { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line-dark); border-radius: 7px; background: white; color: var(--ink-2); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
-.scenario-head > button:disabled { cursor: not-allowed; opacity: .45; }
+.scenario-head-actions { display: flex; align-items: center; gap: 10px; }
+.scenario-head-actions > span { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.scenario-head-actions > button { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line-dark); border-radius: 7px; background: white; color: var(--ink-2); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+.scenario-head-actions > button:disabled { cursor: not-allowed; opacity: .45; }
 .scenario-presets { display: flex; gap: 7px; margin-top: 17px; }
 .scenario-presets button { display: flex; min-width: 106px; align-items: baseline; justify-content: space-between; gap: 9px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--ink-2); font: inherit; cursor: pointer; }
 .scenario-presets button:hover { border-color: #a9bbb2; }

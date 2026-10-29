@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { fmt, fmtPct, fmtUnit } from "@/lib/format";
 import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario, scenarioPresets, type ScenarioOverrides } from "@/lib/scenario-lab";
@@ -13,22 +13,50 @@ function actionClass(action: string) {
 export default function ScenarioLab({ security }: { security: Security }) {
   const baseline = useMemo(() => defaultScenario(security), [security]);
   const [inputs, setInputs] = useState<ScenarioOverrides>(baseline);
+  const skipNextSave = useRef(true);
+  const storageKey = `thesis:scenario:${security.id}`;
   const result = useMemo(() => evaluateScenario(security, inputs), [inputs, security]);
   const comparison = useMemo(() => compareScenario(security, result), [result, security]);
   const decisionMap = useMemo(() => buildDecisionMap(security, inputs), [inputs, security]);
   const presets = useMemo(() => scenarioPresets(security), [security]);
   const changed = result.changedFields.length > 0;
 
+  useEffect(() => {
+    skipNextSave.current = true;
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      setInputs(stored ? evaluateScenario(security, JSON.parse(stored) as Partial<ScenarioOverrides>).overrides : defaultScenario(security));
+    } catch {
+      window.localStorage.removeItem(storageKey);
+      setInputs(defaultScenario(security));
+    }
+  }, [security, storageKey]);
+
+  useEffect(() => {
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
+    if (changed) window.localStorage.setItem(storageKey, JSON.stringify(inputs));
+    else window.localStorage.removeItem(storageKey);
+  }, [changed, inputs, storageKey]);
+
   function update(field: keyof ScenarioOverrides, value: string) {
     const parsed = value === "" ? 0 : Number(value);
     setInputs((current) => ({ ...current, [field]: Number.isFinite(parsed) ? parsed : current[field] }));
+  }
+
+  function reset() {
+    skipNextSave.current = true;
+    window.localStorage.removeItem(storageKey);
+    setInputs(baseline);
   }
 
   return (
     <section className="scenario-lab" aria-label={`What-if lab for ${security.name}`}>
       <header className="scenario-head">
         <div><span><SlidersHorizontal size={14} /> Private simulation</span><h3>What if the assumptions change?</h3><p>Move the inputs and see the same portfolio rules recalculate instantly. Nothing here is saved.</p></div>
-        <button type="button" onClick={() => setInputs(baseline)} disabled={!changed}><RotateCcw size={13} /> Reset</button>
+        <div className="scenario-head-actions">{changed && <span>Draft saved locally</span>}<button type="button" onClick={reset} disabled={!changed}><RotateCcw size={13} /> Reset</button></div>
       </header>
       <div className="scenario-presets" aria-label="Scenario presets">{presets.map((preset) => <button type="button" className={inputs.currentPrice === preset.overrides.currentPrice && inputs.targetPrice === preset.overrides.targetPrice ? "active" : ""} onClick={() => setInputs(preset.overrides)} key={preset.id}><strong>{preset.label}</strong><span>{preset.description}</span></button>)}</div>
       <div className="scenario-inputs">
