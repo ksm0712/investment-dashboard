@@ -8,6 +8,7 @@ import { fmt, fmtDate, fmtDateTime, fmtPct, fmtPlain, fmtRelativeTime, fmtUnit, 
 import { portfolioAttention } from "@/lib/portfolio-insights";
 import { portfolioCsv } from "@/lib/portfolio-export";
 import ResearchPanel from "./research-panel";
+import ScenarioLab from "./scenario-lab";
 
 function useLockBodyScroll(active: boolean) {
   useEffect(() => {
@@ -1039,6 +1040,11 @@ function Holdings({ securities, totalInr, fx, displayCurrency, reload, onDelete,
                 <div><span>Allocation left</span><strong>{item.allocationRemaining === null ? "—" : fmt(item.allocationRemaining, item.currency)}</strong><small>{item.allocation === null ? "Set an allocation" : `${fmt(item.allocation, item.currency)} limit`}</small></div>
               </div>
               <div className="decision-explanation"><span>Why this signal</span><p>{item.actionReasons.join(" ") || "This signal is based on the latest price, target, allocation, and purchase lots."}</p></div>
+
+              <details className="product-disclosure scenario-disclosure">
+                <summary><span><strong>What-if lab</strong><small>Test prices and assumptions without changing the portfolio</small></span><b>Open simulator</b></summary>
+                <ScenarioLab security={item} />
+              </details>
 
               <details className="product-disclosure position-details-disclosure">
                 <summary><span><strong>Market and position details</strong><small>Valuation, purchase basis, and decision inputs</small></span><b>View details</b></summary>
