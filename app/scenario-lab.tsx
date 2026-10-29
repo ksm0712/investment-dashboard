@@ -18,9 +18,10 @@ export default function ScenarioLab({ security }: { security: Security }) {
   const storageKey = `thesis:scenario:${security.id}`;
   const result = useMemo(() => evaluateScenario(security, inputs), [inputs, security]);
   const comparison = useMemo(() => compareScenario(security, result), [result, security]);
-  const decisionMap = useMemo(() => buildDecisionMap(security, inputs), [inputs, security]);
+  const decisionMap = useMemo(() => buildDecisionMap(security, { ...inputs, currentPrice: baseline.currentPrice }), [baseline.currentPrice, inputs, security]);
   const presets = useMemo(() => scenarioPresets(security), [security]);
   const changed = result.changedFields.length > 0;
+  const mapPosition = (price: number) => Math.max(0, Math.min(100, 100 * (price - decisionMap.minPrice) / (decisionMap.maxPrice - decisionMap.minPrice)));
 
   useEffect(() => {
     skipNextSave.current = true;
@@ -70,6 +71,7 @@ export default function ScenarioLab({ security }: { security: Security }) {
         <div className="scenario-head-actions">{changed && <span>Draft saved locally</span>}<button type="button" onClick={copyBrief}>{copyState === "copied" ? <Check size={13} /> : <Copy size={13} />}{copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy brief"}</button><button type="button" onClick={reset} disabled={!changed}><RotateCcw size={13} /> Reset</button></div>
       </header>
       <div className="scenario-presets" aria-label="Scenario presets">{presets.map((preset) => <button type="button" className={inputs.currentPrice === preset.overrides.currentPrice && inputs.targetPrice === preset.overrides.targetPrice ? "active" : ""} onClick={() => setInputs(preset.overrides)} key={preset.id}><strong>{preset.label}</strong><span>{preset.description}</span></button>)}</div>
+      <label className="scenario-scrubber"><span>Scrub the hypothetical price</span><output>{fmtUnit(inputs.currentPrice, security.currency)}</output><input aria-label="Scrub hypothetical price" type="range" min={decisionMap.minPrice} max={decisionMap.maxPrice} step={Math.max(0.01, (decisionMap.maxPrice - decisionMap.minPrice) / 500)} value={Math.max(decisionMap.minPrice, Math.min(decisionMap.maxPrice, inputs.currentPrice))} onChange={(event) => update("currentPrice", event.target.value)} /></label>
       <div className="scenario-inputs">
         <label>Hypothetical price<div><span>{security.currency}</span><input aria-label="Hypothetical price" type="number" min="0.01" step="0.01" value={inputs.currentPrice} onChange={(event) => update("currentPrice", event.target.value)} /></div><small>Now {fmtUnit(security.latestPrice, security.currency)}</small></label>
         <label>Target price<div><span>{security.currency}</span><input aria-label="Scenario target price" type="number" min="0.01" step="0.01" value={inputs.targetPrice} onChange={(event) => update("targetPrice", event.target.value)} /></div><small>Saved {fmtUnit(security.targetPrice, security.currency)}</small></label>
@@ -95,8 +97,8 @@ export default function ScenarioLab({ security }: { security: Security }) {
             const width = 100 * (range.to - range.from) / (decisionMap.maxPrice - decisionMap.minPrice);
             return <div className={`scenario-range ${actionClass(range.action)}`} style={{ width: `${width}%` }} title={`${range.action}: ${fmtUnit(range.from, security.currency)} to ${fmtUnit(range.to, security.currency)}`} key={`${range.action}-${index}`}>{width >= 13 ? <span>{range.action.replace("Continue to ", "")}</span> : null}</div>;
           })}
-          <i className="scenario-marker current" style={{ left: `${100 * (baseline.currentPrice - decisionMap.minPrice) / (decisionMap.maxPrice - decisionMap.minPrice)}%` }}><span>Today</span></i>
-          <i className="scenario-marker hypothetical" style={{ left: `${100 * (result.overrides.currentPrice - decisionMap.minPrice) / (decisionMap.maxPrice - decisionMap.minPrice)}%` }}><span>Scenario</span></i>
+          <i className="scenario-marker current" style={{ left: `${mapPosition(baseline.currentPrice)}%` }}><span>Today</span></i>
+          <i className="scenario-marker hypothetical" style={{ left: `${mapPosition(result.overrides.currentPrice)}%` }}><span>Scenario</span></i>
         </div>
         <div className="scenario-map-scale"><span>{fmtUnit(decisionMap.minPrice, security.currency)}</span><span>{fmtUnit(decisionMap.maxPrice, security.currency)}</span></div>
       </section>
