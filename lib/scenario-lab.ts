@@ -13,6 +13,18 @@ export type ScenarioResult = AssetCalculation & {
   changedFields: Array<keyof ScenarioOverrides>;
 };
 
+export type DecisionRange = {
+  action: AssetCalculation["action"];
+  from: number;
+  to: number;
+};
+
+export type DecisionMap = {
+  minPrice: number;
+  maxPrice: number;
+  ranges: DecisionRange[];
+};
+
 function finitePositive(value: number | null | undefined, fallback: number) {
   return value !== null && value !== undefined && Number.isFinite(value) && value > 0 ? value : fallback;
 }
@@ -50,4 +62,28 @@ export function evaluateScenario(security: Security, overrides: Partial<Scenario
   const changedFields = (Object.keys(normalized) as Array<keyof ScenarioOverrides>)
     .filter((field) => normalized[field] !== baseline[field]);
   return { ...calculation, overrides: normalized, changedFields };
+}
+
+export function buildDecisionMap(security: Security, overrides: Partial<ScenarioOverrides> = {}, steps = 180): DecisionMap {
+  const scenario = evaluateScenario(security, overrides).overrides;
+  const anchors = [scenario.currentPrice, scenario.targetPrice, scenario.week52High, security.week52Low, security.lowestPurchasePrice]
+    .filter((value): value is number => value !== null && Number.isFinite(value) && value > 0);
+  const minPrice = Math.max(0.01, Math.min(...anchors) * 0.6);
+  const maxPrice = Math.max(...anchors) * 1.2;
+  const safeSteps = Math.max(40, Math.min(400, Math.round(steps)));
+  const increment = (maxPrice - minPrice) / safeSteps;
+  const ranges: DecisionRange[] = [];
+  for (let index = 0; index <= safeSteps; index += 1) {
+    const price = index === safeSteps ? maxPrice : minPrice + increment * index;
+    const action = evaluateScenario(security, { ...scenario, currentPrice: price }).action;
+    const previous = ranges[ranges.length - 1];
+    if (previous?.action === action) previous.to = price;
+    else ranges.push({ action, from: price, to: price });
+  }
+  for (let index = 0; index < ranges.length - 1; index += 1) {
+    const boundary = (ranges[index].to + ranges[index + 1].from) / 2;
+    ranges[index].to = boundary;
+    ranges[index + 1].from = boundary;
+  }
+  return { minPrice, maxPrice, ranges };
 }

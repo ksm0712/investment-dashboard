@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultScenario, evaluateScenario } from "./scenario-lab.ts";
+import { buildDecisionMap, defaultScenario, evaluateScenario } from "./scenario-lab.ts";
 import type { Security } from "./types.ts";
 
 const security = {
@@ -25,4 +25,13 @@ test("invalid scenario values fall back to safe baseline inputs", () => {
   assert.equal(result.overrides.currentPrice, 100);
   assert.equal(result.overrides.targetPrice, 130);
   assert.equal(result.overrides.allocation, null);
+});
+
+test("decision map exposes the price regions where the recommendation changes", () => {
+  const map = buildDecisionMap(security);
+  assert.ok(map.ranges.some((range) => range.action === "Buy"));
+  assert.ok(map.ranges.some((range) => range.action === "Sell"));
+  assert.equal(map.ranges[0].from, map.minPrice);
+  assert.equal(map.ranges.at(-1)?.to, map.maxPrice);
+  map.ranges.slice(1).forEach((range, index) => assert.equal(range.from, map.ranges[index].to));
 });
