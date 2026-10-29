@@ -124,3 +124,19 @@ export function scenarioPresets(security: Security): ScenarioPreset[] {
     { id: "upside", label: "Upside", description: "Price +15%", overrides: { ...baseline, currentPrice: price(1.15) } },
   ];
 }
+
+export function scenarioBrief(security: Security, result: ScenarioResult) {
+  const amount = (value: number | null) => value === null ? "not available" : `${security.currency} ${Number(value.toFixed(2)).toLocaleString("en-US")}`;
+  return [
+    `${security.name} — what-if scenario`,
+    `Hypothetical price: ${amount(result.overrides.currentPrice)}`,
+    `Target: ${amount(result.overrides.targetPrice)}`,
+    `52-week high: ${amount(result.overrides.week52High)}`,
+    `Allocation limit: ${amount(result.overrides.allocation)}`,
+    `Scenario action: ${result.action} (current action: ${security.action})`,
+    `Scenario market value: ${amount(result.marketValue)}`,
+    `Scenario gain/loss: ${amount(result.gainLoss)}`,
+    `Reason: ${result.actionReasons.join(" ")}`,
+    "Private simulation only — saved portfolio data was not changed.",
+  ].join("\n");
+}

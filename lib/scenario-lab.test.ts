@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario, scenarioPresets } from "./scenario-lab.ts";
+import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario, scenarioBrief, scenarioPresets } from "./scenario-lab.ts";
 import type { Security } from "./types.ts";
 
 const security = {
@@ -51,4 +51,12 @@ test("scenario presets provide consistent pullback, current, and upside cases", 
   const presets = scenarioPresets(security);
   assert.deepEqual(presets.map((preset) => preset.id), ["pullback", "base", "upside"]);
   assert.deepEqual(presets.map((preset) => preset.overrides.currentPrice), [80, 100, 115]);
+});
+
+test("scenario brief is portable and states that portfolio data is unchanged", () => {
+  const result = evaluateScenario({ ...security, name: "Example Co.", currency: "USD", action: "Continue to Monitor" }, { currentPrice: 70 });
+  const brief = scenarioBrief({ ...security, name: "Example Co.", currency: "USD", action: "Continue to Monitor" }, result);
+  assert.match(brief, /Hypothetical price: USD 70/);
+  assert.match(brief, /Scenario action: Buy \(current action: Continue to Monitor\)/);
+  assert.match(brief, /saved portfolio data was not changed/);
 });

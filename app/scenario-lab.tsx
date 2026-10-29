@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RotateCcw, SlidersHorizontal } from "lucide-react";
+import { Check, Copy, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { fmt, fmtPct, fmtUnit } from "@/lib/format";
-import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario, scenarioPresets, type ScenarioOverrides } from "@/lib/scenario-lab";
+import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario, scenarioBrief, scenarioPresets, type ScenarioOverrides } from "@/lib/scenario-lab";
 import type { Security } from "@/lib/types";
 
 function actionClass(action: string) {
@@ -13,6 +13,7 @@ function actionClass(action: string) {
 export default function ScenarioLab({ security }: { security: Security }) {
   const baseline = useMemo(() => defaultScenario(security), [security]);
   const [inputs, setInputs] = useState<ScenarioOverrides>(baseline);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const skipNextSave = useRef(true);
   const storageKey = `thesis:scenario:${security.id}`;
   const result = useMemo(() => evaluateScenario(security, inputs), [inputs, security]);
@@ -52,11 +53,21 @@ export default function ScenarioLab({ security }: { security: Security }) {
     setInputs(baseline);
   }
 
+  async function copyBrief() {
+    try {
+      await navigator.clipboard.writeText(scenarioBrief(security, result));
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 2_000);
+    } catch {
+      setCopyState("failed");
+    }
+  }
+
   return (
     <section className="scenario-lab" aria-label={`What-if lab for ${security.name}`}>
       <header className="scenario-head">
         <div><span><SlidersHorizontal size={14} /> Private simulation</span><h3>What if the assumptions change?</h3><p>Move the inputs and see the same portfolio rules recalculate instantly. Nothing here is saved.</p></div>
-        <div className="scenario-head-actions">{changed && <span>Draft saved locally</span>}<button type="button" onClick={reset} disabled={!changed}><RotateCcw size={13} /> Reset</button></div>
+        <div className="scenario-head-actions">{changed && <span>Draft saved locally</span>}<button type="button" onClick={copyBrief}>{copyState === "copied" ? <Check size={13} /> : <Copy size={13} />}{copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy brief"}</button><button type="button" onClick={reset} disabled={!changed}><RotateCcw size={13} /> Reset</button></div>
       </header>
       <div className="scenario-presets" aria-label="Scenario presets">{presets.map((preset) => <button type="button" className={inputs.currentPrice === preset.overrides.currentPrice && inputs.targetPrice === preset.overrides.targetPrice ? "active" : ""} onClick={() => setInputs(preset.overrides)} key={preset.id}><strong>{preset.label}</strong><span>{preset.description}</span></button>)}</div>
       <div className="scenario-inputs">
