@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { fmt, fmtPct, fmtUnit } from "@/lib/format";
-import { defaultScenario, evaluateScenario, type ScenarioOverrides } from "@/lib/scenario-lab";
+import { compareScenario, defaultScenario, evaluateScenario, type ScenarioOverrides } from "@/lib/scenario-lab";
 import type { Security } from "@/lib/types";
 
 function actionClass(action: string) {
@@ -14,6 +14,7 @@ export default function ScenarioLab({ security }: { security: Security }) {
   const baseline = useMemo(() => defaultScenario(security), [security]);
   const [inputs, setInputs] = useState<ScenarioOverrides>(baseline);
   const result = useMemo(() => evaluateScenario(security, inputs), [inputs, security]);
+  const comparison = useMemo(() => compareScenario(security, result), [result, security]);
   const changed = result.changedFields.length > 0;
 
   function update(field: keyof ScenarioOverrides, value: string) {
@@ -38,6 +39,12 @@ export default function ScenarioLab({ security }: { security: Security }) {
         <div><span>Market value</span><strong>{fmt(result.marketValue, security.currency)}</strong><small>{fmtPct(result.gainPct, true)} return</small></div>
         <div><span>Allocation left</span><strong>{fmt(result.allocationRemaining, security.currency)}</strong><small>{result.allocationRemaining !== null && result.allocationRemaining < 0 ? "Over the scenario limit" : "Available in this scenario"}</small></div>
         <p>{result.actionReasons.join(" ")}</p>
+      </div>
+      <div className={`scenario-comparison ${comparison.actionChanged ? "changed" : ""}`}>
+        <div><span>Compared with today</span><strong>{comparison.actionChanged ? `${security.action} → ${result.action}` : `Still ${result.action}`}</strong></div>
+        <div><span>Price move</span><strong className={comparison.priceChangePct >= 0 ? "good" : "bad"}>{fmtPct(comparison.priceChangePct, true)}</strong></div>
+        <div><span>Value change</span><strong className={(comparison.marketValueDelta ?? 0) >= 0 ? "good" : "bad"}>{comparison.marketValueDelta === null ? "—" : fmt(comparison.marketValueDelta, security.currency)}</strong></div>
+        <div><span>P&amp;L change</span><strong className={(comparison.gainLossDelta ?? 0) >= 0 ? "good" : "bad"}>{comparison.gainLossDelta === null ? "—" : fmt(comparison.gainLossDelta, security.currency)}</strong></div>
       </div>
     </section>
   );

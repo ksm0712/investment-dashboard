@@ -25,6 +25,14 @@ export type DecisionMap = {
   ranges: DecisionRange[];
 };
 
+export type ScenarioComparison = {
+  actionChanged: boolean;
+  priceChangePct: number;
+  marketValueDelta: number | null;
+  gainLossDelta: number | null;
+  allocationRemainingDelta: number | null;
+};
+
 function finitePositive(value: number | null | undefined, fallback: number) {
   return value !== null && value !== undefined && Number.isFinite(value) && value > 0 ? value : fallback;
 }
@@ -86,4 +94,16 @@ export function buildDecisionMap(security: Security, overrides: Partial<Scenario
     ranges[index + 1].from = boundary;
   }
   return { minPrice, maxPrice, ranges };
+}
+
+export function compareScenario(security: Security, result: ScenarioResult): ScenarioComparison {
+  const baseline = evaluateScenario(security);
+  const delta = (scenario: number | null, current: number | null) => scenario === null || current === null ? null : scenario - current;
+  return {
+    actionChanged: result.action !== baseline.action,
+    priceChangePct: (result.overrides.currentPrice - baseline.overrides.currentPrice) / baseline.overrides.currentPrice,
+    marketValueDelta: delta(result.marketValue, baseline.marketValue),
+    gainLossDelta: delta(result.gainLoss, baseline.gainLoss),
+    allocationRemainingDelta: delta(result.allocationRemaining, baseline.allocationRemaining),
+  };
 }

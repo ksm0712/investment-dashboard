@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDecisionMap, defaultScenario, evaluateScenario } from "./scenario-lab.ts";
+import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario } from "./scenario-lab.ts";
 import type { Security } from "./types.ts";
 
 const security = {
@@ -34,4 +34,15 @@ test("decision map exposes the price regions where the recommendation changes", 
   assert.equal(map.ranges[0].from, map.minPrice);
   assert.equal(map.ranges.at(-1)?.to, map.maxPrice);
   map.ranges.slice(1).forEach((range, index) => assert.equal(range.from, map.ranges[index].to));
+});
+
+test("scenario comparison quantifies the effect without changing the source holding", () => {
+  const result = evaluateScenario(security, { currentPrice: 70, allocation: 2_500 });
+  assert.deepEqual(compareScenario(security, result), {
+    actionChanged: true,
+    priceChangePct: -0.3,
+    marketValueDelta: -300,
+    gainLossDelta: -300,
+    allocationRemainingDelta: 500,
+  });
 });
