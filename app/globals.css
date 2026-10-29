@@ -265,6 +265,12 @@ input:focus, select:focus { border-color: #4b806e; box-shadow: 0 0 0 3px rgba(36
 .scenario-head p { margin: 0; color: var(--muted); font-size: 13px; }
 .scenario-head > button { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line-dark); border-radius: 7px; background: white; color: var(--ink-2); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
 .scenario-head > button:disabled { cursor: not-allowed; opacity: .45; }
+.scenario-presets { display: flex; gap: 7px; margin-top: 17px; }
+.scenario-presets button { display: flex; min-width: 106px; align-items: baseline; justify-content: space-between; gap: 9px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--ink-2); font: inherit; cursor: pointer; }
+.scenario-presets button:hover { border-color: #a9bbb2; }
+.scenario-presets button.active { border-color: var(--green); background: #eef7f2; color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+.scenario-presets strong { font-size: 12px; }
+.scenario-presets span { color: var(--muted); font-size: 10px; }
 .scenario-inputs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px; }
 .scenario-inputs label { min-width: 0; color: var(--ink-2); font-size: 12px; font-weight: 650; }
 .scenario-inputs label > div { display: flex; min-height: 40px; align-items: center; margin-top: 6px; overflow: hidden; border: 1px solid #cbd3cf; border-radius: 8px; background: white; }

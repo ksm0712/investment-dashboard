@@ -33,6 +33,13 @@ export type ScenarioComparison = {
   allocationRemainingDelta: number | null;
 };
 
+export type ScenarioPreset = {
+  id: "pullback" | "base" | "upside";
+  label: string;
+  description: string;
+  overrides: ScenarioOverrides;
+};
+
 function finitePositive(value: number | null | undefined, fallback: number) {
   return value !== null && value !== undefined && Number.isFinite(value) && value > 0 ? value : fallback;
 }
@@ -106,4 +113,14 @@ export function compareScenario(security: Security, result: ScenarioResult): Sce
     gainLossDelta: delta(result.gainLoss, baseline.gainLoss),
     allocationRemainingDelta: delta(result.allocationRemaining, baseline.allocationRemaining),
   };
+}
+
+export function scenarioPresets(security: Security): ScenarioPreset[] {
+  const baseline = defaultScenario(security);
+  const price = (multiplier: number) => Math.round(baseline.currentPrice * multiplier * 100) / 100;
+  return [
+    { id: "pullback", label: "Pullback", description: "Price −20%", overrides: { ...baseline, currentPrice: price(0.8) } },
+    { id: "base", label: "Current", description: "Saved inputs", overrides: baseline },
+    { id: "upside", label: "Upside", description: "Price +15%", overrides: { ...baseline, currentPrice: price(1.15) } },
+  ];
 }

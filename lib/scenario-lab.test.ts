@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario } from "./scenario-lab.ts";
+import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario, scenarioPresets } from "./scenario-lab.ts";
 import type { Security } from "./types.ts";
 
 const security = {
@@ -45,4 +45,10 @@ test("scenario comparison quantifies the effect without changing the source hold
     gainLossDelta: -300,
     allocationRemainingDelta: 500,
   });
+});
+
+test("scenario presets provide consistent pullback, current, and upside cases", () => {
+  const presets = scenarioPresets(security);
+  assert.deepEqual(presets.map((preset) => preset.id), ["pullback", "base", "upside"]);
+  assert.deepEqual(presets.map((preset) => preset.overrides.currentPrice), [80, 100, 115]);
 });

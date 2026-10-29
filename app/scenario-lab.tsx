@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { fmt, fmtPct, fmtUnit } from "@/lib/format";
-import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario, type ScenarioOverrides } from "@/lib/scenario-lab";
+import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario, scenarioPresets, type ScenarioOverrides } from "@/lib/scenario-lab";
 import type { Security } from "@/lib/types";
 
 function actionClass(action: string) {
@@ -16,6 +16,7 @@ export default function ScenarioLab({ security }: { security: Security }) {
   const result = useMemo(() => evaluateScenario(security, inputs), [inputs, security]);
   const comparison = useMemo(() => compareScenario(security, result), [result, security]);
   const decisionMap = useMemo(() => buildDecisionMap(security, inputs), [inputs, security]);
+  const presets = useMemo(() => scenarioPresets(security), [security]);
   const changed = result.changedFields.length > 0;
 
   function update(field: keyof ScenarioOverrides, value: string) {
@@ -29,6 +30,7 @@ export default function ScenarioLab({ security }: { security: Security }) {
         <div><span><SlidersHorizontal size={14} /> Private simulation</span><h3>What if the assumptions change?</h3><p>Move the inputs and see the same portfolio rules recalculate instantly. Nothing here is saved.</p></div>
         <button type="button" onClick={() => setInputs(baseline)} disabled={!changed}><RotateCcw size={13} /> Reset</button>
       </header>
+      <div className="scenario-presets" aria-label="Scenario presets">{presets.map((preset) => <button type="button" className={inputs.currentPrice === preset.overrides.currentPrice && inputs.targetPrice === preset.overrides.targetPrice ? "active" : ""} onClick={() => setInputs(preset.overrides)} key={preset.id}><strong>{preset.label}</strong><span>{preset.description}</span></button>)}</div>
       <div className="scenario-inputs">
         <label>Hypothetical price<div><span>{security.currency}</span><input aria-label="Hypothetical price" type="number" min="0.01" step="0.01" value={inputs.currentPrice} onChange={(event) => update("currentPrice", event.target.value)} /></div><small>Now {fmtUnit(security.latestPrice, security.currency)}</small></label>
         <label>Target price<div><span>{security.currency}</span><input aria-label="Scenario target price" type="number" min="0.01" step="0.01" value={inputs.targetPrice} onChange={(event) => update("targetPrice", event.target.value)} /></div><small>Saved {fmtUnit(security.targetPrice, security.currency)}</small></label>
