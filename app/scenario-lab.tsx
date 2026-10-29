@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { fmt, fmtPct, fmtUnit } from "@/lib/format";
-import { compareScenario, defaultScenario, evaluateScenario, type ScenarioOverrides } from "@/lib/scenario-lab";
+import { buildDecisionMap, compareScenario, defaultScenario, evaluateScenario, type ScenarioOverrides } from "@/lib/scenario-lab";
 import type { Security } from "@/lib/types";
 
 function actionClass(action: string) {
@@ -15,6 +15,7 @@ export default function ScenarioLab({ security }: { security: Security }) {
   const [inputs, setInputs] = useState<ScenarioOverrides>(baseline);
   const result = useMemo(() => evaluateScenario(security, inputs), [inputs, security]);
   const comparison = useMemo(() => compareScenario(security, result), [result, security]);
+  const decisionMap = useMemo(() => buildDecisionMap(security, inputs), [inputs, security]);
   const changed = result.changedFields.length > 0;
 
   function update(field: keyof ScenarioOverrides, value: string) {
@@ -46,6 +47,18 @@ export default function ScenarioLab({ security }: { security: Security }) {
         <div><span>Value change</span><strong className={(comparison.marketValueDelta ?? 0) >= 0 ? "good" : "bad"}>{comparison.marketValueDelta === null ? "—" : fmt(comparison.marketValueDelta, security.currency)}</strong></div>
         <div><span>P&amp;L change</span><strong className={(comparison.gainLossDelta ?? 0) >= 0 ? "good" : "bad"}>{comparison.gainLossDelta === null ? "—" : fmt(comparison.gainLossDelta, security.currency)}</strong></div>
       </div>
+      <section className="scenario-map" aria-label="Recommendation regions by hypothetical price">
+        <div className="scenario-map-head"><div><span>Decision map</span><strong>Recommendation by hypothetical price</strong></div><small>{fmtUnit(decisionMap.minPrice, security.currency)} – {fmtUnit(decisionMap.maxPrice, security.currency)}</small></div>
+        <div className="scenario-map-track">
+          {decisionMap.ranges.map((range, index) => {
+            const width = 100 * (range.to - range.from) / (decisionMap.maxPrice - decisionMap.minPrice);
+            return <div className={`scenario-range ${actionClass(range.action)}`} style={{ width: `${width}%` }} title={`${range.action}: ${fmtUnit(range.from, security.currency)} to ${fmtUnit(range.to, security.currency)}`} key={`${range.action}-${index}`}>{width >= 13 ? <span>{range.action.replace("Continue to ", "")}</span> : null}</div>;
+          })}
+          <i className="scenario-marker current" style={{ left: `${100 * (baseline.currentPrice - decisionMap.minPrice) / (decisionMap.maxPrice - decisionMap.minPrice)}%` }}><span>Today</span></i>
+          <i className="scenario-marker hypothetical" style={{ left: `${100 * (result.overrides.currentPrice - decisionMap.minPrice) / (decisionMap.maxPrice - decisionMap.minPrice)}%` }}><span>Scenario</span></i>
+        </div>
+        <div className="scenario-map-scale"><span>{fmtUnit(decisionMap.minPrice, security.currency)}</span><span>{fmtUnit(decisionMap.maxPrice, security.currency)}</span></div>
+      </section>
     </section>
   );
 }
